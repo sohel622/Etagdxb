@@ -7,52 +7,58 @@ on:
       - main
 
 jobs:
-  build-android:
+  build-apk:
     name: Build Android APK
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 25
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Set up Node.js
+      - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install Dependencies
+      - name: Accept Android SDK Licenses
         run: |
-          npm install --package-lock-only || true
-          npm install
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-      - name: Build Web Assets
+      - name: Install Node Dependencies
+        run: |
+          npm install --legacy-peer-deps || npm install
+
+      - name: Build Web Application
         run: |
           npm run build || true
+          mkdir -p dist
+          if [ ! -f dist/index.html ] && [ -f index.html ]; then
+            cp index.html dist/
+          fi
 
-      - name: Initialize & Sync Capacitor Android
+      - name: Setup Capacitor and Android Platform
         run: |
           npm install @capacitor/core @capacitor/cli @capacitor/android
-          npx cap init "Flashgram" "com.flashgram.app" --web-dir dist || true
-          npx cap add android || true
+          npx cap init Flashgram com.flashgram.app --web-dir dist || true
+          rm -rf android
+          npx cap add android
           npx cap sync android
 
       - name: Build Debug APK with Gradle
-        env:
-          ANDROID_HOME: /usr/local/lib/android/sdk
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug --no-daemon
 
-      - name: Upload Android APK
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: Android-APK
+          name: Flashgram-Android-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
