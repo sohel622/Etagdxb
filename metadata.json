@@ -1,0 +1,9 @@
+{
+  "name": "Flashgram",
+  "description": "Instagram clone featuring home feed, stories, video reels, YouTube-style profile header, dedicated Shabnam AI profile and interactive AI chat with TTS audio",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
