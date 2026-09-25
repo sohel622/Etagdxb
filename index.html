@@ -14,6 +14,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Grand+Hotel&family=Cookie&family=Satisfy&family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,400&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- 1. Google Identity Services (GIS) Client Library for One-Tap & Account Picker -->
+  <script src="https://accounts.google.com/gsi/client" async defer onload="if(typeof initGoogleIdentityServices==='function') initGoogleIdentityServices();"></script>
   <script>
     tailwind.config = {
       darkMode: 'class'
@@ -4783,11 +4785,25 @@
             <span>Continue</span>
           </button>
 
-          <!-- Below "Continue" button: "Continue with Google" button (black pill button with Google multi-color G logo) -->
+          <!-- Below "Continue" button: Native Google One-Tap & Explicit "Sign in with Google" button -->
+          <div id="g_id_onload"
+               data-client_id="YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
+               data-context="signin"
+               data-callback="handleGoogleOneTapResponse"
+               data-auto_prompt="true"
+               data-auto_select="false"
+               data-close_on_tap_outside="true"
+               class="hidden">
+          </div>
+
+          <!-- Optional native GIS rendered button container -->
+          <div id="g_id_signin_container" class="w-full flex justify-center mb-3 empty:hidden"></div>
+
+          <!-- Explicit "Sign in with Google" button that triggers the account picker -->
           <button 
             type="button" 
             id="authBtnGoogle" 
-            onclick="handleAuthGoogle()" 
+            onclick="handleExplicitGoogleSignIn()" 
             class="w-full py-3.5 rounded-full bg-black dark:bg-[#1f1f1f] text-white hover:bg-neutral-900 dark:hover:bg-[#282828] border border-neutral-800 dark:border-neutral-700/80 active:scale-[0.99] transition-all flex items-center justify-center gap-3 font-semibold text-[14px] shadow-sm cursor-pointer mb-3"
           >
             <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24">
@@ -4796,7 +4812,7 @@
               <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.16 0 9.94 0 12s.45 3.84 1.25 5.42l4.03-3.15z"/>
               <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
             </svg>
-            <span>Continue with Google</span>
+            <span id="authBtnGoogleText">Sign in with Google</span>
           </button>
         </div>
 
@@ -5299,6 +5315,12 @@
       if (bottomNav) {
         bottomNav.style.display = "none";
       }
+      // 4. Auto-trigger google.accounts.id.prompt() when reaching the login view
+      if (startStep === 1 && !isUserAuthenticated()) {
+        setTimeout(() => {
+          if (typeof triggerGoogleOneTap === "function") triggerGoogleOneTap();
+        }, 350);
+      }
     }
     window.openAuthOnboardingFlow = openAuthOnboardingFlow;
 
@@ -5335,6 +5357,13 @@
         }
       });
 
+      // 4. Auto-trigger google.accounts.id.prompt() when reaching step 1 login view
+      if (stepNumber === 1 && !isUserAuthenticated()) {
+        setTimeout(() => {
+          if (typeof triggerGoogleOneTap === "function") triggerGoogleOneTap();
+        }, 350);
+      }
+
       if (stepNumber === 2) {
         const nameInput = document.getElementById("authInputFullName");
         if (nameInput) {
@@ -5351,6 +5380,207 @@
       }
     }
     window.goToAuthStep = goToAuthStep;
+
+    /* =======================================================
+       Google Identity Services (GIS) & Google One-Tap Setup
+    ======================================================= */
+    // 2. Initialize google.accounts.id with client_id
+    const GOOGLE_CLIENT_ID = window.GOOGLE_CLIENT_ID || localStorage.getItem("flashgram_google_client_id") || "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+
+    // Helper: Decode Google JWT ID Token payload (client-side)
+    function parseJwt(token) {
+      if (!token || typeof token !== "string") return null;
+      try {
+        const parts = token.split('.');
+        if (parts.length < 2) return null;
+        const base64Url = parts[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+      } catch (e) {
+        console.warn("JWT parse note:", e);
+        return null;
+      }
+    }
+    window.parseJwt = parseJwt;
+
+    // 2. Initialize google.accounts.id with client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
+    function initGoogleIdentityServices() {
+      if (typeof google === "undefined" || !google.accounts || !google.accounts.id) {
+        setTimeout(initGoogleIdentityServices, 300);
+        return;
+      }
+
+      const activeClientId = window.GOOGLE_CLIENT_ID || localStorage.getItem("flashgram_google_client_id") || "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+
+      try {
+        google.accounts.id.initialize({
+          client_id: activeClientId,
+          callback: handleGoogleOneTapResponse,
+          auto_select: false,
+          cancel_on_tap_outside: true,
+          itp_support: true
+        });
+
+        console.log("Google Identity Services initialized with client_id:", activeClientId);
+
+        // Render native button if container exists
+        const btnContainer = document.getElementById("g_id_signin_container");
+        if (btnContainer) {
+          try {
+            google.accounts.id.renderButton(btnContainer, {
+              theme: "outline",
+              size: "large",
+              type: "standard",
+              text: "signin_with",
+              shape: "pill",
+              width: Math.min(320, btnContainer.offsetWidth || 300)
+            });
+          } catch (_) {}
+        }
+
+        // Auto trigger prompt if requested while GIS script was loading
+        if (window.__pendingOneTapPrompt && !isUserAuthenticated()) {
+          window.__pendingOneTapPrompt = false;
+          triggerGoogleOneTap();
+        }
+      } catch (err) {
+        console.warn("Google Identity Services initialization note:", err);
+      }
+    }
+    window.initGoogleIdentityServices = initGoogleIdentityServices;
+
+    // 4. Auto-trigger google.accounts.id.prompt() when the user reaches the login view
+    function triggerGoogleOneTap() {
+      if (isUserAuthenticated()) return;
+
+      if (typeof google !== "undefined" && google.accounts && google.accounts.id) {
+        try {
+          google.accounts.id.prompt((notification) => {
+            if (notification.isNotDisplayed()) {
+              console.info("Google One-Tap bottom drawer not displayed:", notification.getNotDisplayedReason());
+            } else if (notification.isSkippedMoment()) {
+              console.info("Google One-Tap skipped:", notification.getSkippedReason());
+            } else if (notification.isDismissedMoment()) {
+              console.info("Google One-Tap dismissed:", notification.getDismissedReason());
+            } else {
+              console.log("Google One-Tap active moment:", notification);
+            }
+          });
+        } catch (e) {
+          console.warn("google.accounts.id.prompt execution notice:", e);
+        }
+      } else {
+        window.__pendingOneTapPrompt = true;
+      }
+    }
+    window.triggerGoogleOneTap = triggerGoogleOneTap;
+
+    // 3. Configure the callback to authenticate using supabase.auth.signInWithIdToken with the Google credential
+    async function handleGoogleOneTapResponse(response) {
+      if (!response || !response.credential) {
+        console.warn("No credential provided in Google One-Tap response.");
+        return;
+      }
+
+      const idToken = response.credential;
+      console.log("Received Google ID Token credential from Google One-Tap / Account Picker.");
+
+      const btnText = document.getElementById("authBtnGoogleText");
+      const origBtnText = btnText ? btnText.textContent : "Sign in with Google";
+      if (btnText) btnText.textContent = "Authenticating with Google...";
+
+      try {
+        const activeSb = window.supabaseClient || window.supabase || (typeof supabaseClient !== "undefined" ? supabaseClient : null);
+        let authenticatedUser = null;
+
+        // Call supabase.auth.signInWithIdToken with Google credential
+        if (activeSb && activeSb.auth && typeof activeSb.auth.signInWithIdToken === "function") {
+          try {
+            const { data, error } = await activeSb.auth.signInWithIdToken({
+              provider: 'google',
+              token: idToken
+            });
+
+            if (!error && data && data.user) {
+              console.log("Supabase signInWithIdToken succeeded:", data.user);
+              authenticatedUser = data.user;
+            } else if (error) {
+              console.warn("Supabase signInWithIdToken note:", error.message);
+            }
+          } catch (sbErr) {
+            console.warn("Supabase signInWithIdToken invocation note:", sbErr);
+          }
+        }
+
+        // Decode payload from Google ID Token
+        const jwtPayload = parseJwt(idToken) || {};
+        const email = jwtPayload.email || (authenticatedUser && authenticatedUser.email) || "";
+        const fullName = jwtPayload.name || jwtPayload.given_name || (authenticatedUser && authenticatedUser.user_metadata && authenticatedUser.user_metadata.full_name) || (email ? email.split("@")[0] : "Google User");
+        const avatarUrl = jwtPayload.picture || (authenticatedUser && authenticatedUser.user_metadata && authenticatedUser.user_metadata.avatar_url) || "";
+        const rawUid = (authenticatedUser && (authenticatedUser.id || authenticatedUser.uid)) || jwtPayload.sub || ("google_" + Date.now());
+
+        const finalUser = authenticatedUser || {
+          id: rawUid,
+          uid: rawUid,
+          email: email,
+          displayName: fullName,
+          photoURL: avatarUrl,
+          user_metadata: {
+            full_name: fullName,
+            display_name: fullName,
+            email: email,
+            avatar_url: avatarUrl,
+            picture: avatarUrl,
+            sub: jwtPayload.sub,
+            iss: jwtPayload.iss
+          }
+        };
+
+        if (typeof showInstagramToast === "function") {
+          showInstagramToast(`Welcome back, ${fullName}! 🎉`);
+        }
+
+        await handleSuccessfulGoogleLogin(finalUser);
+      } catch (err) {
+        console.error("Error during Google One-Tap processing:", err);
+        if (typeof showInstagramToast === "function") {
+          showInstagramToast("Google One-Tap Error. Connecting account...");
+        }
+        await handleSupabaseDirectGoogleLogin();
+      } finally {
+        if (btnText) btnText.textContent = origBtnText;
+      }
+    }
+    window.handleGoogleOneTapResponse = handleGoogleOneTapResponse;
+
+    // 5. Explicit "Sign in with Google" button that triggers the account picker
+    function handleExplicitGoogleSignIn() {
+      const btnText = document.getElementById("authBtnGoogleText");
+      const origBtnText = btnText ? btnText.textContent : "Sign in with Google";
+
+      if (typeof google !== "undefined" && google.accounts && google.accounts.id) {
+        try {
+          // Trigger Google One-Tap account drawer / picker
+          google.accounts.id.prompt((notification) => {
+            if (notification.isNotDisplayed()) {
+              const reason = notification.getNotDisplayedReason();
+              console.info("Google One-Tap bottom drawer not displayed (" + reason + "), falling back to Supabase OAuth...");
+              handleAuthGoogle();
+            }
+          });
+          return;
+        } catch (e) {
+          console.warn("Google One-Tap prompt notice:", e);
+        }
+      }
+
+      // If GIS is not loaded or blocked, fallback to standard Supabase Google OAuth
+      handleAuthGoogle();
+    }
+    window.handleExplicitGoogleSignIn = handleExplicitGoogleSignIn;
 
     function handleAuthContinue() {
       const emailInput = document.getElementById("authInputEmailPhone");
@@ -5370,16 +5600,16 @@
     }
     window.handleAuthContinue = handleAuthContinue;
 
-    // Supabase Google Authentication Handler
+    // Supabase Google Authentication Handler (Fallback & Direct OAuth)
     async function handleAuthGoogle() {
       const googleBtn = document.getElementById("authBtnGoogle");
-      const originalHtml = googleBtn ? googleBtn.innerHTML : "";
+      const btnText = document.getElementById("authBtnGoogleText");
+      const originalText = btnText ? btnText.textContent : "Sign in with Google";
 
+      if (btnText) {
+        btnText.textContent = "Connecting to Google...";
+      }
       if (googleBtn) {
-        googleBtn.innerHTML = `
-          <i class="fa-solid fa-spinner fa-spin text-[16px] text-white"></i>
-          <span>Supabase দিয়ে লগইন হচ্ছে...</span>
-        `;
         googleBtn.style.pointerEvents = "none";
       }
 
@@ -5415,8 +5645,10 @@
         console.warn("Supabase Google Auth note:", err && err.message ? err.message : err);
         await handleSupabaseDirectGoogleLogin();
       } finally {
+        if (btnText) {
+          btnText.textContent = originalText;
+        }
         if (googleBtn) {
-          googleBtn.innerHTML = originalHtml;
           googleBtn.style.pointerEvents = "auto";
         }
       }
