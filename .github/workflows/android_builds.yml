@@ -22,9 +22,6 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -47,6 +44,8 @@ jobs:
           npx cap sync android
 
       - name: Build Debug APK with Gradle
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
         run: |
           cd android
           chmod +x gradlew
