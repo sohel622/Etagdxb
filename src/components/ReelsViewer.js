@@ -48,6 +48,65 @@ import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowS
     }
     window.playShabnamReelVideo = playShabnamReelVideo;
 
+    function navigateToReel(videoId, videoUrl) {
+      if (typeof pauseAllHomeVideos === "function") {
+        pauseAllHomeVideos();
+      }
+
+      const reelsBtn = document.querySelector('.nav-btn[data-id="reels"]');
+      if (typeof switchTab === "function") {
+        switchTab("reels", reelsBtn);
+      } else if (typeof window !== "undefined" && typeof window.switchTab === "function") {
+        window.switchTab("reels", reelsBtn);
+      }
+
+      if (videoId) {
+        try {
+          window.history.pushState({ reelId: videoId }, "", "/reels/" + encodeURIComponent(videoId));
+        } catch (_) {}
+      }
+
+      const focusTargetReel = () => {
+        const items = Array.from(document.querySelectorAll("#reelsFeedWrapper .reel-item"));
+        if (items.length === 0) return;
+
+        let target = null;
+        if (videoId) {
+          target = items.find(it => it.dataset.id === String(videoId));
+        }
+        if (!target && videoUrl) {
+          target = items.find(it => {
+            const v = it.querySelector("video");
+            return (it.dataset.url && it.dataset.url === videoUrl) ||
+                   (v && v.src && (v.src === videoUrl || v.src.endsWith(videoUrl)));
+          });
+        }
+        if (!target) {
+          target = items[0];
+        }
+
+        if (target) {
+          target.scrollIntoView({ behavior: "auto", block: "start" });
+          const targetVid = target.querySelector("video");
+          if (targetVid) {
+            pauseAllReels(targetVid);
+            targetVid.currentTime = 0;
+            targetVid.muted = false;
+            targetVid.play().catch(() => {
+              targetVid.muted = true;
+              targetVid.play().catch(() => {});
+            });
+            attachVideoProgressTracker(targetVid);
+          }
+        }
+      };
+
+      requestAnimationFrame(focusTargetReel);
+      setTimeout(focusTargetReel, 60);
+      setTimeout(focusTargetReel, 250);
+    }
+    window.navigateToReel = navigateToReel;
+
     async function loadReels() {
       reelsFeedWrapper.innerHTML = "";
       const localVideos = await getSavedVideos();
@@ -74,6 +133,8 @@ import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowS
         const item = document.createElement("div");
         item.className = "reel-item";
         item.dataset.index = index;
+        item.dataset.id = reel.id || ('sample_' + index);
+        item.dataset.url = reel.url || '';
 
         let userClickAttr = "";
         if (isCurrentUserReel) {
@@ -94,9 +155,9 @@ import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowS
 
         item.innerHTML = `
           <div class="reel-video-wrapper">
-            <video class="reel-video" src="${reel.url}" loop playsinline preload="metadata" ${isGlobalAudioMuted ? 'muted' : ''}></video>
+            <video class="reel-video" src="${reel.url}" loop playsinline preload="metadata"></video>
             
-            <div class="sound-status-badge"><i class="fa-solid fa-volume-xmark"></i></div>
+            <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
 
             <div class="reels-bottom-info">
               <div class="reels-user-row">
@@ -132,21 +193,115 @@ import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowS
         const video = item.querySelector(".reel-video");
         const likeIcon = item.querySelector(".like-btn i");
 
+        // Clear View Mode (Long-press hold > 250ms)
+        let holdTimer = null;
+        let isHoldingClearView = false;
+        let holdStartX = 0;
+        let holdStartY = 0;
+        let hasTouchMoved = false;
+
+        const startClearViewHold = (x, y) => {
+          holdStartX = x;
+          holdStartY = y;
+          hasTouchMoved = false;
+          clearTimeout(holdTimer);
+          holdTimer = setTimeout(() => {
+            if (hasTouchMoved) return;
+            isHoldingClearView = true;
+            video.pause();
+            wrapper.classList.add("clear-view-mode");
+            const rView = document.getElementById("reelsView");
+            if (rView) rView.classList.add("clear-view-active");
+          }, 250);
+        };
+
+        const releaseClearViewHold = () => {
+          clearTimeout(holdTimer);
+          holdTimer = null;
+          if (isHoldingClearView) {
+            isHoldingClearView = false;
+            wrapper.classList.remove("clear-view-mode");
+            const rView = document.getElementById("reelsView");
+            if (rView) rView.classList.remove("clear-view-active");
+            video.play().catch(() => {});
+          }
+        };
+
+        const checkHoldMove = (x, y) => {
+          const dx = Math.abs(x - holdStartX);
+          const dy = Math.abs(y - holdStartY);
+          if (dx > 10 || dy > 10) {
+            hasTouchMoved = true;
+            clearTimeout(holdTimer);
+            holdTimer = null;
+            if (isHoldingClearView) {
+              releaseClearViewHold();
+            }
+          }
+        };
+
+        wrapper.addEventListener("touchstart", (e) => {
+          if (e.target.closest(".reels-sidebar") || e.target.closest(".reels-user-row") || e.target.closest(".follow-btn")) {
+            return;
+          }
+          if (e.touches && e.touches[0]) {
+            startClearViewHold(e.touches[0].clientX, e.touches[0].clientY);
+          }
+        }, { passive: true });
+
+        wrapper.addEventListener("touchmove", (e) => {
+          if (e.touches && e.touches[0]) {
+            checkHoldMove(e.touches[0].clientX, e.touches[0].clientY);
+          }
+        }, { passive: true });
+
+        wrapper.addEventListener("touchend", () => {
+          releaseClearViewHold();
+        }, { passive: true });
+
+        wrapper.addEventListener("touchcancel", () => {
+          releaseClearViewHold();
+        }, { passive: true });
+
+        wrapper.addEventListener("mousedown", (e) => {
+          if (e.button !== 0) return;
+          if (e.target.closest(".reels-sidebar") || e.target.closest(".reels-user-row") || e.target.closest(".follow-btn")) {
+            return;
+          }
+          startClearViewHold(e.clientX, e.clientY);
+        });
+
+        window.addEventListener("mousemove", (e) => {
+          if (holdTimer || isHoldingClearView) {
+            checkHoldMove(e.clientX, e.clientY);
+          }
+        });
+
+        window.addEventListener("mouseup", () => {
+          if (holdTimer || isHoldingClearView) {
+            releaseClearViewHold();
+          }
+        });
+
+        // Single tap does NOT pause playback. Double-tap likes the reel.
         let lastTap = 0;
         wrapper.addEventListener("click", (e) => {
-          const currentTime = new Date().getTime();
+          if (isHoldingClearView || hasTouchMoved) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+          if (e.target.closest(".reels-sidebar") || e.target.closest(".reels-user-row") || e.target.closest(".follow-btn")) {
+            return;
+          }
+
+          const currentTime = Date.now();
           const tapLength = currentTime - lastTap;
           
           if (tapLength < 300 && tapLength > 0) {
             spawnFloatingHeart(e, wrapper);
             likeIcon.classList.add("liked");
             e.preventDefault();
-          } else {
-            setTimeout(() => {
-              if (new Date().getTime() - lastTap >= 300) {
-                toggleGlobalAudio();
-              }
-            }, 300);
           }
           lastTap = currentTime;
         });
@@ -457,4 +612,4 @@ import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowS
 
 
 
-export { loadReels, setupReelObserver, syncActiveReel, playCurrentReel, pauseAllReels, attachVideoProgressTracker, handleProgressBarSeek, resetVideoProgressBar, detachVideoProgressTracker, spawnFloatingHeart, openMyProfileTab, toggleReelFollowBtn, playShabnamReelVideo };
+export { loadReels, setupReelObserver, syncActiveReel, playCurrentReel, pauseAllReels, attachVideoProgressTracker, handleProgressBarSeek, resetVideoProgressBar, detachVideoProgressTracker, spawnFloatingHeart, openMyProfileTab, toggleReelFollowBtn, playShabnamReelVideo, navigateToReel };

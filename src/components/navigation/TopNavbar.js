@@ -4,7 +4,7 @@ import { switchTab } from "./BottomNavbar.js";
 /* =======================================================
    ১.১ গ্লোবাল অডিও স্টেট (Global Audio State & Status Badge)
 ======================================================= */
-let isGlobalAudioMuted = true;
+let isGlobalAudioMuted = false;
 
 function toggleGlobalAudio() {
   isGlobalAudioMuted = !isGlobalAudioMuted;

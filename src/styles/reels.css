@@ -204,3 +204,24 @@
       border-top: 1px solid #1f1f1f;
     }
 
+    /* Reels Clear View Mode (Hold > 250ms to pause & hide all UI overlays) */
+    .reel-video-wrapper.clear-view-mode .reels-bottom-info,
+    .reel-video-wrapper.clear-view-mode .reels-sidebar,
+    .reel-video-wrapper.clear-view-mode .reels-top-header,
+    .reel-video-wrapper.clear-view-mode .sound-status-badge,
+    #reelsView.clear-view-active #reelsProgressBarContainer {
+      opacity: 0 !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+      transition: opacity 0.15s ease-out, visibility 0.15s ease-out;
+    }
+
+    .reel-video-wrapper .reels-bottom-info,
+    .reel-video-wrapper .reels-sidebar,
+    .reel-video-wrapper .reels-top-header,
+    .reel-video-wrapper .sound-status-badge,
+    #reelsProgressBarContainer {
+      transition: opacity 0.15s ease-in, visibility 0.15s ease-in;
+    }
+
+

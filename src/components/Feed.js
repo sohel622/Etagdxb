@@ -3,7 +3,7 @@ import { db } from "../services/database.js";
 import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
 import { SAMPLE_VIDEOS, SHABNAM_AI_PROFILE } from "../utils/mockData.js";
 import { isGlobalAudioMuted, toggleGlobalAudio } from "./Navbar.js";
-import { spawnFloatingHeart, openMyProfileTab } from "./ReelsViewer.js";
+import { spawnFloatingHeart, openMyProfileTab, navigateToReel } from "./ReelsViewer.js";
 import { openProfile } from "./Profile.js";
 import { renderSuggestedReels } from "./SuggestedReels.js";
 
@@ -67,9 +67,9 @@ import { renderSuggestedReels } from "./SuggestedReels.js";
               </div>
               <i class="fa-solid fa-ellipsis post-more-btn" onclick="alert('Post options')"></i>
             </div>
-            <div class="home-video-container">
-              <video class="home-video-player" src="${post.url}" loop playsinline preload="metadata" ${isGlobalAudioMuted ? 'muted' : ''}></video>
-              <div class="sound-status-badge"><i class="fa-solid fa-volume-xmark"></i></div>
+            <div class="home-video-container" style="cursor: pointer;" title="Watch Reel">
+              <video class="home-video-player" src="${post.url}" loop playsinline preload="metadata"></video>
+              <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
             </div>
             <div class="post-actions">
               <div class="post-actions-left">
@@ -115,23 +115,12 @@ import { renderSuggestedReels } from "./SuggestedReels.js";
             }
           });
 
-          // Tap gesture: double-tap to like with heart animation, single tap to toggle audio
-          let lastHomeTap = 0;
+          // Single tap immediately navigates to the full-screen Reels viewer with this video active
           videoBox.addEventListener("click", (e) => {
-            const currentTime = Date.now();
-            if (currentTime - lastHomeTap < 300) {
-              spawnFloatingHeart(e, videoBox);
-              if (!isLiked) {
-                isLiked = true;
-                likeBtn.classList.add("liked", "fa-solid");
-                likeBtn.classList.remove("fa-regular");
-                currentLikes += 1;
-                likesSpan.textContent = currentLikes.toLocaleString();
-              }
-            } else {
-              toggleGlobalAudio();
-            }
-            lastHomeTap = currentTime;
+            e.preventDefault();
+            e.stopPropagation();
+            pauseAllHomeVideos();
+            navigateToReel(post.id, post.url);
           });
 
           likeBtn.onclick = () => {
@@ -173,23 +162,123 @@ import { renderSuggestedReels } from "./SuggestedReels.js";
       }
     }
 
+    let homeFeedObserver = null;
+    let currentlyPlayingHomeVideo = null;
+
     function setupHomeFeedObserver() {
-      const homeObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-          const video = entry.target.querySelector("video");
-          if (video && entry.isIntersecting) {
-            video.muted = isGlobalAudioMuted;
-            video.play().catch(() => {});
-          } else if (video) {
-            video.pause();
+      if (homeFeedObserver) {
+        homeFeedObserver.disconnect();
+      }
+
+      const homeView = document.getElementById("homeView");
+      if (!homeView) return;
+
+      const videoBoxes = Array.from(document.querySelectorAll(".home-video-container"));
+      if (videoBoxes.length === 0) return;
+
+      const visibilityMap = new Map();
+
+      const updateCenterVideo = () => {
+        if (!homeView.classList.contains("active")) {
+          if (currentlyPlayingHomeVideo) {
+            currentlyPlayingHomeVideo.pause();
+            currentlyPlayingHomeVideo = null;
+          }
+          return;
+        }
+
+        const homeRect = homeView.getBoundingClientRect();
+        const homeCenterY = homeRect.top + homeRect.height / 2;
+
+        let bestBox = null;
+        let minDiff = Infinity;
+
+        videoBoxes.forEach(box => {
+          const ratio = visibilityMap.get(box) || 0;
+          if (ratio > 0.3) {
+            const rect = box.getBoundingClientRect();
+            const boxCenterY = rect.top + rect.height / 2;
+            const diff = Math.abs(homeCenterY - boxCenterY);
+            if (diff < minDiff) {
+              minDiff = diff;
+              bestBox = box;
+            }
           }
         });
-      }, { threshold: 0.6 });
 
-      document.querySelectorAll(".home-video-container").forEach(box => homeObserver.observe(box));
+        videoBoxes.forEach(box => {
+          const video = box.querySelector("video");
+          if (!video) return;
+
+          if (box === bestBox) {
+            if (video !== currentlyPlayingHomeVideo || video.paused) {
+              currentlyPlayingHomeVideo = video;
+              video.muted = false; // Play with sound enabled by default
+              video.play().catch(() => {
+                // If browser blocks unmuted play before first user interaction
+                video.muted = true;
+                video.play().catch(() => {});
+              });
+            }
+          } else {
+            // As soon as a post leaves the center viewport, pause its playback and audio immediately
+            if (!video.paused) {
+              video.pause();
+            }
+            video.muted = true;
+            if (video === currentlyPlayingHomeVideo) {
+              currentlyPlayingHomeVideo = null;
+            }
+          }
+        });
+      };
+
+      homeFeedObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          visibilityMap.set(entry.target, entry.isIntersecting ? entry.intersectionRatio : 0);
+          const v = entry.target.querySelector("video");
+          if (!entry.isIntersecting && v) {
+            v.pause();
+            v.muted = true;
+            if (v === currentlyPlayingHomeVideo) {
+              currentlyPlayingHomeVideo = null;
+            }
+          }
+        });
+        updateCenterVideo();
+      }, {
+        root: homeView,
+        threshold: [0, 0.25, 0.5, 0.75, 1.0]
+      });
+
+      videoBoxes.forEach(box => homeFeedObserver.observe(box));
+
+      let scrollTimeout = null;
+      homeView.addEventListener("scroll", () => {
+        if (scrollTimeout) cancelAnimationFrame(scrollTimeout);
+        scrollTimeout = requestAnimationFrame(updateCenterVideo);
+      }, { passive: true });
+
+      // Unlock audio on initial user touch/click/scroll gesture if restricted by browser policy
+      const unlockAudio = () => {
+        if (currentlyPlayingHomeVideo && currentlyPlayingHomeVideo.muted) {
+          currentlyPlayingHomeVideo.muted = false;
+          currentlyPlayingHomeVideo.play().catch(() => {});
+        }
+      };
+      window.addEventListener("touchstart", unlockAudio, { once: true, passive: true });
+      window.addEventListener("click", unlockAudio, { once: true, passive: true });
+      window.addEventListener("scroll", unlockAudio, { once: true, passive: true });
+
+      setTimeout(updateCenterVideo, 120);
+      setTimeout(updateCenterVideo, 350);
     }
 
     function pauseAllHomeVideos() {
+      if (currentlyPlayingHomeVideo) {
+        currentlyPlayingHomeVideo.pause();
+        currentlyPlayingHomeVideo = null;
+      }
       document.querySelectorAll(".home-video-player").forEach(v => v.pause());
     }
 

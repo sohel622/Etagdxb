@@ -398,12 +398,10 @@ function switchTab(tabId, btnElement) {
       if (pView) pView.classList.remove("active");
       if (hView) hView.classList.add("active");
       applyCurrentDynamicTheme();
-      // Resume visible home video
-      if (hView) {
-        const visibleHomeVid = hView.querySelector(".feed-post-card video");
-        if (visibleHomeVid) {
-          visibleHomeVid.play().catch(() => {});
-        }
+      if (typeof setupHomeFeedObserver === "function") {
+        setupHomeFeedObserver();
+      } else if (typeof window !== "undefined" && typeof window.setupHomeFeedObserver === "function") {
+        window.setupHomeFeedObserver();
       }
     } else if (tabId === "profile") {
       if (typeof pauseAllHomeVideos === "function") pauseAllHomeVideos();
