@@ -1,8 +1,7 @@
 // Main App Controller
 import { initDatabase } from "./services/database.js";
 import { UserProfileStore } from "./utils/storage.js";
-import { initTopNavbar } from "./components/Navbar.js";
-import { renderNavigation, renderDragBox } from "./components/BottomNavigation.js";
+import { initTopNavbar, renderNavigation, renderDragBox } from "./components/navigation/index.js";
 import { renderHomeFeed } from "./components/Feed.js";
 import { loadReels } from "./components/ReelsViewer.js";
 import { initProfileInteractions, updateProfilePostsCount, renderProfileGrid } from "./components/Profile.js";
