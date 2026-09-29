@@ -55,7 +55,7 @@ function createCommentsSheetDOM() {
 
   backdrop = document.createElement("div");
   backdrop.id = "reelsCommentsSheetBackdrop";
-  backdrop.className = "reels-sheet-backdrop";
+  backdrop.className = "reels-sheet-backdrop reels-comments-backdrop";
   backdrop.onclick = (e) => {
     if (e.target === backdrop) closeReelsCommentsSheet();
   };
@@ -373,9 +373,31 @@ function openReelsCommentsSheet(reelId, reelData = null) {
   // Target current reel item
   const allReelItems = document.querySelectorAll("#reelsFeedWrapper .reel-item");
   allReelItems.forEach(item => item.classList.remove("active-comment-reel"));
-  const currentItem = document.querySelector(`.reel-item[data-id="${reelId}"]`) || allReelItems[0];
+  let currentItem = document.querySelector(`.reel-item[data-id="${reelId}"]`);
+  if (!currentItem && reelsView && allReelItems.length > 0) {
+    const rRect = reelsView.getBoundingClientRect();
+    const rCenter = rRect.top + rRect.height / 2;
+    let minD = Infinity;
+    allReelItems.forEach(item => {
+      const itRect = item.getBoundingClientRect();
+      const itCenter = itRect.top + itRect.height / 2;
+      const d = Math.abs(rCenter - itCenter);
+      if (d < minD) {
+        minD = d;
+        currentItem = item;
+      }
+    });
+  }
+  if (!currentItem && allReelItems.length > 0) {
+    currentItem = allReelItems[0];
+  }
   if (currentItem) {
     currentItem.classList.add("active-comment-reel");
+    // Ensure active video continues seamless playback without pause or stutter
+    const activeVideo = currentItem.querySelector("video");
+    if (activeVideo && activeVideo.paused) {
+      activeVideo.play().catch(() => {});
+    }
   }
 
   backdrop.style.display = "flex";

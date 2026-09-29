@@ -387,6 +387,11 @@ function switchTab(tabId, btnElement) {
     } else if (typeof window !== "undefined" && typeof window.setActiveClearModeReelId === "function") {
       window.setActiveClearModeReelId(null);
     }
+    if (typeof closeReelsCommentsSheet === "function") {
+      closeReelsCommentsSheet();
+    } else if (typeof window !== "undefined" && typeof window.closeReelsCommentsSheet === "function") {
+      window.closeReelsCommentsSheet();
+    }
     if (appC) appC.classList.remove("reels-active");
     if (rProgressBarContainer) {
       rProgressBarContainer.classList.remove("visible");

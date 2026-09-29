@@ -427,24 +427,32 @@
 /* =======================================================
    4. Reels Half-Panel Comments Sheet (55-60vh)
 ======================================================= */
-#reelsCommentsSheetBackdrop {
+#reelsCommentsSheetBackdrop,
+#reelsCommentsSheetBackdrop.active,
+.reels-comments-backdrop,
+.reels-comments-backdrop.active {
   background: transparent !important;
+  background-color: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+  filter: none !important;
+  box-shadow: none !important;
 }
 
 .reels-comments-top-dismiss-area {
   flex: 1;
   width: 100%;
   cursor: pointer;
-  background: transparent;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .reels-comments-drawer {
   width: 100%;
   max-width: 480px;
   margin: 0 auto;
-  height: 58vh;
+  height: 56vh;
   background: #262626;
   color: #ffffff;
   border-top-left-radius: 20px;
@@ -463,15 +471,69 @@
   transform: translateY(0);
 }
 
-/* Top half video translation/resizing when comments sheet is open: clear and unblurred */
-#reelsView.comments-sheet-open .reel-item.active-comment-reel .reel-video-wrapper {
-  transform: translateY(-24%) scale(0.68);
-  transform-origin: center top;
-  border-radius: 16px;
-  overflow: hidden;
+/* 1. Prevent background scrolling when comments sheet is open */
+#reelsView.comments-sheet-open {
+  overflow-y: hidden !important;
+}
+
+/* 2. Completely remove background blur and dimming layers over active video */
+#reelsView.comments-sheet-open,
+#reelsView.comments-sheet-open .reel-item,
+#reelsView.comments-sheet-open .reel-item.active-comment-reel,
+#reelsView.comments-sheet-open .reel-item.active-comment-reel .reel-video-wrapper,
+#reelsView.comments-sheet-open .reel-item.active-comment-reel video {
   filter: none !important;
-  transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* 3. Hide Red-Marked Overlay Controls (Sidebar, Creator Info, Badges, Progress, Header) */
+#reelsView.comments-sheet-open .reels-top-header,
+#reelsView.comments-sheet-open .reels-sidebar,
+#reelsView.comments-sheet-open .reels-bottom-info,
+#reelsView.comments-sheet-open .sound-status-badge,
+#reelsView.comments-sheet-open .reel-card-progress-bar-container,
+#reelsView.comments-sheet-open .exit-clear-mode-btn {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+/* 4. Seamless Video Frame Scaling (fits cleanly into top ~42vh viewport area, uncropped) */
+#reelsView.comments-sheet-open .reel-item.active-comment-reel .reel-video-wrapper {
+  transform: translateY(8px) scale(0.44);
+  transform-origin: center top;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7);
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1), border-radius 0.3s cubic-bezier(0.2, 0.9, 0.3, 1), box-shadow 0.3s ease;
+  will-change: transform;
+}
+
+#reelsView.comments-sheet-open .reel-item.active-comment-reel .reel-video {
+  object-fit: contain !important;
+  border-radius: 18px;
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* 5. Smooth default transitions when restoring from comments */
+.reel-item .reel-video-wrapper {
+  transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1), border-radius 0.3s cubic-bezier(0.2, 0.9, 0.3, 1), box-shadow 0.3s ease;
+  will-change: transform;
+}
+
+.reel-item .reels-sidebar,
+.reel-item .reels-bottom-info,
+.reel-item .sound-status-badge,
+.reel-item .reel-card-progress-bar-container,
+.reels-top-header {
+  transition: opacity 0.25s cubic-bezier(0.2, 0.9, 0.3, 1), visibility 0.25s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 
 .comments-header {
