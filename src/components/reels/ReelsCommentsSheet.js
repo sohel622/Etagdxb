@@ -61,6 +61,7 @@ function createCommentsSheetDOM() {
   };
 
   backdrop.innerHTML = `
+    <div class="reels-comments-top-dismiss-area" onclick="closeReelsCommentsSheet()"></div>
     <div class="reels-comments-drawer" onclick="event.stopPropagation()">
       <div class="sheet-drag-handle"></div>
       

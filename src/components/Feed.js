@@ -4,6 +4,7 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
 import { SAMPLE_VIDEOS, SHABNAM_AI_PROFILE } from "../utils/mockData.js";
 import { isGlobalAudioMuted, toggleGlobalAudio } from "./Navbar.js";
 import { spawnFloatingHeart, openMyProfileTab, navigateToReel } from "./ReelsViewer.js";
+import { openHomeFeedComments } from "./reels/index.js";
 import { openProfile } from "./Profile.js";
 import { renderSuggestedReels } from "./SuggestedReels.js";
 
@@ -74,7 +75,7 @@ import { renderSuggestedReels } from "./SuggestedReels.js";
             <div class="post-actions">
               <div class="post-actions-left">
                 <i class="fa-regular fa-heart action-btn like-btn"></i>
-                <i class="fa-regular fa-comment action-btn" onclick="alert('Comments')"></i>
+                <i class="fa-regular fa-comment action-btn comment-icon-btn" title="Comments"></i>
                 <i class="fa-regular fa-paper-plane action-btn" onclick="alert('Shared via Direct')"></i>
               </div>
               <i class="fa-regular fa-bookmark action-btn bookmark-btn"></i>
@@ -85,7 +86,7 @@ import { renderSuggestedReels } from "./SuggestedReels.js";
                 <span class="caption-user ${usernameClass}" ${userClickAttr}>${displayUser}</span>
                 <span>${post.caption}</span>
               </div>
-              <div class="post-comments-link" onclick="alert('View all comments')">View all ${post.commentsCount || 18} comments</div>
+              <div class="post-comments-link" style="cursor: pointer;">View all ${post.commentsCount || 18} comments</div>
               <div class="post-time">${post.time || '2 HOURS AGO'}</div>
             </div>
           `;
@@ -136,6 +137,20 @@ import { renderSuggestedReels } from "./SuggestedReels.js";
             bookmarkBtn.classList.toggle("fa-solid");
             bookmarkBtn.classList.toggle("fa-regular");
           };
+
+          const commentBtn = card.querySelector(".comment-icon-btn");
+          if (commentBtn) {
+            commentBtn.onclick = () => {
+              openHomeFeedComments(post);
+            };
+          }
+
+          const commentsLink = card.querySelector(".post-comments-link");
+          if (commentsLink) {
+            commentsLink.onclick = () => {
+              openHomeFeedComments(post);
+            };
+          }
 
           feedContainer.appendChild(card);
           if (index === 1) {

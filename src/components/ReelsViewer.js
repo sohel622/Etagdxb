@@ -1,7 +1,7 @@
 // ReelsViewer Component (Fullscreen Reels Player, Observer & Progress Bar)
 import { db } from "../services/database.js";
 import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowShabnam } from "../utils/storage.js";
-import { openReelsShareSheet, openReelsCommentsSheet } from "./reels/index.js";
+import { openReelsShareSheet, openReelsCommentsSheet, disableReelsClearMode } from "./reels/index.js";
 
     /* =======================================================
        ৮. রিলস ভিডিও লোডিং
@@ -50,6 +50,7 @@ import { openReelsShareSheet, openReelsCommentsSheet } from "./reels/index.js";
     window.playShabnamReelVideo = playShabnamReelVideo;
 
     function navigateToReel(videoId, videoUrl) {
+      disableReelsClearMode();
       if (typeof pauseAllHomeVideos === "function") {
         pauseAllHomeVideos();
       }
@@ -601,6 +602,7 @@ import { openReelsShareSheet, openReelsCommentsSheet } from "./reels/index.js";
         const video = closestItem.querySelector("video");
         if (video) {
           if (video !== currentActiveReelVideo || video.paused) {
+            disableReelsClearMode();
             pauseAllReels(video);
             video.muted = isGlobalAudioMuted;
             video.play().catch(() => {});

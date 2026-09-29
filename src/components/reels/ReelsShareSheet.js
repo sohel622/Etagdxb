@@ -428,6 +428,8 @@ function closeReelsShareSheet() {
 /* =======================================================
    2. Clear Mode
 ======================================================= */
+let activeClearModeReelItem = null;
+
 function enableReelsClearMode() {
   isClearModeActive = true;
   closeReelsShareSheet();
@@ -437,16 +439,48 @@ function enableReelsClearMode() {
   if (reelsView) reelsView.classList.add("in-clear-mode");
   if (appContainer) appContainer.classList.add("in-reels-clear-mode");
 
+  // Scope Clear Mode strictly to the currently active individual reel only
+  const allReels = document.querySelectorAll("#reelsFeedWrapper .reel-item");
+  allReels.forEach(r => r.classList.remove("reel-clear-mode-active"));
+
+  let targetItem = null;
+  if (currentSharingReel && currentSharingReel.id) {
+    targetItem = document.querySelector(`.reel-item[data-id="${currentSharingReel.id}"]`);
+  }
+  if (!targetItem && reelsView) {
+    const rRect = reelsView.getBoundingClientRect();
+    const rCenter = rRect.top + rRect.height / 2;
+    let minD = Infinity;
+    allReels.forEach(item => {
+      const itRect = item.getBoundingClientRect();
+      const itCenter = itRect.top + itRect.height / 2;
+      const d = Math.abs(rCenter - itCenter);
+      if (d < minD) {
+        minD = d;
+        targetItem = item;
+      }
+    });
+  }
+  if (!targetItem && allReels.length > 0) {
+    targetItem = allReels[0];
+  }
+
+  activeClearModeReelItem = targetItem;
+  if (activeClearModeReelItem) {
+    activeClearModeReelItem.classList.add("reel-clear-mode-active");
+  }
+
   let exitBtn = document.getElementById("exitClearModeBtn");
   if (!exitBtn) {
     exitBtn = document.createElement("button");
     exitBtn.id = "exitClearModeBtn";
     exitBtn.className = "exit-clear-mode-btn";
+    exitBtn.setAttribute("title", "Restore controls");
+    exitBtn.setAttribute("aria-label", "Restore controls");
     exitBtn.innerHTML = `
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
       </svg>
-      <span>Exit Clear Mode</span>
     `;
     exitBtn.onclick = disableReelsClearMode;
     if (reelsView) reelsView.appendChild(exitBtn);
@@ -454,7 +488,7 @@ function enableReelsClearMode() {
     exitBtn.style.display = "flex";
   }
 
-  showInstagramToast("Clear mode enabled. Raw video view ✨");
+  showInstagramToast("Clear mode enabled");
 }
 
 function disableReelsClearMode() {
@@ -463,6 +497,10 @@ function disableReelsClearMode() {
   const appContainer = document.getElementById("appContainer");
   if (reelsView) reelsView.classList.remove("in-clear-mode");
   if (appContainer) appContainer.classList.remove("in-reels-clear-mode");
+
+  const allReels = document.querySelectorAll("#reelsFeedWrapper .reel-item");
+  allReels.forEach(r => r.classList.remove("reel-clear-mode-active"));
+  activeClearModeReelItem = null;
 
   const exitBtn = document.getElementById("exitClearModeBtn");
   if (exitBtn) {

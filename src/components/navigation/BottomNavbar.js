@@ -380,6 +380,11 @@ function switchTab(tabId, btnElement) {
     }
     if (typeof playCurrentReel === "function") playCurrentReel();
   } else {
+    if (typeof disableReelsClearMode === "function") {
+      disableReelsClearMode();
+    } else if (typeof window !== "undefined" && typeof window.disableReelsClearMode === "function") {
+      window.disableReelsClearMode();
+    }
     if (appC) appC.classList.remove("reels-active");
     if (rProgressBarContainer) {
       rProgressBarContainer.classList.remove("visible");
