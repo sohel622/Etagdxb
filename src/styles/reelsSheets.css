@@ -334,22 +334,22 @@
 }
 
 /* =======================================================
-   3. "Clear Mode" Minimalist Fullscreen Video Mode
+   3. "Clear Mode" Minimalist Fullscreen Video Mode (Per-Reel Scoped)
 ======================================================= */
 .reel-item.reel-clear-mode-active .reels-sidebar,
 .reel-item.reel-clear-mode-active .reels-bottom-info,
 .reel-item.reel-clear-mode-active .reels-top-header,
-#reelsView.in-clear-mode #reelsProgressBarContainer,
+.reel-item.reel-clear-mode-active .sound-status-badge,
 .app-container.in-reels-clear-mode #bottomNavBar {
   display: none !important;
   opacity: 0 !important;
   pointer-events: none !important;
 }
 
-/* Minimal compact floating icon button (Expand/Restore icon) */
+/* Minimal compact floating icon button placed slightly above card's bottom progress bar */
 .exit-clear-mode-btn {
   position: absolute;
-  bottom: 20px;
+  bottom: 16px;
   right: 16px;
   width: 36px;
   height: 36px;
@@ -382,6 +382,46 @@
 @keyframes fadeInExitBtn {
   from { opacity: 0; transform: translateY(6px) scale(0.85); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* =======================================================
+   Independent Progress Bar per Reel Card Component
+======================================================= */
+.reel-card-progress-bar-container {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: 2.5px;
+  background: rgba(255, 255, 255, 0.2);
+  z-index: 45;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: height 0.15s ease, background 0.15s ease;
+}
+
+.reel-card-progress-bar-container:hover,
+.reel-card-progress-bar-container.seeking {
+  height: 5px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.reel-card-progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: #ffffff;
+  border-radius: 0 2px 2px 0;
+  transition: width 0.05s linear;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.5);
+}
+
+/* Disable and hide static/fixed global screen-level progress bar */
+#reelsProgressBarContainer,
+.reels-progress-bar-container:not(.reel-card-progress-bar-container) {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 /* =======================================================

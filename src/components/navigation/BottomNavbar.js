@@ -380,10 +380,12 @@ function switchTab(tabId, btnElement) {
     }
     if (typeof playCurrentReel === "function") playCurrentReel();
   } else {
-    if (typeof disableReelsClearMode === "function") {
+    if (typeof setActiveClearModeReelId === "function") {
+      setActiveClearModeReelId(null);
+    } else if (typeof disableReelsClearMode === "function") {
       disableReelsClearMode();
-    } else if (typeof window !== "undefined" && typeof window.disableReelsClearMode === "function") {
-      window.disableReelsClearMode();
+    } else if (typeof window !== "undefined" && typeof window.setActiveClearModeReelId === "function") {
+      window.setActiveClearModeReelId(null);
     }
     if (appC) appC.classList.remove("reels-active");
     if (rProgressBarContainer) {

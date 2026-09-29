@@ -426,27 +426,44 @@ function closeReelsShareSheet() {
 }
 
 /* =======================================================
-   2. Clear Mode
+   2. Clear Mode (Per-Reel Scoped by Reel ID)
 ======================================================= */
-let activeClearModeReelItem = null;
+let activeClearModeReelId = null;
 
-function enableReelsClearMode() {
-  isClearModeActive = true;
-  closeReelsShareSheet();
-
-  const reelsView = document.getElementById("reelsView");
-  const appContainer = document.getElementById("appContainer");
-  if (reelsView) reelsView.classList.add("in-clear-mode");
-  if (appContainer) appContainer.classList.add("in-reels-clear-mode");
-
-  // Scope Clear Mode strictly to the currently active individual reel only
+function setActiveClearModeReelId(reelId) {
+  // Clear any existing clear mode state and exit buttons across all reel items
   const allReels = document.querySelectorAll("#reelsFeedWrapper .reel-item");
-  allReels.forEach(r => r.classList.remove("reel-clear-mode-active"));
+  allReels.forEach(r => {
+    r.classList.remove("reel-clear-mode-active");
+    const existingExitBtn = r.querySelector(".exit-clear-mode-btn");
+    if (existingExitBtn) {
+      existingExitBtn.remove();
+    }
+  });
 
-  let targetItem = null;
-  if (currentSharingReel && currentSharingReel.id) {
-    targetItem = document.querySelector(`.reel-item[data-id="${currentSharingReel.id}"]`);
+  const globalExitBtn = document.getElementById("exitClearModeBtn");
+  if (globalExitBtn) {
+    globalExitBtn.remove();
   }
+
+  const appContainer = document.getElementById("appContainer");
+  const reelsView = document.getElementById("reelsView");
+
+  if (!reelId) {
+    activeClearModeReelId = null;
+    isClearModeActive = false;
+    if (appContainer) appContainer.classList.remove("in-reels-clear-mode");
+    if (reelsView) reelsView.classList.remove("in-clear-mode");
+    return;
+  }
+
+  activeClearModeReelId = String(reelId);
+  isClearModeActive = true;
+  if (appContainer) appContainer.classList.add("in-reels-clear-mode");
+  if (reelsView) reelsView.classList.add("in-clear-mode");
+
+  // Find the exact reel item component matching this activeClearModeReelId
+  let targetItem = document.querySelector(`.reel-item[data-id="${activeClearModeReelId}"]`);
   if (!targetItem && reelsView) {
     const rRect = reelsView.getBoundingClientRect();
     const rCenter = rRect.top + rRect.height / 2;
@@ -465,15 +482,13 @@ function enableReelsClearMode() {
     targetItem = allReels[0];
   }
 
-  activeClearModeReelItem = targetItem;
-  if (activeClearModeReelItem) {
-    activeClearModeReelItem.classList.add("reel-clear-mode-active");
-  }
+  if (targetItem) {
+    targetItem.classList.add("reel-clear-mode-active");
+    const wrapper = targetItem.querySelector(".reel-video-wrapper") || targetItem;
 
-  let exitBtn = document.getElementById("exitClearModeBtn");
-  if (!exitBtn) {
-    exitBtn = document.createElement("button");
-    exitBtn.id = "exitClearModeBtn";
+    // Render the minimal exit icon ONLY inside this specific active reel wrapper
+    const exitBtn = document.createElement("button");
+    exitBtn.type = "button";
     exitBtn.className = "exit-clear-mode-btn";
     exitBtn.setAttribute("title", "Restore controls");
     exitBtn.setAttribute("aria-label", "Restore controls");
@@ -482,30 +497,48 @@ function enableReelsClearMode() {
         <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
       </svg>
     `;
-    exitBtn.onclick = disableReelsClearMode;
-    if (reelsView) reelsView.appendChild(exitBtn);
+    exitBtn.onclick = (e) => {
+      e.stopPropagation();
+      setActiveClearModeReelId(null);
+    };
+
+    wrapper.appendChild(exitBtn);
+  }
+}
+
+function enableReelsClearMode() {
+  closeReelsShareSheet();
+
+  let reelId = null;
+  if (currentSharingReel && currentSharingReel.id) {
+    reelId = currentSharingReel.id;
   } else {
-    exitBtn.style.display = "flex";
+    const reelsView = document.getElementById("reelsView");
+    const allReels = Array.from(document.querySelectorAll("#reelsFeedWrapper .reel-item"));
+    if (reelsView && allReels.length > 0) {
+      const rRect = reelsView.getBoundingClientRect();
+      const rCenter = rRect.top + rRect.height / 2;
+      let minD = Infinity;
+      let closest = allReels[0];
+      allReels.forEach(item => {
+        const itRect = item.getBoundingClientRect();
+        const itCenter = itRect.top + itRect.height / 2;
+        const d = Math.abs(rCenter - itCenter);
+        if (d < minD) {
+          minD = d;
+          closest = item;
+        }
+      });
+      reelId = closest.dataset.id || "current";
+    }
   }
 
+  setActiveClearModeReelId(reelId || "current");
   showInstagramToast("Clear mode enabled");
 }
 
 function disableReelsClearMode() {
-  isClearModeActive = false;
-  const reelsView = document.getElementById("reelsView");
-  const appContainer = document.getElementById("appContainer");
-  if (reelsView) reelsView.classList.remove("in-clear-mode");
-  if (appContainer) appContainer.classList.remove("in-reels-clear-mode");
-
-  const allReels = document.querySelectorAll("#reelsFeedWrapper .reel-item");
-  allReels.forEach(r => r.classList.remove("reel-clear-mode-active"));
-  activeClearModeReelItem = null;
-
-  const exitBtn = document.getElementById("exitClearModeBtn");
-  if (exitBtn) {
-    exitBtn.style.display = "none";
-  }
+  setActiveClearModeReelId(null);
 }
 
 if (typeof window !== "undefined") {
@@ -513,7 +546,9 @@ if (typeof window !== "undefined") {
   window.closeReelsShareSheet = closeReelsShareSheet;
   window.enableReelsClearMode = enableReelsClearMode;
   window.disableReelsClearMode = disableReelsClearMode;
-  window.isClearModeActive = () => isClearModeActive;
+  window.setActiveClearModeReelId = setActiveClearModeReelId;
+  window.getActiveClearModeReelId = () => activeClearModeReelId;
+  window.isClearModeActive = () => activeClearModeReelId !== null;
 }
 
 export {
@@ -521,5 +556,6 @@ export {
   closeReelsShareSheet,
   enableReelsClearMode,
   disableReelsClearMode,
+  setActiveClearModeReelId,
   isClearModeActive
 };

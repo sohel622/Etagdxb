@@ -1,7 +1,7 @@
 // ReelsViewer Component (Fullscreen Reels Player, Observer & Progress Bar)
 import { db } from "../services/database.js";
 import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowShabnam } from "../utils/storage.js";
-import { openReelsShareSheet, openReelsCommentsSheet, disableReelsClearMode } from "./reels/index.js";
+import { openReelsShareSheet, openReelsCommentsSheet, disableReelsClearMode, setActiveClearModeReelId } from "./reels/index.js";
 
     /* =======================================================
        ৮. রিলস ভিডিও লোডিং
@@ -50,7 +50,7 @@ import { openReelsShareSheet, openReelsCommentsSheet, disableReelsClearMode } fr
     window.playShabnamReelVideo = playShabnamReelVideo;
 
     function navigateToReel(videoId, videoUrl) {
-      disableReelsClearMode();
+      setActiveClearModeReelId(null);
       if (typeof pauseAllHomeVideos === "function") {
         pauseAllHomeVideos();
       }
@@ -187,6 +187,11 @@ import { openReelsShareSheet, openReelsCommentsSheet, disableReelsClearMode } fr
               <div class="reel-action-btn more-btn">
                 <i class="fa-solid fa-ellipsis"></i>
               </div>
+            </div>
+
+            <!-- Independent Per-Card Progress Bar (Moves naturally with card on vertical scroll) -->
+            <div class="reel-card-progress-bar-container" title="Video Progress • Click or drag to seek">
+              <div class="reel-card-progress-bar-fill"></div>
             </div>
           </div>
         `;
@@ -335,6 +340,76 @@ import { openReelsShareSheet, openReelsCommentsSheet, disableReelsClearMode } fr
             e.stopPropagation();
             openReelsShareSheet(reel);
           };
+        }
+
+        // Independent Progress Bar per Reel Card (Synchronized to this specific video)
+        const cardProgressBarContainer = item.querySelector(".reel-card-progress-bar-container");
+        const cardProgressBarFill = item.querySelector(".reel-card-progress-bar-fill");
+
+        const updateCardProgress = () => {
+          if (video && video.duration && !isNaN(video.duration) && video.duration > 0) {
+            const pct = Math.min(100, Math.max(0, (video.currentTime / video.duration) * 100));
+            if (cardProgressBarFill) cardProgressBarFill.style.width = `${pct}%`;
+          }
+        };
+
+        video.addEventListener("timeupdate", updateCardProgress);
+        video.addEventListener("seeking", updateCardProgress);
+        video.addEventListener("seeked", updateCardProgress);
+        video.addEventListener("ended", () => {
+          if (cardProgressBarFill) cardProgressBarFill.style.width = "100%";
+          setTimeout(() => {
+            if (video && !video.paused) updateCardProgress();
+          }, 80);
+        });
+
+        if (cardProgressBarContainer) {
+          let isCardScrubbing = false;
+          const handleCardSeek = (clientX) => {
+            if (!video || !video.duration) return;
+            const rect = cardProgressBarContainer.getBoundingClientRect();
+            if (rect.width <= 0) return;
+            const clickX = Math.max(0, Math.min(rect.width, clientX - rect.left));
+            const targetPercent = clickX / rect.width;
+            video.currentTime = targetPercent * video.duration;
+            if (cardProgressBarFill) cardProgressBarFill.style.width = `${targetPercent * 100}%`;
+          };
+
+          cardProgressBarContainer.addEventListener("mousedown", (e) => {
+            e.stopPropagation();
+            isCardScrubbing = true;
+            cardProgressBarContainer.classList.add("seeking");
+            handleCardSeek(e.clientX);
+          });
+          window.addEventListener("mousemove", (e) => {
+            if (isCardScrubbing) handleCardSeek(e.clientX);
+          });
+          window.addEventListener("mouseup", () => {
+            if (isCardScrubbing) {
+              isCardScrubbing = false;
+              cardProgressBarContainer.classList.remove("seeking");
+            }
+          });
+
+          cardProgressBarContainer.addEventListener("touchstart", (e) => {
+            e.stopPropagation();
+            if (e.touches && e.touches[0]) {
+              isCardScrubbing = true;
+              cardProgressBarContainer.classList.add("seeking");
+              handleCardSeek(e.touches[0].clientX);
+            }
+          }, { passive: true });
+          window.addEventListener("touchmove", (e) => {
+            if (isCardScrubbing && e.touches && e.touches[0]) {
+              handleCardSeek(e.touches[0].clientX);
+            }
+          }, { passive: true });
+          window.addEventListener("touchend", () => {
+            if (isCardScrubbing) {
+              isCardScrubbing = false;
+              cardProgressBarContainer.classList.remove("seeking");
+            }
+          });
         }
 
         reelsFeedWrapper.appendChild(item);
@@ -602,11 +677,11 @@ import { openReelsShareSheet, openReelsCommentsSheet, disableReelsClearMode } fr
         const video = closestItem.querySelector("video");
         if (video) {
           if (video !== currentActiveReelVideo || video.paused) {
-            disableReelsClearMode();
+            setActiveClearModeReelId(null);
             pauseAllReels(video);
             video.muted = isGlobalAudioMuted;
             video.play().catch(() => {});
-            attachVideoProgressTracker(video);
+            currentActiveReelVideo = video;
           }
         }
       }
