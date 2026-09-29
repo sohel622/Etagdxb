@@ -69,15 +69,17 @@
     <input type="file" id="videoFileInput" accept="video/*" style="display:none;" />
 
     <div class="view-section active bg-white dark:bg-black text-neutral-900 dark:text-white transition-colors duration-200" id="homeView">
-      <header class="top-bar bg-white dark:bg-black text-neutral-900 dark:text-white transition-colors duration-200">
-        <div class="logo">Instagram</div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <div class="icon-btn" onclick="alert('কোনো নোটিফিকেশন নেই')" title="Notifications">
+      <header class="top-bar bg-white dark:bg-black text-neutral-900 dark:text-white transition-colors duration-200" id="topNavbarHeader">
+        <div class="logo" id="topNavLogo" onclick="handleLogoClick()" title="Instagram" role="button" tabindex="0">Instagram</div>
+        <div class="top-bar-actions">
+          <button type="button" class="icon-btn top-nav-btn" id="topNavNotificationsBtn" onclick="handleNotificationsClick()" title="Notifications" aria-label="Notifications">
             <i class="fa-regular fa-heart"></i>
-          </div>
-          <div class="icon-btn" onclick="switchTab('messages')" title="Direct Messages">
+            <span class="top-nav-dot" id="topNavNotificationDot"></span>
+          </button>
+          <button type="button" class="icon-btn top-nav-btn" id="topNavDirectMessagesBtn" onclick="handleDirectMessagesClick()" title="Direct Messages" aria-label="Direct Messages">
             <i class="fa-regular fa-paper-plane"></i>
-          </div>
+            <span class="top-nav-badge" id="topNavDirectBadge">2</span>
+          </button>
         </div>
       </header>
 

@@ -497,7 +497,7 @@ let justTriggeredChatSheet = false;
       }
       const appC = document.getElementById("appContainer");
       if (appC) {
-        appC.classList.add("in-chats-view");
+        appC.classList.add("in-active-chat");
       }
 
       if (listC) listC.style.display = "none";
@@ -530,6 +530,17 @@ let justTriggeredChatSheet = false;
       const chatC = document.getElementById("shabnamChatContainer");
       if (chatC) chatC.style.display = "none";
       if (listC) listC.style.display = "flex";
+      const appC = document.getElementById("appContainer");
+      if (appC) {
+        appC.classList.remove("in-chats-view");
+        appC.classList.remove("in-active-chat");
+      }
+      const bottomNavBar = document.getElementById("bottomNavBar");
+      if (bottomNavBar) {
+        bottomNavBar.style.display = "";
+        bottomNavBar.classList.remove("nav-hidden", "translate-y-full", "opacity-0");
+        bottomNavBar.classList.add("translate-y-0");
+      }
       renderChatsList();
     }
     window.closeShabnamChat = closeShabnamChat;

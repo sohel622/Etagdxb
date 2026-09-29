@@ -7,7 +7,7 @@ import { UserProfileStore } from "../utils/storage.js";
       const savedNav = localStorage.getItem("nav_order");
       if (savedNav) {
         const parsed = JSON.parse(savedNav);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed) && parsed.length >= 4) {
           currentNav = parsed;
         }
       }
@@ -15,14 +15,23 @@ import { UserProfileStore } from "../utils/storage.js";
       console.warn("Could not parse nav_order:", e);
       currentNav = [...DEFAULT_NAV];
     }
-    // Normalize labels in case old saved data didn't have label property
-    currentNav = currentNav.map(item => {
-      const match = DEFAULT_NAV.find(d => d.id === item.id);
-      return {
-        ...item,
-        label: item.label || (match ? match.label : item.name)
-      };
-    });
+    // Guarantee all 5 essential navigation tabs (home, reels, messages, search, profile) are present
+    const requiredNavIds = ["home", "reels", "messages", "search", "profile"];
+    const hasAll = requiredNavIds.every(id => currentNav.some(item => item.id === id));
+    if (!hasAll) {
+      currentNav = [...DEFAULT_NAV];
+    } else {
+      currentNav = currentNav.map(item => {
+        const match = DEFAULT_NAV.find(d => d.id === item.id);
+        return {
+          ...item,
+          icon: match ? match.icon : item.icon,
+          label: item.label || (match ? match.label : item.name),
+          name: match ? match.name : item.name,
+          isProfile: match ? match.isProfile : item.isProfile
+        };
+      });
+    }
     let activeNavId = "home";
     if (typeof window !== "undefined") {
       window.activeNavId = activeNavId;
@@ -80,8 +89,9 @@ import { UserProfileStore } from "../utils/storage.js";
     function renderNavigation() {
       navButtonsContainer.innerHTML = "";
       currentNav.forEach(item => {
+        const isActive = item.id === activeNavId;
         const btn = document.createElement("div");
-        btn.className = `nav-btn ${item.id === activeNavId ? 'active' : ''}`;
+        btn.className = `nav-btn ${isActive ? 'active' : ''}`;
         btn.dataset.id = item.id;
         btn.setAttribute("title", item.name);
         
@@ -92,6 +102,15 @@ import { UserProfileStore } from "../utils/storage.js";
               <i class="fa-solid fa-user user-icon" style="display:none;"></i>
             </div>
           `;
+        } else if (item.id === "messages") {
+          btn.innerHTML = `
+            <div class="relative flex items-center justify-center">
+              <i class="${isActive ? 'fa-solid fa-paper-plane' : 'fa-regular fa-paper-plane'}"></i>
+              <span class="bottom-nav-dot" id="bottomNavMessagesDot"></span>
+            </div>
+          `;
+        } else if (item.id === "home") {
+          btn.innerHTML = `<i class="${isActive ? 'fa-solid fa-house' : 'fa-regular fa-house'}"></i>`;
         } else {
           btn.innerHTML = `<i class="${item.icon}"></i>`;
         }
@@ -218,7 +237,22 @@ import { UserProfileStore } from "../utils/storage.js";
       }
       showStandardNavBar();
       lastHomeScrollTop = homeView ? homeView.scrollTop : 0;
-      document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".nav-btn").forEach(b => {
+        const bId = b.dataset.id;
+        const isCurrent = bId === tabId;
+        b.classList.toggle("active", isCurrent);
+        if (bId === "messages") {
+          const icon = b.querySelector("i");
+          if (icon) {
+            icon.className = isCurrent ? "fa-solid fa-paper-plane" : "fa-regular fa-paper-plane";
+          }
+        } else if (bId === "home") {
+          const icon = b.querySelector("i");
+          if (icon) {
+            icon.className = isCurrent ? "fa-solid fa-house" : "fa-regular fa-house";
+          }
+        }
+      });
       if (!btnElement) {
         btnElement = document.querySelector(`.nav-btn[data-id="${tabId}"]`);
       }
@@ -227,22 +261,15 @@ import { UserProfileStore } from "../utils/storage.js";
         updateActivePillPosition(btnElement);
       }
 
-      if (tabId === "messages") {
-        if (bottomNavBar) {
-          bottomNavBar.style.display = "none";
-          bottomNavBar.classList.add("nav-hidden", "translate-y-full", "opacity-0");
-        }
-        if (appContainer) {
-          appContainer.classList.add("in-chats-view");
-        }
-      } else {
-        if (appContainer) {
-          appContainer.classList.remove("in-chats-view");
-        }
-        if (bottomNavBar) {
-          bottomNavBar.style.display = "";
-          bottomNavBar.classList.remove("nav-hidden", "translate-y-full", "opacity-0");
-        }
+      // Maintain bottom navigation bar visibly alongside home, reels, messages, search, and profile tabs
+      if (appContainer) {
+        appContainer.classList.remove("in-chats-view");
+        appContainer.classList.remove("in-active-chat");
+      }
+      if (bottomNavBar) {
+        bottomNavBar.style.display = "";
+        bottomNavBar.classList.remove("nav-hidden", "translate-y-full", "opacity-0");
+        bottomNavBar.classList.add("translate-y-0");
       }
 
       if (tabId === "reels") {
@@ -296,6 +323,10 @@ import { UserProfileStore } from "../utils/storage.js";
             chatsView.classList.add("active");
             chatsView.style.display = "flex";
             chatsView.style.flexDirection = "column";
+            const listC = document.getElementById("chatsListContainer");
+            const chatC = document.getElementById("shabnamChatContainer");
+            if (listC) listC.style.display = "flex";
+            if (chatC) chatC.style.display = "none";
             renderChatsList();
           }
           applyCurrentDynamicTheme();

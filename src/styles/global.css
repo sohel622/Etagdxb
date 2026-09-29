@@ -63,14 +63,77 @@
       transition: background-color 0.2s ease, color 0.2s ease;
     }
 
-    .top-bar .icon-btn {
-      font-size: 22px;
+    .top-bar-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .top-bar .icon-btn,
+    .top-bar .top-nav-btn {
+      font-size: 23px;
       color: #000;
       cursor: pointer;
       display: flex;
       align-items: center;
+      justify-content: center;
       position: relative;
-      transition: color 0.2s ease;
+      background: transparent;
+      border: none;
+      padding: 4px;
+      transition: color 0.2s ease, transform 0.15s ease, opacity 0.15s ease;
+    }
+
+    .top-bar .icon-btn:hover,
+    .top-bar .top-nav-btn:hover {
+      opacity: 0.8;
+    }
+
+    .top-bar .icon-btn:active,
+    .top-bar .top-nav-btn:active {
+      transform: scale(0.92);
+    }
+
+    .top-nav-dot {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      width: 8px;
+      height: 8px;
+      background-color: #ff3040;
+      border-radius: 50%;
+      border: 1.5px solid #ffffff;
+    }
+
+    .dark .top-nav-dot,
+    .app-container.dark .top-nav-dot,
+    .app-container.dark-mode-active .top-nav-dot {
+      border-color: #000000;
+    }
+
+    .top-nav-badge {
+      position: absolute;
+      top: -2px;
+      right: -6px;
+      min-width: 17px;
+      height: 17px;
+      padding: 0 4px;
+      background-color: #ff3040;
+      color: #ffffff;
+      font-size: 10.5px;
+      font-weight: 700;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1.5px solid #ffffff;
+      line-height: 1;
+    }
+
+    .dark .top-nav-badge,
+    .app-container.dark .top-nav-badge,
+    .app-container.dark-mode-active .top-nav-badge {
+      border-color: #000000;
     }
 
     .top-bar .logo {
@@ -82,8 +145,186 @@
       letter-spacing: 0.5px;
       line-height: 1;
       padding-top: 3px;
-      cursor: default;
-      transition: color 0.2s ease;
+      cursor: pointer;
+      transition: color 0.2s ease, opacity 0.15s ease;
+    }
+
+    .top-bar .logo:hover {
+      opacity: 0.85;
+    }
+
+    /* Notifications Drawer / Modal */
+    .notifications-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+    .notifications-modal-overlay.active {
+      opacity: 1;
+    }
+    .notifications-sheet {
+      width: 100%;
+      max-width: 480px;
+      max-height: 80vh;
+      background: #ffffff;
+      border-top-left-radius: 24px;
+      border-top-right-radius: 24px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.3);
+      transform: translateY(100%);
+      transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
+    }
+    .notifications-sheet.show {
+      transform: translateY(0);
+    }
+    .dark .notifications-sheet,
+    .app-container.dark-mode-active .notifications-sheet {
+      background: #1c1c1e;
+      color: #ffffff;
+    }
+    .notifications-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    .dark .notifications-header,
+    .app-container.dark-mode-active .notifications-header {
+      border-bottom-color: rgba(255, 255, 255, 0.08);
+    }
+    .notifications-title {
+      font-size: 17px;
+      font-weight: 700;
+    }
+    .notifications-close-btn {
+      background: transparent;
+      border: none;
+      font-size: 18px;
+      color: inherit;
+      cursor: pointer;
+      padding: 4px;
+      opacity: 0.7;
+    }
+    .notifications-close-btn:hover {
+      opacity: 1;
+    }
+    .notifications-list {
+      padding: 12px 16px 28px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .notifications-section-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #8e8e8e;
+      margin-top: 6px;
+      margin-bottom: 2px;
+    }
+    .notification-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+    .notification-item:hover {
+      background-color: rgba(0, 0, 0, 0.04);
+    }
+    .dark .notification-item:hover,
+    .app-container.dark-mode-active .notification-item:hover {
+      background-color: rgba(255, 255, 255, 0.05);
+    }
+    .notification-avatar {
+      position: relative;
+      width: 44px;
+      height: 44px;
+      flex-shrink: 0;
+    }
+    .notification-avatar img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    .notification-badge-icon {
+      position: absolute;
+      bottom: -2px;
+      right: -2px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      color: #ffffff;
+      border: 2px solid #ffffff;
+    }
+    .dark .notification-badge-icon {
+      border-color: #1c1c1e;
+    }
+    .notification-badge-icon.heart {
+      background: #ff3040;
+    }
+    .notification-badge-icon.dm {
+      background: #0095f6;
+    }
+    .notification-badge-icon.follow {
+      background: #10b981;
+    }
+    .notification-content {
+      flex: 1;
+      font-size: 13.5px;
+      line-height: 1.35;
+    }
+    .notification-time {
+      color: #8e8e8e;
+      font-size: 12px;
+      margin-left: 4px;
+    }
+    .notification-thumb {
+      width: 40px;
+      height: 40px;
+      border-radius: 6px;
+      background: #333;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+    }
+    .notif-pill-btn {
+      padding: 6px 14px;
+      border-radius: 8px;
+      background: #0095f6;
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.15s ease;
+    }
+    .notif-pill-btn.following {
+      background: #efefef;
+      color: #000000;
+    }
+    .dark .notif-pill-btn.following {
+      background: #363636;
+      color: #ffffff;
     }
 
     /* Automatic Dark / Night Mode Support for Home View & Top Bar */
