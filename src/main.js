@@ -18,6 +18,7 @@ import * as Profile from './components/Profile.js';
 import * as BottomNavigation from './components/BottomNavigation.js';
 import * as ShabnamAI from './components/ShabnamAI.js';
 import * as Modals from './components/Modals.js';
+import * as ReelsComponents from './components/reels/index.js';
 
 // App Controller
 import { App } from './App.js';
@@ -38,6 +39,7 @@ Object.assign(window, {
   ...BottomNavigation,
   ...ShabnamAI,
   ...Modals,
+  ...ReelsComponents,
   App
 });
 

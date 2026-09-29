@@ -1,6 +1,7 @@
 // ReelsViewer Component (Fullscreen Reels Player, Observer & Progress Bar)
 import { db } from "../services/database.js";
 import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowShabnam } from "../utils/storage.js";
+import { openReelsShareSheet, openReelsCommentsSheet } from "./reels/index.js";
 
     /* =======================================================
        ৮. রিলস ভিডিও লোডিং
@@ -174,15 +175,15 @@ import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowS
                 <i class="fa-solid fa-heart"></i>
                 <span>${reel.likes}</span>
               </div>
-              <div class="reel-action-btn" onclick="alert('Comments')">
+              <div class="reel-action-btn comment-btn" title="Comments">
                 <i class="fa-solid fa-comment-dots"></i>
                 <span>${reel.comments}</span>
               </div>
-              <div class="reel-action-btn" onclick="alert('Reels Shared!')">
+              <div class="reel-action-btn share-btn" title="Share">
                 <i class="fa-regular fa-paper-plane"></i>
                 <span>${reel.shares}</span>
               </div>
-              <div class="reel-action-btn">
+              <div class="reel-action-btn more-btn">
                 <i class="fa-solid fa-ellipsis"></i>
               </div>
             </div>
@@ -310,6 +311,30 @@ import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowS
           e.stopPropagation();
           likeIcon.classList.toggle("liked");
         };
+
+        const commentBtn = item.querySelector(".comment-btn");
+        if (commentBtn) {
+          commentBtn.onclick = (e) => {
+            e.stopPropagation();
+            openReelsCommentsSheet(reel.id || ('sample_' + index), reel);
+          };
+        }
+
+        const shareBtn = item.querySelector(".share-btn");
+        if (shareBtn) {
+          shareBtn.onclick = (e) => {
+            e.stopPropagation();
+            openReelsShareSheet(reel);
+          };
+        }
+
+        const moreBtn = item.querySelector(".more-btn");
+        if (moreBtn) {
+          moreBtn.onclick = (e) => {
+            e.stopPropagation();
+            openReelsShareSheet(reel);
+          };
+        }
 
         reelsFeedWrapper.appendChild(item);
       });
@@ -612,4 +637,4 @@ import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowS
 
 
 
-export { loadReels, setupReelObserver, syncActiveReel, playCurrentReel, pauseAllReels, attachVideoProgressTracker, handleProgressBarSeek, resetVideoProgressBar, detachVideoProgressTracker, spawnFloatingHeart, openMyProfileTab, toggleReelFollowBtn, playShabnamReelVideo, navigateToReel };
+export { loadReels, setupReelObserver, syncActiveReel, playCurrentReel, pauseAllReels, attachVideoProgressTracker, handleProgressBarSeek, resetVideoProgressBar, detachVideoProgressTracker, spawnFloatingHeart, openMyProfileTab, toggleReelFollowBtn, playShabnamReelVideo, navigateToReel, openReelsShareSheet, openReelsCommentsSheet };

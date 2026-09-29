@@ -4,7 +4,7 @@ import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowS
 import { SHABNAM_AI_PROFILE } from "../utils/mockData.js";
 import { switchTab, activeNavId } from "./BottomNavigation.js";
 import { openShabnamChat } from "./ShabnamAI.js";
-import { playShabnamReelVideo } from "./ReelsViewer.js";
+import { playShabnamReelVideo, navigateToReel } from "./ReelsViewer.js";
 import { openEditProfileScreen, openMediaCreationPrompt } from "./Modals.js";
 
 let viewingProfileUserId = null;
@@ -254,7 +254,9 @@ window.addEventListener("popstate", (e) => {
           </div>
         `;
         el.onclick = () => {
-          if (typeof playShabnamReelVideo === "function") {
+          if (typeof navigateToReel === "function") {
+            navigateToReel("shabnam_reel_1", SHABNAM_AI_PROFILE.videoUrl);
+          } else if (typeof playShabnamReelVideo === "function") {
             playShabnamReelVideo();
           } else if (typeof window !== "undefined" && typeof window.playShabnamReelVideo === "function") {
             window.playShabnamReelVideo();
@@ -339,11 +341,15 @@ window.addEventListener("popstate", (e) => {
             </div>
           `;
           el.onclick = () => {
-            const reelsBtn = document.querySelector('.nav-btn[data-id="reels"]');
-            if (typeof switchTab === "function") {
-              switchTab("reels", reelsBtn);
-            } else if (typeof window !== "undefined" && typeof window.switchTab === "function") {
-              window.switchTab("reels", reelsBtn);
+            if (typeof navigateToReel === "function") {
+              navigateToReel(item.id, item.videoSrc);
+            } else if (typeof window !== "undefined" && typeof window.navigateToReel === "function") {
+              window.navigateToReel(item.id, item.videoSrc);
+            } else {
+              const reelsBtn = document.querySelector('.nav-btn[data-id="reels"]');
+              if (typeof switchTab === "function") {
+                switchTab("reels", reelsBtn);
+              }
             }
           };
           container.appendChild(el);
@@ -378,11 +384,15 @@ window.addEventListener("popstate", (e) => {
             </div>
           `;
           el.onclick = () => {
-            const reelsBtn = document.querySelector('.nav-btn[data-id="reels"]');
-            if (typeof switchTab === "function") {
-              switchTab("reels", reelsBtn);
-            } else if (typeof window !== "undefined" && typeof window.switchTab === "function") {
-              window.switchTab("reels", reelsBtn);
+            if (typeof navigateToReel === "function") {
+              navigateToReel(item.id, item.videoSrc);
+            } else if (typeof window !== "undefined" && typeof window.navigateToReel === "function") {
+              window.navigateToReel(item.id, item.videoSrc);
+            } else {
+              const reelsBtn = document.querySelector('.nav-btn[data-id="reels"]');
+              if (typeof switchTab === "function") {
+                switchTab("reels", reelsBtn);
+              }
             }
           };
           container.appendChild(el);
