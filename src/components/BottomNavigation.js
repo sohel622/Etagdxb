@@ -86,6 +86,84 @@ import { UserProfileStore } from "../utils/storage.js";
       activePill.style.width = `${width}px`;
     }
 
+    function renderNavBtnContent(item, isActive) {
+      if (item.isProfile || item.id === "profile") {
+        return `
+          <div class="profile-nav-circle ${isActive ? 'active-profile' : ''}">
+            <img class="current-user-avatar" src="${UserProfileStore.state.avatar}" alt="Profile" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+            <i class="fa-solid fa-user user-icon" style="display:none;"></i>
+          </div>
+        `;
+      }
+
+      if (item.id === "home") {
+        if (isActive) {
+          return `
+            <svg class="w-[26px] h-[26px] shrink-0" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.1a1.2 1.2 0 0 0-.78.29l-8.5 7.08a1.2 1.2 0 0 0-.42.92v10.11A1.5 1.5 0 0 0 3.8 22h5.45a.75.75 0 0 0 .75-.75v-5.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5.5a.75.75 0 0 0 .75.75h5.45a1.5 1.5 0 0 0 1.5-1.5V10.39a1.2 1.2 0 0 0-.42-.92l-8.5-7.08a1.2 1.2 0 0 0-.78-.29z"/>
+            </svg>
+          `;
+        }
+        return `
+          <svg class="w-[26px] h-[26px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m3 9.5 9-7 9 7v10.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        `;
+      }
+
+      if (item.id === "messages") {
+        // Clean Lucide MessageCircle / Instagram Chat SVG icon
+        if (isActive) {
+          return `
+            <svg class="w-[25px] h-[25px] shrink-0" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>
+            </svg>
+          `;
+        }
+        return `
+          <svg class="w-[25px] h-[25px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>
+          </svg>
+        `;
+      }
+
+      if (item.id === "reels") {
+        if (isActive) {
+          return `
+            <svg class="w-[25px] h-[25px] shrink-0" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 13V8l6 4-6 4z"/>
+            </svg>
+          `;
+        }
+        return `
+          <svg class="w-[25px] h-[25px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="3" rx="2"/>
+            <path d="m9 8 7 4-7 4Z"/>
+          </svg>
+        `;
+      }
+
+      if (item.id === "search") {
+        if (isActive) {
+          return `
+            <svg class="w-[25px] h-[25px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="m21 21-4.3-4.3"/>
+            </svg>
+          `;
+        }
+        return `
+          <svg class="w-[25px] h-[25px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.3-4.3"/>
+          </svg>
+        `;
+      }
+
+      return `<i class="${item.icon}"></i>`;
+    }
+
     function renderNavigation() {
       navButtonsContainer.innerHTML = "";
       currentNav.forEach(item => {
@@ -94,26 +172,7 @@ import { UserProfileStore } from "../utils/storage.js";
         btn.className = `nav-btn ${isActive ? 'active' : ''}`;
         btn.dataset.id = item.id;
         btn.setAttribute("title", item.name);
-        
-        if (item.isProfile) {
-          btn.innerHTML = `
-            <div class="profile-nav-circle">
-              <img class="current-user-avatar" src="${UserProfileStore.state.avatar}" alt="Profile" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-              <i class="fa-solid fa-user user-icon" style="display:none;"></i>
-            </div>
-          `;
-        } else if (item.id === "messages") {
-          btn.innerHTML = `
-            <div class="relative flex items-center justify-center">
-              <i class="${isActive ? 'fa-solid fa-paper-plane' : 'fa-regular fa-paper-plane'}"></i>
-              <span class="bottom-nav-dot" id="bottomNavMessagesDot"></span>
-            </div>
-          `;
-        } else if (item.id === "home") {
-          btn.innerHTML = `<i class="${isActive ? 'fa-solid fa-house' : 'fa-regular fa-house'}"></i>`;
-        } else {
-          btn.innerHTML = `<i class="${item.icon}"></i>`;
-        }
+        btn.innerHTML = renderNavBtnContent(item, isActive);
         
         btn.onclick = (e) => {
           if (isLongPressTriggered) {
@@ -241,17 +300,8 @@ import { UserProfileStore } from "../utils/storage.js";
         const bId = b.dataset.id;
         const isCurrent = bId === tabId;
         b.classList.toggle("active", isCurrent);
-        if (bId === "messages") {
-          const icon = b.querySelector("i");
-          if (icon) {
-            icon.className = isCurrent ? "fa-solid fa-paper-plane" : "fa-regular fa-paper-plane";
-          }
-        } else if (bId === "home") {
-          const icon = b.querySelector("i");
-          if (icon) {
-            icon.className = isCurrent ? "fa-solid fa-house" : "fa-regular fa-house";
-          }
-        }
+        const match = currentNav.find(item => item.id === bId) || { id: bId };
+        b.innerHTML = renderNavBtnContent(match, isCurrent);
       });
       if (!btnElement) {
         btnElement = document.querySelector(`.nav-btn[data-id="${tabId}"]`);
@@ -261,15 +311,25 @@ import { UserProfileStore } from "../utils/storage.js";
         updateActivePillPosition(btnElement);
       }
 
-      // Maintain bottom navigation bar visibly alongside home, reels, messages, search, and profile tabs
-      if (appContainer) {
-        appContainer.classList.remove("in-chats-view");
-        appContainer.classList.remove("in-active-chat");
-      }
-      if (bottomNavBar) {
-        bottomNavBar.style.display = "";
-        bottomNavBar.classList.remove("nav-hidden", "translate-y-full", "opacity-0");
-        bottomNavBar.classList.add("translate-y-0");
+      // Hide Bottom Navigation Bar entirely when the user is inside the Conversations/Chat view
+      if (tabId === "messages") {
+        if (bottomNavBar) {
+          bottomNavBar.style.display = "none";
+          bottomNavBar.classList.add("nav-hidden", "translate-y-full", "opacity-0");
+        }
+        if (appContainer) {
+          appContainer.classList.add("in-chats-view");
+        }
+      } else {
+        if (appContainer) {
+          appContainer.classList.remove("in-chats-view");
+          appContainer.classList.remove("in-active-chat");
+        }
+        if (bottomNavBar) {
+          bottomNavBar.style.display = "";
+          bottomNavBar.classList.remove("nav-hidden", "translate-y-full", "opacity-0");
+          bottomNavBar.classList.add("translate-y-0");
+        }
       }
 
       if (tabId === "reels") {

@@ -27,8 +27,8 @@ export const SHABNAM_AI_PROFILE = {
 
 export const DEFAULT_NAV = [
   { id: "home", icon: "fa-solid fa-house", name: "Home", label: "Home" },
-  { id: "reels", icon: "fa-solid fa-play", name: "Reels", label: "Video" },
-  { id: "messages", icon: "fa-regular fa-paper-plane", name: "Messages", label: "Share" },
+  { id: "reels", icon: "fa-solid fa-play", name: "Reels", label: "Reels" },
+  { id: "messages", icon: "fa-regular fa-comment-dots", name: "Messages", label: "Messages" },
   { id: "search", icon: "fa-solid fa-magnifying-glass", name: "Search", label: "Search" },
   { id: "profile", icon: "fa-solid fa-user", isProfile: true, name: "Profile", label: "Profile" }
 ];

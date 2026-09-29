@@ -532,14 +532,13 @@ let justTriggeredChatSheet = false;
       if (listC) listC.style.display = "flex";
       const appC = document.getElementById("appContainer");
       if (appC) {
-        appC.classList.remove("in-chats-view");
+        appC.classList.add("in-chats-view");
         appC.classList.remove("in-active-chat");
       }
       const bottomNavBar = document.getElementById("bottomNavBar");
       if (bottomNavBar) {
-        bottomNavBar.style.display = "";
-        bottomNavBar.classList.remove("nav-hidden", "translate-y-full", "opacity-0");
-        bottomNavBar.classList.add("translate-y-0");
+        bottomNavBar.style.display = "none";
+        bottomNavBar.classList.add("nav-hidden", "translate-y-full", "opacity-0");
       }
       renderChatsList();
     }

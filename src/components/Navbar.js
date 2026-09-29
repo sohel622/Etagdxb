@@ -171,11 +171,6 @@ function renderTopNavbar() {
     <div class="top-bar-actions">
       <button type="button" class="icon-btn top-nav-btn" id="topNavNotificationsBtn" title="Notifications" aria-label="Notifications">
         <i class="fa-regular fa-heart"></i>
-        <span class="top-nav-dot" id="topNavNotificationDot"></span>
-      </button>
-      <button type="button" class="icon-btn top-nav-btn" id="topNavDirectMessagesBtn" title="Direct Messages" aria-label="Direct Messages">
-        <i class="fa-regular fa-paper-plane"></i>
-        <span class="top-nav-badge" id="topNavDirectBadge">2</span>
       </button>
     </div>
   `;
@@ -188,11 +183,6 @@ function renderTopNavbar() {
   const notifBtn = topBar.querySelector("#topNavNotificationsBtn");
   if (notifBtn) {
     notifBtn.onclick = handleNotificationsClick;
-  }
-
-  const dmBtn = topBar.querySelector("#topNavDirectMessagesBtn");
-  if (dmBtn) {
-    dmBtn.onclick = handleDirectMessagesClick;
   }
 }
 

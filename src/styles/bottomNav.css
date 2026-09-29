@@ -12,23 +12,16 @@
       pointer-events: auto;
     }
 
-    /* Hide Bottom Navigation Bar only during an active individual chat conversation session */
+    /* Hide Bottom Navigation Bar entirely when the user is inside the Conversations/Chat view */
+    .app-container.in-chats-view #bottomNavBar,
+    .app-container:has(#chatsView.active) #bottomNavBar,
+    #chatsView.active ~ #bottomNavBar,
     .app-container.in-active-chat #bottomNavBar {
       display: none !important;
       visibility: hidden !important;
       pointer-events: none !important;
       transform: translateY(100%) !important;
       opacity: 0 !important;
-    }
-
-    .bottom-nav-dot {
-      position: absolute;
-      top: -2px;
-      right: -3px;
-      width: 6px;
-      height: 6px;
-      background-color: #ff3040;
-      border-radius: 50%;
     }
 
     /* Active Item Floating Pill Indicator (Soft Frosted Glow with Elastic Transitions) */
