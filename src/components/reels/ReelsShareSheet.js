@@ -75,7 +75,7 @@ function createShareSheetDOM() {
 
   backdrop = document.createElement("div");
   backdrop.id = "reelsShareSheetBackdrop";
-  backdrop.className = "reels-sheet-backdrop";
+  backdrop.className = "reels-sheet-backdrop reels-share-backdrop";
   backdrop.onclick = (e) => {
     if (e.target === backdrop) closeReelsShareSheet();
   };

@@ -4,8 +4,6 @@
 .reels-sheet-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
   z-index: 100;
   display: flex;
   flex-direction: column;
@@ -18,6 +16,13 @@
 .reels-sheet-backdrop.active {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Share Sheet specific backdrop tint & blur */
+.reels-share-backdrop {
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 /* 2. Slide-up Share Sheet Drawer */
@@ -426,17 +431,36 @@
 
 /* =======================================================
    4. Reels Half-Panel Comments Sheet (55-60vh)
+   100% UNBLURRED, UNTINTED, CRISP HD VIDEO RENDERING
 ======================================================= */
 #reelsCommentsSheetBackdrop,
 #reelsCommentsSheetBackdrop.active,
+.reels-comments-container,
+.reels-comments-container.active,
 .reels-comments-backdrop,
 .reels-comments-backdrop.active {
+  position: fixed;
+  inset: 0;
   background: transparent !important;
   background-color: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   filter: none !important;
   box-shadow: none !important;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#reelsCommentsSheetBackdrop.active,
+.reels-comments-container.active,
+.reels-comments-backdrop.active {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .reels-comments-top-dismiss-area {
@@ -444,8 +468,10 @@
   width: 100%;
   cursor: pointer;
   background: transparent !important;
+  background-color: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+  filter: none !important;
 }
 
 .reels-comments-drawer {
@@ -465,8 +491,10 @@
   overflow: hidden;
   z-index: 101;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+  pointer-events: auto;
 }
 
+.reels-comments-container.active .reels-comments-drawer,
 .reels-sheet-backdrop.active .reels-comments-drawer {
   transform: translateY(0);
 }
@@ -476,15 +504,37 @@
   overflow-y: hidden !important;
 }
 
-/* 2. Completely remove background blur and dimming layers over active video */
+/* 2. COMPLETELY FORCE ALL PARENT CONTAINERS, MODAL BACKDROPS, OVERLAYS,
+      AND THE <video> ELEMENT ITSELF TO HAVE ZERO BLUR AND ZERO FILTERS */
 #reelsView.comments-sheet-open,
+#reelsView.comments-sheet-open *,
+#reelsView.comments-sheet-open #reelsFeedWrapper,
 #reelsView.comments-sheet-open .reel-item,
 #reelsView.comments-sheet-open .reel-item.active-comment-reel,
 #reelsView.comments-sheet-open .reel-item.active-comment-reel .reel-video-wrapper,
-#reelsView.comments-sheet-open .reel-item.active-comment-reel video {
+#reelsView.comments-sheet-open .reel-item.active-comment-reel video,
+#reelsView.comments-sheet-open .reel-item.active-comment-reel .reel-video,
+#reelsCommentsSheetBackdrop,
+#reelsCommentsSheetBackdrop *,
+.reels-comments-container,
+.reels-comments-container *,
+.reels-comments-backdrop,
+.reels-comments-backdrop *,
+.reels-comments-top-dismiss-area {
   filter: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+}
+
+/* Force video brightness, opacity and 100% crisp sharpness */
+#reelsView.comments-sheet-open .reel-item.active-comment-reel,
+#reelsView.comments-sheet-open .reel-item.active-comment-reel .reel-video-wrapper,
+#reelsView.comments-sheet-open .reel-item.active-comment-reel video,
+#reelsView.comments-sheet-open .reel-item.active-comment-reel .reel-video {
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  opacity: 1 !important;
 }
 
 /* 3. Hide Red-Marked Overlay Controls (Sidebar, Creator Info, Badges, Progress, Header) */
@@ -500,7 +550,7 @@
   transition: opacity 0.2s ease, visibility 0.2s ease;
 }
 
-/* 4. Seamless Video Frame Scaling (fits cleanly into top ~42vh viewport area, uncropped) */
+/* 4. Seamless Video Frame Scaling (fits cleanly into top ~42vh viewport area, uncropped, 100% sharp) */
 #reelsView.comments-sheet-open .reel-item.active-comment-reel .reel-video-wrapper {
   transform: translateY(8px) scale(0.44);
   transform-origin: center top;
@@ -511,21 +561,25 @@
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1), border-radius 0.3s cubic-bezier(0.2, 0.9, 0.3, 1), box-shadow 0.3s ease;
-  will-change: transform;
 }
 
+#reelsView.comments-sheet-open .reel-item.active-comment-reel video,
 #reelsView.comments-sheet-open .reel-item.active-comment-reel .reel-video {
   object-fit: contain !important;
   border-radius: 18px;
   filter: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 /* 5. Smooth default transitions when restoring from comments */
 .reel-item .reel-video-wrapper {
   transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1), border-radius 0.3s cubic-bezier(0.2, 0.9, 0.3, 1), box-shadow 0.3s ease;
-  will-change: transform;
 }
 
 .reel-item .reels-sidebar,

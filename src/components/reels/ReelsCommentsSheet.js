@@ -55,7 +55,7 @@ function createCommentsSheetDOM() {
 
   backdrop = document.createElement("div");
   backdrop.id = "reelsCommentsSheetBackdrop";
-  backdrop.className = "reels-sheet-backdrop reels-comments-backdrop";
+  backdrop.className = "reels-comments-container reels-comments-backdrop";
   backdrop.onclick = (e) => {
     if (e.target === backdrop) closeReelsCommentsSheet();
   };
