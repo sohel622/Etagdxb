@@ -1,0 +1,206 @@
+    /* রিলস ভিউ */
+    #reelsView {
+      background: #000;
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+      height: 100%;
+    }
+    #reelsView::-webkit-scrollbar { display: none; }
+
+    .reel-item {
+      width: 100%;
+      height: 100%;
+      min-height: 100%;
+      position: relative;
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .reel-video-wrapper {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      background: #000;
+    }
+
+    .reel-video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      max-height: 100%;
+      aspect-ratio: 9/16;
+    }
+
+    .reels-top-header {
+      position: absolute;
+      top: 14px;
+      left: 16px;
+      right: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 10;
+      color: #fff;
+    }
+
+    .reels-top-header .title {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    /* ডাবল ট্যাপ লাভ আইকন */
+    .floating-heart {
+      position: absolute;
+      transform: translate(-50%, -50%) scale(0);
+      pointer-events: none;
+      z-index: 40;
+      animation: popHeart 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+
+    .floating-heart svg {
+      width: 95px;
+      height: 95px;
+      filter: drop-shadow(0 4px 15px rgba(255, 0, 85, 0.6));
+    }
+
+    @keyframes popHeart {
+      0% { transform: translate(-50%, -50%) scale(0) rotate(-10deg); opacity: 0; }
+      50% { transform: translate(-50%, -50%) scale(1.2) rotate(3deg); opacity: 1; }
+      80% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
+      100% { transform: translate(-50%, -90px) scale(1.1); opacity: 0; }
+    }
+
+    .reels-sidebar {
+      position: absolute;
+      right: 12px;
+      bottom: 90px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+      z-index: 10;
+      color: #fff;
+    }
+
+    .reel-action-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+    }
+
+    .reel-action-btn i {
+      font-size: 26px;
+      filter: drop-shadow(0 2px 5px rgba(0,0,0,0.6));
+    }
+
+    .reel-action-btn span {
+      font-size: 11.5px;
+      font-weight: 600;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+    }
+
+    .reel-action-btn .fa-heart.liked {
+      color: #ff1355;
+    }
+
+    .reels-bottom-info {
+      position: absolute;
+      left: 14px;
+      bottom: 90px;
+      right: 75px;
+      z-index: 10;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .reels-user-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .reels-user-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 1.5px solid #fff;
+      object-fit: cover;
+    }
+
+    .reels-username {
+      font-size: 13.5px;
+      font-weight: 600;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+    }
+
+    .follow-btn {
+      border: 1px solid rgba(255,255,255,0.7);
+      background: rgba(0,0,0,0.3);
+      color: #fff;
+      padding: 3px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      backdrop-filter: blur(4px);
+    }
+
+    .reels-caption {
+      font-size: 12.5px;
+      line-height: 1.4;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+      max-width: 90%;
+    }
+
+    /* =======================================================
+       বটম নেভিগেশন বার - স্ট্যান্ডার্ড ও লিকুইড গ্লাস মোড
+    ======================================================= */
+    :root {
+      --lg-width: 83%;
+      --lg-height: 52px;
+      --lg-radius: 50px;
+      --lg-blur: 16px;
+      --lg-opacity: 0.50;
+      --lg-border-glow: 0.25;
+      --lg-bottom: 16px;
+    }
+
+    .bottom-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      width: 100%;
+      height: 52px;
+      background: #ffffff;
+      border-top: 1px solid #dbdbdb;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 0 4px;
+      z-index: 50;
+      user-select: none;
+      cursor: pointer;
+      transform: translateY(0);
+      opacity: 1;
+      transition: transform 300ms ease-in-out, opacity 300ms ease-in-out, background 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: transform, opacity;
+    }
+
+    .app-container.dark-mode-active .bottom-bar:not(.liquid-glass-mode) {
+      background: #000000;
+      border-top: 1px solid #1f1f1f;
+    }
+

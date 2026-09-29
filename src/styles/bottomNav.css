@@ -1,0 +1,305 @@
+    /* Auto-Hide Standard Bottom Navigation Bar on Home Feed Scroll Down */
+    .bottom-bar:not(.liquid-glass-mode).nav-hidden,
+    .bottom-bar:not(.liquid-glass-mode).translate-y-full {
+      transform: translateY(100%);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .bottom-bar:not(.liquid-glass-mode).translate-y-0 {
+      transform: translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* Strictly Hide Bottom Navigation Bar in All Chat and Direct Message Screens */
+    .app-container.in-chats-view #bottomNavBar,
+    .app-container:has(#chatsView.active) #bottomNavBar,
+    #chatsView.active ~ #bottomNavBar {
+      display: none !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+      transform: translateY(100%) !important;
+      opacity: 0 !important;
+    }
+
+    /* Active Item Floating Pill Indicator (Soft Frosted Glow with Elastic Transitions) */
+    .nav-active-pill {
+      position: absolute;
+      top: 5px;
+      bottom: 5px;
+      left: 0;
+      border-radius: var(--lg-radius, 9999px);
+      background: rgba(255, 255, 255, 0.16);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      box-shadow: 0 0 14px rgba(255, 255, 255, 0.15),
+                  inset 0 1px 1.5px rgba(255, 255, 255, 0.45);
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0;
+      transition: transform 0.38s cubic-bezier(0.34, 1.45, 0.64, 1),
+                  width 0.25s ease,
+                  opacity 0.25s ease;
+    }
+
+    /* Liquid Glassmorphism Effect */
+    .bottom-bar.liquid-glass-mode {
+      bottom: var(--lg-bottom, 16px);
+      left: 50%;
+      transform: translateX(-50%);
+      transform-origin: bottom center;
+      width: var(--lg-width, 83%);
+      max-width: 380px;
+      height: var(--lg-height, 52px);
+      border-radius: var(--lg-radius, 50px);
+      background: rgba(255, 255, 255, var(--lg-opacity, 0.50)) !important;
+      backdrop-filter: blur(var(--lg-blur, 16px)) saturate(180%) contrast(105%);
+      -webkit-backdrop-filter: blur(var(--lg-blur, 16px)) saturate(180%) contrast(105%);
+      border: 1px solid rgba(255, 255, 255, var(--lg-border-glow, 0.25)) !important;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.20),
+                  0 2px 8px 0 rgba(0, 0, 0, 0.08),
+                  inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.35) !important;
+      padding: 0 6px;
+      transition: width 0.25s ease, height 0.25s ease, bottom 0.25s ease, border-radius 0.25s ease;
+    }
+
+    .app-container.dark-mode-active .bottom-bar.liquid-glass-mode:not(.style-neon):not(.style-cyberpunk),
+    .app-container.reels-active .bottom-bar.liquid-glass-mode:not(.style-neon):not(.style-cyberpunk) {
+      background: rgba(22, 22, 28, var(--lg-opacity, 0.50)) !important;
+    }
+
+    /* Style Variants: Frosted, Neon, Cyberpunk */
+    .bottom-bar.liquid-glass-mode.style-frosted,
+    .glass-preview-pill.style-frosted {
+      backdrop-filter: blur(calc(var(--lg-blur, 16px) + 8px)) saturate(220%) contrast(115%) !important;
+      -webkit-backdrop-filter: blur(calc(var(--lg-blur, 16px) + 8px)) saturate(220%) contrast(115%) !important;
+    }
+
+    .bottom-bar.liquid-glass-mode.style-neon,
+    .glass-preview-pill.style-neon {
+      border: 1px solid rgba(0, 242, 254, var(--lg-border-glow, 0.45)) !important;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.35), 0 0 16px rgba(0, 242, 254, var(--lg-border-glow, 0.45)), inset 0 1px 2px rgba(0, 242, 254, 0.5) !important;
+    }
+
+    .bottom-bar.liquid-glass-mode.style-cyberpunk,
+    .glass-preview-pill.style-cyberpunk {
+      border: 1px solid rgba(255, 0, 128, var(--lg-border-glow, 0.45)) !important;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.35), 0 0 16px rgba(255, 0, 128, var(--lg-border-glow, 0.45)), inset 0 1px 2px rgba(255, 0, 128, 0.5) !important;
+    }
+
+    .bottom-bar.liquid-glass-mode .nav-active-pill {
+      opacity: 1;
+      background: rgba(0, 0, 0, 0.06);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+    }
+
+    /* Nav Item Buttons */
+    .nav-btn {
+      flex: 1;
+      height: 100%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      z-index: 2;
+      color: #000000;
+      font-size: 20px;
+      transition: color 0.15s ease, transform 0.15s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .nav-btn:hover {
+      color: #262626;
+    }
+
+    .app-container.dark-mode-active .nav-btn {
+      color: #ffffff;
+    }
+
+    .app-container.dark-mode-active .nav-btn:hover {
+      color: #e2e8f0;
+    }
+
+    .nav-btn.active {
+      color: #000000;
+      transform: scale(1.06);
+    }
+
+    .app-container.dark-mode-active .nav-btn.active {
+      color: #ffffff;
+      transform: scale(1.06);
+    }
+
+    .bottom-bar.liquid-glass-mode .nav-btn {
+      color: rgba(20, 20, 24, 0.80);
+      font-size: 19px;
+      transition: color 0.15s ease, transform 0.15s cubic-bezier(0.34, 1.45, 0.64, 1);
+    }
+
+    .bottom-bar.liquid-glass-mode .nav-btn:hover {
+      color: #000000;
+    }
+
+    .bottom-bar.liquid-glass-mode .nav-btn.active {
+      color: #000000;
+      transform: scale(1.05);
+    }
+
+    /* Dark Mode & Reels View: Pure glowing white icons and frosted pill (Image 1 & 3) */
+    .app-container.dark-mode-active .bottom-bar.liquid-glass-mode .nav-btn,
+    .app-container.reels-active .bottom-bar.liquid-glass-mode .nav-btn {
+      color: rgba(255, 255, 255, 0.75);
+    }
+
+    .app-container.dark-mode-active .bottom-bar.liquid-glass-mode .nav-btn:hover,
+    .app-container.reels-active .bottom-bar.liquid-glass-mode .nav-btn:hover {
+      color: #ffffff;
+    }
+
+    .app-container.dark-mode-active .bottom-bar.liquid-glass-mode .nav-btn.active,
+    .app-container.reels-active .bottom-bar.liquid-glass-mode .nav-btn.active {
+      color: #ffffff;
+      transform: scale(1.05);
+    }
+
+    .app-container.dark-mode-active .bottom-bar.liquid-glass-mode .nav-active-pill,
+    .app-container.reels-active .bottom-bar.liquid-glass-mode .nav-active-pill {
+      background: rgba(255, 255, 255, 0.16);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      box-shadow: 0 0 14px rgba(255, 255, 255, 0.15),
+                  inset 0 1px 1.5px rgba(255, 255, 255, 0.45);
+    }
+
+    .bottom-bar.liquid-glass-mode .profile-nav-circle {
+      width: 24px;
+      height: 24px;
+      border-color: currentColor;
+    }
+
+    /* Profile Avatar Navigation Item */
+    .profile-nav-circle {
+      width: 27px;
+      height: 27px;
+      border-radius: 50%;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1.5px solid currentColor;
+      font-size: 13px;
+      background: rgba(120, 120, 120, 0.2);
+    }
+
+    .profile-nav-circle img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      border-radius: 50%;
+    }
+
+    .profile-nav-circle .user-icon {
+      font-size: 14px;
+      color: inherit;
+    }
+
+    /* =======================================================
+       ইনস্টাগ্রাম প্রোফাইল পেজ (Image 2 স্টাইল)
+    ======================================================= */
+    #profileView {
+      background: #ffffff;
+      padding-bottom: 72px;
+      min-height: 100%;
+    }
+
+    .dark #profileView,
+    .app-container.dark #profileView,
+    .app-container.dark-mode-active #profileView {
+      background: #000000;
+      color: #ffffff;
+    }
+
+    .profile-top-bar {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      border-bottom: 1px solid #f0f0f0;
+      background: #ffffff;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .dark .profile-top-bar,
+    .app-container.dark .profile-top-bar,
+    .app-container.dark-mode-active .profile-top-bar {
+      background: #000000;
+      border-bottom: 1px solid #1f1f1f;
+      color: #ffffff;
+    }
+
+    .profile-header-user {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 19px;
+      letter-spacing: -0.2px;
+      color: #000000;
+    }
+
+    .dark .profile-header-user,
+    .app-container.dark .profile-header-user,
+    .app-container.dark-mode-active .profile-header-user {
+      color: #ffffff;
+    }
+
+    .profile-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .profile-header-actions .icon-btn {
+      width: 36px;
+      height: 36px;
+      font-size: 20px;
+      color: #000000;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: none;
+      border: none;
+      border-radius: 50%;
+      padding: 0;
+      outline: none;
+      transition: transform 0.12s ease, opacity 0.15s ease, background-color 0.15s ease;
+    }
+
+    .profile-header-actions .icon-btn:hover {
+      opacity: 0.8;
+      transform: scale(1.08);
+    }
+
+    .profile-header-actions .icon-btn:active {
+      transform: scale(0.92);
+      opacity: 0.6;
+    }
+
+    .dark .profile-header-actions .icon-btn,
+    .app-container.dark .profile-header-actions .icon-btn,
+    .app-container.dark-mode-active .profile-header-actions .icon-btn {
+      color: #ffffff;
+    }
+
+    .profile-scroll-content {
+      display: flex;
+      flex-direction: column;
+    }
+

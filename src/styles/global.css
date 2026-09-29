@@ -1,0 +1,222 @@
+/* Flashgram Global Stylesheet */
+@import "./feed.css";
+@import "./reels.css";
+@import "./bottomNav.css";
+@import "./profile.css";
+@import "./shabnam.css";
+
+    @font-face {
+      font-family: 'Billabong';
+      src: url('https://cdn.jsdelivr.net/gh/webfontworld/billabong/Billabong.woff2') format('woff2'),
+           url('https://cdn.jsdelivr.net/gh/webfontworld/billabong/Billabong.woff') format('woff');
+      font-weight: normal;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    :root {
+      --app-font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      font-family: var(--app-font-family);
+    }
+
+    body {
+      background-color: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 420px;
+      height: 100vh;
+      max-height: 900px;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 0 35px rgba(0,0,0,0.9);
+    }
+
+    /* টপ বার (Image 1 Style: No divider line below header) */
+    .top-bar {
+      height: 52px;
+      min-height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      background: #ffffff;
+      border-bottom: none;
+      z-index: 10;
+      flex-shrink: 0;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    .top-bar .icon-btn {
+      font-size: 22px;
+      color: #000;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      position: relative;
+      transition: color 0.2s ease;
+    }
+
+    .top-bar .logo {
+      font-family: 'Billabong', 'Grand Hotel', 'Cookie', cursive;
+      font-size: 32px;
+      font-weight: 400;
+      color: #000;
+      user-select: none;
+      letter-spacing: 0.5px;
+      line-height: 1;
+      padding-top: 3px;
+      cursor: default;
+      transition: color 0.2s ease;
+    }
+
+    /* Automatic Dark / Night Mode Support for Home View & Top Bar */
+    .dark .top-bar,
+    .app-container.dark .top-bar,
+    .app-container.dark-mode-active .top-bar {
+      background: #000000;
+      border-bottom: none;
+    }
+
+    .dark .top-bar .icon-btn,
+    .app-container.dark .top-bar .icon-btn,
+    .app-container.dark-mode-active .top-bar .icon-btn {
+      color: #ffffff;
+    }
+
+    .dark .top-bar .logo,
+    .app-container.dark .top-bar .logo,
+    .app-container.dark-mode-active .top-bar .logo {
+      color: #ffffff;
+    }
+
+    .dark #homeView,
+    .app-container.dark #homeView,
+    .app-container.dark-mode-active #homeView {
+      background: #000000;
+      color: #ffffff;
+    }
+
+    .dark .stories-container,
+    .app-container.dark .stories-container,
+    .app-container.dark-mode-active .stories-container {
+      background: #000000;
+      border-bottom-color: #1f1f1f;
+    }
+
+    .dark .story-name,
+    .app-container.dark .story-name,
+    .app-container.dark-mode-active .story-name {
+      color: #ffffff;
+    }
+
+    .dark .story-avatar-wrapper.my-story,
+    .app-container.dark .story-avatar-wrapper.my-story,
+    .app-container.dark-mode-active .story-avatar-wrapper.my-story {
+      background: #1a1a1a;
+      border-color: #2e2e2e;
+    }
+
+    .dark .story-avatar-wrapper.active-ring img,
+    .app-container.dark .story-avatar-wrapper.active-ring img,
+    .app-container.dark-mode-active .story-avatar-wrapper.active-ring img {
+      border-color: #000000;
+    }
+
+    .dark .post-card,
+    .app-container.dark .post-card,
+    .app-container.dark-mode-active .post-card {
+      background: #000000;
+      border-bottom-color: #1f1f1f;
+    }
+
+    .dark .post-username,
+    .app-container.dark .post-username,
+    .app-container.dark-mode-active .post-username {
+      color: #ffffff;
+    }
+
+    .dark .post-location,
+    .app-container.dark .post-location,
+    .app-container.dark-mode-active .post-location {
+      color: #8e8e8e;
+    }
+
+    .dark .post-more-btn,
+    .app-container.dark .post-more-btn,
+    .app-container.dark-mode-active .post-more-btn {
+      color: #ffffff;
+    }
+
+    .dark .action-btn,
+    .app-container.dark .action-btn,
+    .app-container.dark-mode-active .action-btn {
+      color: #ffffff;
+    }
+
+    .dark .post-likes,
+    .app-container.dark .post-likes,
+    .app-container.dark-mode-active .post-likes {
+      color: #ffffff;
+    }
+
+    .dark .post-caption,
+    .app-container.dark .post-caption,
+    .app-container.dark-mode-active .post-caption {
+      color: #ffffff;
+    }
+
+    .dark .post-comments-link,
+    .app-container.dark .post-comments-link,
+    .app-container.dark-mode-active .post-comments-link {
+      color: #8e8e8e;
+    }
+
+    .dark .post-time,
+    .app-container.dark .post-time,
+    .app-container.dark-mode-active .post-time {
+      color: #737373;
+    }
+
+    .notification-badge {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 8px;
+      height: 8px;
+      background-color: #ff3040;
+      border-radius: 50%;
+      border: 1.5px solid #fff;
+    }
+
+    /* ভিউ সেকশন */
+    .view-section {
+      display: none;
+      flex: 1;
+      height: 100%;
+      overflow-y: auto;
+      position: relative;
+      touch-action: pan-y;
+    }
+
+    .view-section.active {
+      display: flex;
+      flex-direction: column;
+    }
+
