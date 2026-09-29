@@ -290,14 +290,48 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
     }
     window.parseJwt = parseJwt;
 
-    // Global unhandled rejection handler to cleanly intercept GSI FedCM iframe restriction notices
+    // Global unhandled rejection & console interceptor to cleanly handle third-party GSI FedCM notices
     if (typeof window !== "undefined") {
+      const isFedCmWarning = function(args) {
+        try {
+          const str = args.map(function(a) {
+            return typeof a === 'object' ? (a && a.message ? a.message : JSON.stringify(a)) : String(a);
+          }).join(' ');
+          return str.includes('identity-credentials-get') || str.includes('[GSI_LOGGER]') || str.includes('FedCM');
+        } catch (_) { return false; }
+      };
+      const origErr = console.error;
+      console.error = function() {
+        if (isFedCmWarning(Array.prototype.slice.call(arguments))) return;
+        return origErr.apply(console, arguments);
+      };
+      const origWarn = console.warn;
+      console.warn = function() {
+        if (isFedCmWarning(Array.prototype.slice.call(arguments))) return;
+        return origWarn.apply(console, arguments);
+      };
       window.addEventListener("unhandledrejection", function(e) {
         const reason = e && (e.reason ? (e.reason.message || String(e.reason)) : "");
         if (reason && (reason.includes("identity-credentials-get") || reason.includes("FedCM") || reason.includes("GSI_LOGGER"))) {
           if (typeof e.preventDefault === "function") e.preventDefault();
         }
       });
+    }
+
+    function isFedCmAllowed() {
+      try {
+        if (typeof document !== "undefined" && document.permissionsPolicy) {
+          if (typeof document.permissionsPolicy.allowsFeature === "function") {
+            return document.permissionsPolicy.allowsFeature("identity-credentials-get");
+          }
+        }
+        if (typeof window !== "undefined" && window.self !== window.top) {
+          return false;
+        }
+        return true;
+      } catch (_) {
+        return false;
+      }
     }
 
     // 2. Initialize google.accounts.id with client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
@@ -350,6 +384,15 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
     // 4. Auto-trigger google.accounts.id.prompt() when the user reaches the login view
     function triggerGoogleOneTap() {
       if (isUserAuthenticated()) return;
+
+      const activeClientId = window.GOOGLE_CLIENT_ID || localStorage.getItem("flashgram_google_client_id");
+      if (!activeClientId || activeClientId.includes("YOUR_GOOGLE_CLIENT_ID")) {
+        return;
+      }
+
+      if (!isFedCmAllowed()) {
+        return;
+      }
 
       if (typeof google !== "undefined" && google.accounts && google.accounts.id) {
         try {
@@ -453,10 +496,8 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
 
     // 5. Explicit "Sign in with Google" button that triggers the account picker
     function handleExplicitGoogleSignIn() {
-      const btnText = document.getElementById("authBtnGoogleText");
-      const origBtnText = btnText ? btnText.textContent : "Sign in with Google";
-
-      if (typeof google !== "undefined" && google.accounts && google.accounts.id) {
+      const activeClientId = window.GOOGLE_CLIENT_ID || localStorage.getItem("flashgram_google_client_id");
+      if (activeClientId && !activeClientId.includes("YOUR_GOOGLE_CLIENT_ID") && isFedCmAllowed() && typeof google !== "undefined" && google.accounts && google.accounts.id) {
         try {
           // Trigger Google One-Tap account drawer / picker
           google.accounts.id.prompt((notification) => {
@@ -472,7 +513,7 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
         }
       }
 
-      // If GIS is not loaded or blocked, fallback to standard Supabase Google OAuth
+      // If GIS is not loaded, FedCM is restricted, or placeholder client ID, fallback to standard Supabase Google OAuth
       handleAuthGoogle();
     }
     window.handleExplicitGoogleSignIn = handleExplicitGoogleSignIn;

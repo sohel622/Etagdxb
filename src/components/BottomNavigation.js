@@ -24,6 +24,9 @@ import { UserProfileStore } from "../utils/storage.js";
       };
     });
     let activeNavId = "home";
+    if (typeof window !== "undefined") {
+      window.activeNavId = activeNavId;
+    }
 
     const navButtonsContainer = document.getElementById("navButtonsContainer");
     const bottomNavBar = document.getElementById("bottomNavBar");
@@ -209,6 +212,10 @@ import { UserProfileStore } from "../utils/storage.js";
 
     function switchTab(tabId, btnElement) {
       activeNavId = tabId;
+      if (typeof window !== "undefined") {
+        window.activeNavId = tabId;
+        window.switchTab = switchTab;
+      }
       showStandardNavBar();
       lastHomeScrollTop = homeView ? homeView.scrollTop : 0;
       document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
@@ -391,4 +398,4 @@ import { UserProfileStore } from "../utils/storage.js";
 
 
 
-export { renderNavigation, updateActivePillPosition, switchTab, hideStandardNavBar, showStandardNavBar, handleHomeFeedScroll, applyCurrentDynamicTheme, renderDragBox, startNavPressTimer, cancelNavPressTimer, checkNavPressMove };
+export { renderNavigation, updateActivePillPosition, switchTab, hideStandardNavBar, showStandardNavBar, handleHomeFeedScroll, applyCurrentDynamicTheme, renderDragBox, startNavPressTimer, cancelNavPressTimer, checkNavPressMove, activeNavId };

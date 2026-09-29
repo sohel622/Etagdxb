@@ -6,7 +6,7 @@ import { renderHomeFeed } from "./components/Feed.js";
 import { loadReels } from "./components/ReelsViewer.js";
 import { initProfileInteractions, updateProfilePostsCount, renderProfileGrid } from "./components/Profile.js";
 import { initStories } from "./components/Stories.js";
-import { requestInitialBrowserNotificationPermission } from "./components/Modals.js";
+import { initModals, requestInitialBrowserNotificationPermission } from "./components/Modals.js";
 import { isUserAuthenticated, openAuthOnboardingFlow, triggerGoogleOneTap } from "./services/supabaseAuth.js";
 
 export const App = {
@@ -39,6 +39,7 @@ export const App = {
     renderHomeFeed();
     await loadReels();
     initProfileInteractions();
+    initModals();
     updateProfilePostsCount();
     renderProfileGrid();
     initStories();

@@ -1,121 +1,158 @@
 // Profile Component (YouTube Style Channel Header, Stats, Tabs & Grid)
 import { db } from "../services/database.js";
 import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowShabnam } from "../utils/storage.js";
+import { SHABNAM_AI_PROFILE } from "../utils/mockData.js";
+import { switchTab, activeNavId } from "./BottomNavigation.js";
+import { openShabnamChat } from "./ShabnamAI.js";
+import { playShabnamReelVideo } from "./ReelsViewer.js";
+import { openEditProfileScreen, openMediaCreationPrompt } from "./Modals.js";
 
-    function handleProfilePrimaryPillAction() {
-      if (viewingProfileUserId === "shabnam_ai") {
-        if (isFollowingShabnam()) {
-          openShabnamChat();
-        } else {
-          toggleFollowShabnam();
-        }
+let viewingProfileUserId = null;
+let previousScreenBeforeProfile = "home";
+
+if (typeof window !== "undefined") {
+  window.viewingProfileUserId = viewingProfileUserId;
+  window.previousScreenBeforeProfile = previousScreenBeforeProfile;
+}
+
+function handleProfilePrimaryPillAction() {
+  if (viewingProfileUserId === "shabnam_ai") {
+    if (isFollowingShabnam()) {
+      if (typeof openShabnamChat === "function") {
+        openShabnamChat();
+      } else if (typeof window !== "undefined" && typeof window.openShabnamChat === "function") {
+        window.openShabnamChat();
+      }
+    } else {
+      toggleFollowShabnam();
+    }
+  } else {
+    if (typeof openEditProfileScreen === "function") {
+      openEditProfileScreen();
+    } else if (typeof window !== "undefined" && typeof window.openEditProfileScreen === "function") {
+      window.openEditProfileScreen();
+    }
+  }
+}
+window.handleProfilePrimaryPillAction = handleProfilePrimaryPillAction;
+
+function openProfile(userId) {
+  if (userId === "shabnam_ai") {
+    const currentNav = (typeof activeNavId !== "undefined" && activeNavId) || (typeof window !== "undefined" && window.activeNavId) || "home";
+    previousScreenBeforeProfile = currentNav;
+    viewingProfileUserId = "shabnam_ai";
+    if (typeof window !== "undefined") {
+      window.viewingProfileUserId = viewingProfileUserId;
+      window.previousScreenBeforeProfile = previousScreenBeforeProfile;
+    }
+    try {
+      window.history.pushState({ profile: "shabnam_ai", from: previousScreenBeforeProfile }, "", "/profile/shabnam_ai");
+    } catch (_) {}
+    
+    if (typeof switchTab === "function") {
+      switchTab("profile");
+    } else if (typeof window !== "undefined" && typeof window.switchTab === "function") {
+      window.switchTab("profile");
+    }
+    
+    const profileBackBtn = document.getElementById("profileBackBtn");
+    if (profileBackBtn) profileBackBtn.style.display = "inline-flex";
+    const profileHeaderChevron = document.getElementById("profileHeaderChevron");
+    if (profileHeaderChevron) profileHeaderChevron.style.display = "none";
+    const profileHeaderActions = document.getElementById("profileHeaderActions");
+    if (profileHeaderActions) profileHeaderActions.style.display = "none";
+    
+    const headerUsername = document.getElementById("profileHeaderUsername");
+    if (headerUsername) headerUsername.textContent = SHABNAM_AI_PROFILE.username;
+    const mainAvatar = document.getElementById("mainProfileAvatarImg");
+    if (mainAvatar) mainAvatar.src = SHABNAM_AI_PROFILE.avatar;
+    const profileDisplay = document.getElementById("profileDisplayName");
+    if (profileDisplay) profileDisplay.textContent = SHABNAM_AI_PROFILE.name;
+    const verifiedBadge = document.getElementById("profileVerifiedBadge");
+    if (verifiedBadge) verifiedBadge.style.display = "inline-flex";
+    const profileHandle = document.getElementById("profileHandleText");
+    if (profileHandle) profileHandle.textContent = SHABNAM_AI_PROFILE.handle;
+    const profileCategory = document.getElementById("profileCategoryTag");
+    if (profileCategory) profileCategory.textContent = SHABNAM_AI_PROFILE.category;
+    const profileBio = document.getElementById("profileBioText");
+    if (profileBio) profileBio.textContent = SHABNAM_AI_PROFILE.bio;
+    const profileLink = document.getElementById("profileBioLinkText");
+    if (profileLink) profileLink.textContent = SHABNAM_AI_PROFILE.link;
+
+    const followersInline = document.getElementById("profileFollowersInline");
+    if (followersInline) followersInline.textContent = `${SHABNAM_AI_PROFILE.followersCount} followers`;
+    const postsInline = document.getElementById("profilePostsInline");
+    if (postsInline) postsInline.innerHTML = `<span>1</span> post`;
+
+    const pillBtn = document.getElementById("profilePrimaryPillBtn");
+    if (pillBtn) {
+      if (isFollowingShabnam()) {
+        pillBtn.textContent = "Message";
+        pillBtn.className = "yt-full-pill-btn";
       } else {
-        if (typeof openEditProfileScreen === "function") {
-          openEditProfileScreen();
-        }
+        pillBtn.textContent = "Follow";
+        pillBtn.className = "yt-full-pill-btn yt-follow-btn";
       }
     }
-    window.handleProfilePrimaryPillAction = handleProfilePrimaryPillAction;
 
-    function openProfile(userId) {
-      if (userId === "shabnam_ai") {
-        previousScreenBeforeProfile = activeNavId || "home";
-        viewingProfileUserId = "shabnam_ai";
-        try {
-          window.history.pushState({ profile: "shabnam_ai", from: previousScreenBeforeProfile }, "", "/profile/shabnam_ai");
-        } catch (_) {}
-        
-        switchTab("profile");
-        
-        const profileBackBtn = document.getElementById("profileBackBtn");
-        if (profileBackBtn) profileBackBtn.style.display = "inline-flex";
-        const profileHeaderChevron = document.getElementById("profileHeaderChevron");
-        if (profileHeaderChevron) profileHeaderChevron.style.display = "none";
-        const profileHeaderActions = document.getElementById("profileHeaderActions");
-        if (profileHeaderActions) profileHeaderActions.style.display = "none";
-        
-        const headerUsername = document.getElementById("profileHeaderUsername");
-        if (headerUsername) headerUsername.textContent = SHABNAM_AI_PROFILE.username;
-        const mainAvatar = document.getElementById("mainProfileAvatarImg");
-        if (mainAvatar) mainAvatar.src = SHABNAM_AI_PROFILE.avatar;
-        const profileDisplay = document.getElementById("profileDisplayName");
-        if (profileDisplay) profileDisplay.textContent = SHABNAM_AI_PROFILE.name;
-        const verifiedBadge = document.getElementById("profileVerifiedBadge");
-        if (verifiedBadge) verifiedBadge.style.display = "inline-flex";
-        const profileHandle = document.getElementById("profileHandleText");
-        if (profileHandle) profileHandle.textContent = SHABNAM_AI_PROFILE.handle;
-        const profileCategory = document.getElementById("profileCategoryTag");
-        if (profileCategory) profileCategory.textContent = SHABNAM_AI_PROFILE.category;
-        const profileBio = document.getElementById("profileBioText");
-        if (profileBio) profileBio.textContent = SHABNAM_AI_PROFILE.bio;
-        const profileLink = document.getElementById("profileBioLinkText");
-        if (profileLink) profileLink.textContent = SHABNAM_AI_PROFILE.link;
-
-        const followersInline = document.getElementById("profileFollowersInline");
-        if (followersInline) followersInline.textContent = `${SHABNAM_AI_PROFILE.followersCount} followers`;
-        const postsInline = document.getElementById("profilePostsInline");
-        if (postsInline) postsInline.innerHTML = `<span>1</span> post`;
-
-        const pillBtn = document.getElementById("profilePrimaryPillBtn");
-        if (pillBtn) {
-          if (isFollowingShabnam()) {
-            pillBtn.textContent = "Message";
-            pillBtn.className = "yt-full-pill-btn";
-          } else {
-            pillBtn.textContent = "Follow";
-            pillBtn.className = "yt-full-pill-btn yt-follow-btn";
-          }
-        }
-
-        renderProfileGrid();
-      } else {
-        closeUserProfile();
-        switchTab("profile");
-      }
+    renderProfileGrid();
+  } else {
+    closeUserProfile();
+    if (typeof switchTab === "function") {
+      switchTab("profile");
+    } else if (typeof window !== "undefined" && typeof window.switchTab === "function") {
+      window.switchTab("profile");
     }
-    window.openProfile = openProfile;
+  }
+}
+window.openProfile = openProfile;
 
-    function handleProfileBack() {
-      const prev = previousScreenBeforeProfile;
-      closeUserProfile();
-      if (prev && prev !== "profile") {
-        switchTab(prev);
-      } else {
-        switchTab("home");
-      }
-      try {
-        if (window.history.state && window.history.state.profile === "shabnam_ai") {
-          window.history.back();
-        }
-      } catch (_) {}
+function handleProfileBack() {
+  const prev = previousScreenBeforeProfile;
+  closeUserProfile();
+  const target = (prev && prev !== "profile") ? prev : "home";
+  if (typeof switchTab === "function") {
+    switchTab(target);
+  } else if (typeof window !== "undefined" && typeof window.switchTab === "function") {
+    window.switchTab(target);
+  }
+  try {
+    if (window.history.state && window.history.state.profile === "shabnam_ai") {
+      window.history.back();
     }
-    window.handleProfileBack = handleProfileBack;
+  } catch (_) {}
+}
+window.handleProfileBack = handleProfileBack;
 
-    function closeUserProfile() {
-      viewingProfileUserId = null;
-      const profileBackBtn = document.getElementById("profileBackBtn");
-      if (profileBackBtn) profileBackBtn.style.display = "none";
-      const profileHeaderChevron = document.getElementById("profileHeaderChevron");
-      if (profileHeaderChevron) profileHeaderChevron.style.display = "inline-block";
-      const profileHeaderActions = document.getElementById("profileHeaderActions");
-      if (profileHeaderActions) profileHeaderActions.style.display = "flex";
-      UserProfileStore.syncDOM();
-      renderProfileGrid();
+function closeUserProfile() {
+  viewingProfileUserId = null;
+  if (typeof window !== "undefined") {
+    window.viewingProfileUserId = null;
+  }
+  const profileBackBtn = document.getElementById("profileBackBtn");
+  if (profileBackBtn) profileBackBtn.style.display = "none";
+  const profileHeaderChevron = document.getElementById("profileHeaderChevron");
+  if (profileHeaderChevron) profileHeaderChevron.style.display = "inline-block";
+  const profileHeaderActions = document.getElementById("profileHeaderActions");
+  if (profileHeaderActions) profileHeaderActions.style.display = "flex";
+  UserProfileStore.syncDOM();
+  renderProfileGrid();
+}
+window.closeUserProfile = closeUserProfile;
+
+window.addEventListener("popstate", (e) => {
+  if (e.state && e.state.profile === "shabnam_ai") {
+    openProfile("shabnam_ai");
+  } else if (viewingProfileUserId === "shabnam_ai") {
+    closeUserProfile();
+    const target = (previousScreenBeforeProfile && previousScreenBeforeProfile !== "profile") ? previousScreenBeforeProfile : "home";
+    if (typeof switchTab === "function") {
+      switchTab(target);
+    } else if (typeof window !== "undefined" && typeof window.switchTab === "function") {
+      window.switchTab(target);
     }
-    window.closeUserProfile = closeUserProfile;
-
-    window.addEventListener("popstate", (e) => {
-      if (e.state && e.state.profile === "shabnam_ai") {
-        openProfile("shabnam_ai");
-      } else if (viewingProfileUserId === "shabnam_ai") {
-        closeUserProfile();
-        if (previousScreenBeforeProfile && previousScreenBeforeProfile !== "profile") {
-          switchTab(previousScreenBeforeProfile);
-        } else {
-          switchTab("home");
-        }
-      }
-    });
+  }
+});
 
 
 
@@ -151,12 +188,13 @@ import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowS
         applyCount(count);
         return;
       }
-      if (!db) {
+      const activeDb = db || (typeof window !== "undefined" && window.db);
+      if (!activeDb || typeof activeDb.transaction !== "function") {
         applyCount(0);
         return;
       }
       try {
-        const tx = db.transaction("videos", "readonly");
+        const tx = activeDb.transaction("videos", "readonly");
         const countReq = tx.objectStore("videos").count();
         countReq.onsuccess = () => {
           applyCount(countReq.result || 0);
@@ -216,20 +254,25 @@ import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowS
           </div>
         `;
         el.onclick = () => {
-          playShabnamReelVideo();
+          if (typeof playShabnamReelVideo === "function") {
+            playShabnamReelVideo();
+          } else if (typeof window !== "undefined" && typeof window.playShabnamReelVideo === "function") {
+            window.playShabnamReelVideo();
+          }
         };
         container.appendChild(el);
         return;
       }
 
-      if (!db) {
+      const activeDb = db || (typeof window !== "undefined" && window.db);
+      if (!activeDb || typeof activeDb.transaction !== "function") {
         updateProfilePostsCount(0);
         renderProfileGridItems([]);
         return;
       }
 
       try {
-        const tx = db.transaction("videos", "readonly");
+        const tx = activeDb.transaction("videos", "readonly");
         const req = tx.objectStore("videos").getAll();
         req.onsuccess = () => {
           const userPosts = req.result || [];
@@ -297,7 +340,11 @@ import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowS
           `;
           el.onclick = () => {
             const reelsBtn = document.querySelector('.nav-btn[data-id="reels"]');
-            switchTab("reels", reelsBtn);
+            if (typeof switchTab === "function") {
+              switchTab("reels", reelsBtn);
+            } else if (typeof window !== "undefined" && typeof window.switchTab === "function") {
+              window.switchTab("reels", reelsBtn);
+            }
           };
           container.appendChild(el);
         });
@@ -332,7 +379,11 @@ import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowS
           `;
           el.onclick = () => {
             const reelsBtn = document.querySelector('.nav-btn[data-id="reels"]');
-            switchTab("reels", reelsBtn);
+            if (typeof switchTab === "function") {
+              switchTab("reels", reelsBtn);
+            } else if (typeof window !== "undefined" && typeof window.switchTab === "function") {
+              window.switchTab("reels", reelsBtn);
+            }
           };
           container.appendChild(el);
         });
@@ -759,4 +810,4 @@ import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowS
       }
     }
 
-export { openProfile, handleProfileBack, closeUserProfile, handleProfilePrimaryPillAction, updateProfilePostsCount, switchProfileTab, renderProfileGrid, renderProfileGridItems, initProfileInteractions };
+export { viewingProfileUserId, openProfile, handleProfileBack, closeUserProfile, handleProfilePrimaryPillAction, updateProfilePostsCount, switchProfileTab, renderProfileGrid, renderProfileGridItems, initProfileInteractions };

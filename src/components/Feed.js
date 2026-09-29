@@ -12,14 +12,12 @@ import { renderSuggestedReels } from "./SuggestedReels.js";
     ======================================================= */
     function renderHomeFeed() {
       const feedContainer = document.getElementById("feedContainer");
-      const tx = db.transaction("videos", "readonly");
-      const req = tx.objectStore("videos").getAll();
-      
-      req.onsuccess = () => {
-        const userPosts = req.result || [];
-        const formattedUserPosts = userPosts.map(p => ({
+      if (!feedContainer) return;
+
+      const renderPosts = (userPosts = []) => {
+        const formattedUserPosts = (userPosts || []).map(p => ({
           id: 'local_' + p.id,
-          url: URL.createObjectURL(p.blob),
+          url: p.blob ? URL.createObjectURL(p.blob) : (p.url || ''),
           user: UserProfileStore.state.username,
           avatar: UserProfileStore.state.avatar,
           isCurrentUser: true,
@@ -158,6 +156,21 @@ import { renderSuggestedReels } from "./SuggestedReels.js";
 
         setupHomeFeedObserver();
       };
+
+      try {
+        const activeDb = db || (typeof window !== "undefined" && window.db);
+        if (!activeDb || typeof activeDb.transaction !== "function") {
+          renderPosts([]);
+          return;
+        }
+        const tx = activeDb.transaction("videos", "readonly");
+        const req = tx.objectStore("videos").getAll();
+        req.onsuccess = () => renderPosts(req.result || []);
+        req.onerror = () => renderPosts([]);
+      } catch (err) {
+        console.warn("renderHomeFeed db transaction error:", err);
+        renderPosts([]);
+      }
     }
 
     function setupHomeFeedObserver() {

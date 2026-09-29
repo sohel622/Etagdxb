@@ -1,15 +1,19 @@
 // Data Service for Flashgram
-import { db, initDatabase } from "./database.js";
+import { db, initDatabase, getDb } from "./database.js";
 import { SAMPLE_VIDEOS } from "../utils/mockData.js";
 import { getSavedVideos } from "../utils/storage.js";
 
 export const DataService = {
   // Get all videos / reels
   async getAllVideos() {
-    if (!db) await initDatabase();
+    await initDatabase();
+    const activeDb = getDb() || db || (typeof window !== "undefined" && window.db);
     return new Promise((resolve) => {
       try {
-        const tx = db.transaction("videos", "readonly");
+        if (!activeDb || typeof activeDb.transaction !== "function") {
+          return resolve(getSavedVideos());
+        }
+        const tx = activeDb.transaction("videos", "readonly");
         const store = tx.objectStore("videos");
         const request = store.getAll();
         request.onsuccess = () => {
@@ -26,10 +30,14 @@ export const DataService = {
 
   // Save new video / reel
   async addVideo(videoData) {
-    if (!db) await initDatabase();
+    await initDatabase();
+    const activeDb = getDb() || db || (typeof window !== "undefined" && window.db);
     return new Promise((resolve, reject) => {
       try {
-        const tx = db.transaction("videos", "readwrite");
+        if (!activeDb || typeof activeDb.transaction !== "function") {
+          return resolve(null);
+        }
+        const tx = activeDb.transaction("videos", "readwrite");
         const store = tx.objectStore("videos");
         const request = store.add(videoData);
         request.onsuccess = () => resolve(request.result);
@@ -42,10 +50,14 @@ export const DataService = {
 
   // Update video interactions
   async updateVideo(videoData) {
-    if (!db) await initDatabase();
+    await initDatabase();
+    const activeDb = getDb() || db || (typeof window !== "undefined" && window.db);
     return new Promise((resolve, reject) => {
       try {
-        const tx = db.transaction("videos", "readwrite");
+        if (!activeDb || typeof activeDb.transaction !== "function") {
+          return resolve(null);
+        }
+        const tx = activeDb.transaction("videos", "readwrite");
         const store = tx.objectStore("videos");
         const request = store.put(videoData);
         request.onsuccess = () => resolve(request.result);

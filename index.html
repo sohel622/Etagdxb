@@ -14,6 +14,35 @@
   <link href="https://fonts.googleapis.com/css2?family=Grand+Hotel&family=Cookie&family=Satisfy&family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,400&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Early Interceptor for GIS FedCM iframe permission notices -->
+  <script>
+    (function() {
+      var isFedCmWarning = function(args) {
+        try {
+          var str = args.map(function(a) {
+            return typeof a === 'object' ? (a && a.message ? a.message : JSON.stringify(a)) : String(a);
+          }).join(' ');
+          return str.includes('identity-credentials-get') || str.includes('[GSI_LOGGER]') || str.includes('FedCM');
+        } catch (_) { return false; }
+      };
+      var origErr = console.error;
+      console.error = function() {
+        if (isFedCmWarning(Array.prototype.slice.call(arguments))) return;
+        return origErr.apply(console, arguments);
+      };
+      var origWarn = console.warn;
+      console.warn = function() {
+        if (isFedCmWarning(Array.prototype.slice.call(arguments))) return;
+        return origWarn.apply(console, arguments);
+      };
+      window.addEventListener('unhandledrejection', function(e) {
+        var reason = e && (e.reason ? (e.reason.message || String(e.reason)) : '');
+        if (reason && (reason.includes('identity-credentials-get') || reason.includes('FedCM') || reason.includes('GSI_LOGGER'))) {
+          if (typeof e.preventDefault === 'function') e.preventDefault();
+        }
+      });
+    })();
+  </script>
   <!-- 1. Google Identity Services (GIS) Client Library for One-Tap & Account Picker -->
   <script src="https://accounts.google.com/gsi/client" async defer onload="if(typeof initGoogleIdentityServices==='function') initGoogleIdentityServices();"></script>
   <script>
@@ -1180,7 +1209,7 @@
                data-client_id="YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
                data-context="signin"
                data-callback="handleGoogleOneTapResponse"
-               data-auto_prompt="true"
+               data-auto_prompt="false"
                data-auto_select="false"
                data-use_fedcm_for_prompt="false"
                data-close_on_tap_outside="true"
