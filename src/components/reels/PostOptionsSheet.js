@@ -316,11 +316,7 @@ function bindPostOptionsEvents(backdrop) {
   const saveBtn = backdrop.querySelector("#postOptionsBtnSave");
   if (saveBtn) {
     saveBtn.onclick = () => {
-      if (!activePostData) return;
-      const isNowSaved = toggleSavePost(activePostData.id);
-      showInstagramToast(isNowSaved ? "Saved to collection ✨" : "Removed from saved");
-      updateSaveItemState(isNowSaved);
-      closePostOptionsSheet();
+      handlePostOptionsSave();
     };
   }
 
@@ -344,13 +340,7 @@ function bindPostOptionsEvents(backdrop) {
   const interestedBtn = backdrop.querySelector("#postOptionsBtnInterested");
   if (interestedBtn) {
     interestedBtn.onclick = () => {
-      if (activePostData) {
-        try {
-          localStorage.setItem(`affinity_${activePostData.id}`, "interested");
-        } catch (_) {}
-      }
-      showInstagramToast("We'll show you more posts like this ✨");
-      closePostOptionsSheet();
+      handlePostOptionsInterested();
     };
   }
 
@@ -358,19 +348,7 @@ function bindPostOptionsEvents(backdrop) {
   const notInterestedBtn = backdrop.querySelector("#postOptionsBtnNotInterested");
   if (notInterestedBtn) {
     notInterestedBtn.onclick = () => {
-      if (activePostData) {
-        try {
-          localStorage.setItem(`affinity_${activePostData.id}`, "not_interested");
-        } catch (_) {}
-      }
-      // If home feed post, diminish card
-      if (activePostElement && activePostElement.classList.contains("post-card")) {
-        activePostElement.style.opacity = "0.3";
-        activePostElement.style.pointerEvents = "none";
-        activePostElement.style.filter = "grayscale(100%)";
-      }
-      showInstagramToast("Post hidden. We'll show fewer posts like this 🚫");
-      closePostOptionsSheet();
+      handlePostOptionsNotInterested();
     };
   }
 
@@ -504,13 +482,13 @@ function applyPlaybackSpeed(speed) {
     if (check) check.style.display = Math.abs(s - speed) < 0.05 ? "block" : "none";
   });
 
-  showInstagramToast(`Playback speed set to ${speed}x ⚡`);
+  showInstagramToast(`<i class="fa-solid fa-gauge-high text-[13px]"></i> ${speed}x`, { duration: 1500 });
   closePostOptionsSheet();
 }
 
 function submitReportReason(reason) {
   closePostOptionsSheet();
-  showInstagramToast("Thank you for reporting this post. We use these reports to keep Flashgram safe. 🛡️");
+  showInstagramToast('<i class="fa-solid fa-check text-[14px]"></i> Reported', { center: true, duration: 1500 });
 }
 
 /**
@@ -523,7 +501,7 @@ function submitReportReason(reason) {
 function handlePostOptionsSave() {
   if (!activePostData) return;
   const isNowSaved = toggleSavePost(activePostData.id);
-  showInstagramToast(isNowSaved ? "Saved to collection ✨" : "Removed from saved");
+  showInstagramToast(isNowSaved ? '<i class="fa-solid fa-bookmark text-[13px]"></i> Saved' : '<i class="fa-regular fa-bookmark text-[13px]"></i> Removed', { duration: 1500 });
   updateSaveItemState(isNowSaved);
   closePostOptionsSheet();
 }
@@ -534,7 +512,7 @@ function handlePostOptionsInterested() {
       localStorage.setItem(`affinity_${activePostData.id}`, "interested");
     } catch (_) {}
   }
-  showInstagramToast("We'll show you more posts like this ✨");
+  showInstagramToast('<i class="fa-solid fa-star text-amber-400 text-[13px]"></i> Interested', { duration: 1500 });
   closePostOptionsSheet();
 }
 
@@ -549,7 +527,7 @@ function handlePostOptionsNotInterested() {
     activePostElement.style.pointerEvents = "none";
     activePostElement.style.filter = "grayscale(100%)";
   }
-  showInstagramToast("Post hidden. We'll show fewer posts like this 🚫");
+  showInstagramToast('<i class="fa-solid fa-eye-slash text-[13px]"></i> Not interested', { duration: 1500 });
   closePostOptionsSheet();
 }
 

@@ -203,9 +203,9 @@ function setupShareSheetListeners(backdrop) {
       const shareUrl = window.location.href;
       try {
         navigator.clipboard.writeText(shareUrl);
-        showInstagramToast("Link copied to clipboard! 📋");
+        showInstagramToast('<i class="fa-solid fa-check text-[13px]"></i> Link copied');
       } catch (_) {
-        showInstagramToast("Link ready to share! 📋");
+        showInstagramToast('<i class="fa-solid fa-check text-[13px]"></i> Link ready');
       }
       closeReelsShareSheet();
     };
@@ -215,7 +215,7 @@ function setupShareSheetListeners(backdrop) {
   const storyBtn = backdrop.querySelector("#shareBtnStory");
   if (storyBtn) {
     storyBtn.onclick = () => {
-      showInstagramToast("Added reel to your story! ✨");
+      showInstagramToast('<i class="fa-solid fa-plus text-[13px]"></i> Added to story');
       closeReelsShareSheet();
     };
   }
@@ -269,7 +269,7 @@ function setupShareSheetListeners(backdrop) {
   const interestedBtn = backdrop.querySelector("#actionPillInterested");
   if (interestedBtn) {
     interestedBtn.onclick = () => {
-      showInstagramToast("We'll show you more reels like this ✨");
+      showInstagramToast('<i class="fa-solid fa-star text-amber-400 text-[13px]"></i> Interested');
       closeReelsShareSheet();
     };
   }
@@ -277,7 +277,7 @@ function setupShareSheetListeners(backdrop) {
   const notInterestedBtn = backdrop.querySelector("#actionPillNotInterested");
   if (notInterestedBtn) {
     notInterestedBtn.onclick = () => {
-      showInstagramToast("We won't show you this reel again");
+      showInstagramToast('<i class="fa-solid fa-eye-slash text-[13px]"></i> Not interested');
       closeReelsShareSheet();
     };
   }
@@ -289,7 +289,7 @@ function setupShareSheetListeners(backdrop) {
       if (!currentSharingReel) return;
       const isSaved = toggleSaveReel(currentSharingReel.id);
       updateSavePillState(isSaved);
-      showInstagramToast(isSaved ? "Saved to collection ✨" : "Removed from saved");
+      showInstagramToast(isSaved ? '<i class="fa-solid fa-bookmark text-[13px]"></i> Saved' : '<i class="fa-regular fa-bookmark text-[13px]"></i> Removed');
     };
   }
 
@@ -307,7 +307,7 @@ function setupShareSheetListeners(backdrop) {
       }
       const speedText = backdrop.querySelector("#actionPillSpeedText");
       if (speedText) speedText.textContent = `${speed}x Speed`;
-      showInstagramToast(`Playback speed set to ${speed}x`);
+      showInstagramToast(`<i class="fa-solid fa-gauge-high text-[13px]"></i> ${speed}x`);
     };
   }
 

@@ -382,6 +382,12 @@ function switchTab(tabId, btnElement) {
     }
   }
 
+  const chatsView = document.getElementById("chatsView");
+  if (chatsView && tabId !== "messages") {
+    chatsView.classList.remove("active");
+    chatsView.style.display = "none";
+  }
+
   if (tabId === "reels") {
     if (typeof pauseAllHomeVideos === "function") pauseAllHomeVideos();
     if (hView) hView.classList.remove("active");

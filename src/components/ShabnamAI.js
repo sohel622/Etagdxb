@@ -3,6 +3,7 @@ import { DEFAULT_CONVERSATIONS, SHABNAM_AI_PROFILE } from "../utils/mockData.js"
 import { UserProfileStore, showInstagramToast, getPinnedConversations, setPinnedConversations, getMutedConversations, setMutedConversations, getDeletedConversations, setDeletedConversations, getBlockedConversations, setBlockedConversations, getShabnamUnread, setShabnamUnread, markShabnamChatAsRead, getShabnamHistory, saveShabnamHistory, getAllShabnamSessions, saveAllShabnamSessions, getActiveSessionId, setActiveSessionId, isFollowingShabnam, toggleFollowShabnam } from "../utils/storage.js";
 import { generateSmartInAppAIResponse, fetchLiveGeminiAI, generateVideoContextAIResponse } from "../services/aiService.js";
 import { navigateToReel } from "./ReelsViewer.js";
+import { openChatReelsViewer } from "./reels/index.js";
 
 let chatSearchQuery = "";
 let chatAttachedImageBase64 = null;
@@ -546,12 +547,53 @@ let justTriggeredChatSheet = false;
     }
     window.closeShabnamChat = closeShabnamChat;
 
-    function openReelFromChatCard(videoId, videoUrl) {
-      closeShabnamChat();
-      if (typeof navigateToReel === "function") {
-        navigateToReel(videoId, videoUrl);
-      } else if (typeof window !== "undefined" && typeof window.navigateToReel === "function") {
-        window.navigateToReel(videoId, videoUrl);
+    function openReelFromChatCard(videoId, videoUrl, msgIdx) {
+      // 1. Collect all video cards shared in the active conversation
+      const history = getShabnamHistory();
+      const chatSharedVideos = [];
+      const seenIds = new Set();
+      let targetIndex = 0;
+
+      history.forEach((m, i) => {
+        if (m.videoCard && m.videoCard.url) {
+          const vidId = m.videoCard.id || m.videoCard.url;
+          if (!seenIds.has(vidId)) {
+            seenIds.add(vidId);
+            chatSharedVideos.push(m.videoCard);
+          }
+          if (i === msgIdx || m.videoCard.id === videoId || m.videoCard.url === videoUrl) {
+            targetIndex = chatSharedVideos.length - 1;
+          }
+        }
+      });
+
+      // Fallback if not found in history
+      if (chatSharedVideos.length === 0) {
+        chatSharedVideos.push({
+          id: videoId || "sample_1",
+          url: videoUrl,
+          user: "sohel_077",
+          caption: "Flashgram Reel",
+          avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
+          likes: "14.2K",
+          comments: "142",
+          shares: "210"
+        });
+        targetIndex = 0;
+      }
+
+      // 2. Open dedicated full-screen Reels viewer scoped strictly to conversation-shared videos
+      // (No split-screen, no endless scrolling to unrelated feed videos, top-left back button returns straight to chat)
+      if (typeof openChatReelsViewer === "function") {
+        openChatReelsViewer({
+          videos: chatSharedVideos,
+          initialIndex: Math.max(0, targetIndex)
+        });
+      } else if (typeof window !== "undefined" && typeof window.openChatReelsViewer === "function") {
+        window.openChatReelsViewer({
+          videos: chatSharedVideos,
+          initialIndex: Math.max(0, targetIndex)
+        });
       }
     }
     window.openReelFromChatCard = openReelFromChatCard;
@@ -780,7 +822,7 @@ let justTriggeredChatSheet = false;
             }
 
             videoCardMarkup = `
-              <div class="video-context-card mb-2.5" onclick="window.openReelFromChatCard('${escapeHtml(videoId)}', '${escapeHtml(videoUrl)}')" title="Watch Reel">
+              <div class="video-context-card mb-2.5" onclick="window.openReelFromChatCard('${escapeHtml(videoId)}', '${escapeHtml(videoUrl)}', ${idx})" title="Watch Reel">
                 <!-- Creator Header -->
                 <div class="px-3 py-2 flex items-center justify-between bg-black/40 dark:bg-black/60 border-b border-white/10 text-white text-[12px]">
                   <div class="flex items-center gap-1.5 min-w-0">
@@ -1306,7 +1348,7 @@ let justTriggeredChatSheet = false;
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(textToCopy).then(() => {
           if (typeof showInstagramToast === "function") {
-            showInstagramToast("Copied to clipboard!");
+            showInstagramToast('<i class="fa-solid fa-check text-[13px]"></i> Copied');
           }
         }).catch(() => {
           fallbackCopyText(textToCopy);
@@ -1328,7 +1370,7 @@ let justTriggeredChatSheet = false;
         document.execCommand("copy");
         document.body.removeChild(textarea);
         if (typeof showInstagramToast === "function") {
-          showInstagramToast("Copied to clipboard!");
+          showInstagramToast('<i class="fa-solid fa-check text-[13px]"></i> Copied');
         }
       } catch (_) {}
     }
@@ -1435,7 +1477,7 @@ let justTriggeredChatSheet = false;
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(() => {
           if (typeof showInstagramToast === "function") {
-            showInstagramToast("Copied to clipboard!");
+            showInstagramToast('<i class="fa-solid fa-check text-[13px]"></i> Copied');
           }
         });
       }

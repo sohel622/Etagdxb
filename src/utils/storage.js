@@ -356,38 +356,73 @@ import { db } from "../services/database.js";
 
 
 
-      function showInstagramToast(text) {
+      function showInstagramToast(content, options = {}) {
         let toast = document.getElementById("inAppNotificationToast");
         if (!toast) {
           toast = document.createElement("div");
           toast.id = "inAppNotificationToast";
-          toast.style.position = "fixed";
-          toast.style.bottom = "80px";
-          toast.style.left = "50%";
-          toast.style.transform = "translateX(-50%) translateY(20px)";
-          toast.style.background = "rgba(38, 38, 38, 0.95)";
-          toast.style.color = "#ffffff";
-          toast.style.padding = "10px 18px";
-          toast.style.borderRadius = "24px";
-          toast.style.fontSize = "13.5px";
-          toast.style.fontWeight = "500";
-          toast.style.zIndex = "999999";
-          toast.style.boxShadow = "0 8px 24px rgba(0,0,0,0.6)";
-          toast.style.pointerEvents = "none";
-          toast.style.transition = "all 0.24s cubic-bezier(0.16, 1, 0.3, 1)";
-          toast.style.opacity = "0";
-          toast.style.backdropFilter = "blur(8px)";
-          toast.style.whiteSpace = "nowrap";
           document.body.appendChild(toast);
         }
-        toast.textContent = text;
-        toast.style.opacity = "1";
-        toast.style.transform = "translateX(-50%) translateY(0)";
+
+        const isCenter = options.center !== false;
+        const duration = options.duration || 1500;
+
+        toast.style.position = "fixed";
+        if (isCenter) {
+          toast.style.top = "50%";
+          toast.style.bottom = "auto";
+          toast.style.left = "50%";
+          toast.style.transform = "translate(-50%, -50%) scale(0.92)";
+        } else {
+          toast.style.top = "70px";
+          toast.style.bottom = "auto";
+          toast.style.left = "50%";
+          toast.style.transform = "translateX(-50%) translateY(-10px)";
+        }
+
+        toast.style.background = "rgba(30, 30, 30, 0.85)";
+        toast.style.backdropFilter = "blur(8px)";
+        toast.style.webkitBackdropFilter = "blur(8px)";
+        toast.style.color = "#ffffff";
+        toast.style.padding = "8px 16px";
+        toast.style.borderRadius = "9999px";
+        toast.style.fontSize = "14px";
+        toast.style.fontWeight = "500";
+        toast.style.zIndex = "9999999";
+        toast.style.boxShadow = "0 6px 20px rgba(0, 0, 0, 0.4)";
+        toast.style.pointerEvents = "none";
+        toast.style.transition = "opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)";
+        toast.style.opacity = "0";
+        toast.style.whiteSpace = "nowrap";
+        toast.style.display = "inline-flex";
+        toast.style.alignItems = "center";
+        toast.style.justifyContent = "center";
+        toast.style.gap = "6px";
+
+        if (typeof content === "string" && content.includes("<")) {
+          toast.innerHTML = content;
+        } else {
+          toast.textContent = content;
+        }
+
+        requestAnimationFrame(() => {
+          toast.style.opacity = "1";
+          if (isCenter) {
+            toast.style.transform = "translate(-50%, -50%) scale(1)";
+          } else {
+            toast.style.transform = "translateX(-50%) translateY(0)";
+          }
+        });
+
         clearTimeout(toast._timeout);
         toast._timeout = setTimeout(() => {
           toast.style.opacity = "0";
-          toast.style.transform = "translateX(-50%) translateY(15px)";
-        }, 2200);
+          if (isCenter) {
+            toast.style.transform = "translate(-50%, -50%) scale(0.94)";
+          } else {
+            toast.style.transform = "translateX(-50%) translateY(-8px)";
+          }
+        }, duration);
       }
       window.showInstagramToast = showInstagramToast;
 
