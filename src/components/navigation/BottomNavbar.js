@@ -16,20 +16,21 @@ try {
   currentNav = [...DEFAULT_NAV];
 }
 
-// Guarantee all 5 essential navigation tabs (home, reels, messages, search, profile) are present
-const requiredNavIds = ["home", "reels", "messages", "search", "profile"];
+// Guarantee all 5 essential navigation tabs (home, reels, search, messages, profile) are present
+const requiredNavIds = ["home", "reels", "search", "messages", "profile"];
 const hasAll = requiredNavIds.every(id => currentNav.some(item => item.id === id));
-if (!hasAll) {
+if (!hasAll || currentNav.length !== 5) {
   currentNav = [...DEFAULT_NAV];
 } else {
-  currentNav = currentNav.map(item => {
-    const match = DEFAULT_NAV.find(d => d.id === item.id);
+  currentNav = DEFAULT_NAV.map(d => {
+    const match = currentNav.find(item => item.id === d.id);
     return {
-      ...item,
-      icon: match ? match.icon : item.icon,
-      label: item.label || (match ? match.label : item.name),
-      name: match ? match.name : item.name,
-      isProfile: match ? match.isProfile : item.isProfile
+      ...d,
+      ...(match || {}),
+      icon: d.icon,
+      name: d.name,
+      label: d.label,
+      isProfile: d.isProfile
     };
   });
 }
@@ -95,7 +96,7 @@ function updateActivePillPosition(btnElement) {
 
 function renderNavBtnContent(item, isActive) {
   if (item.isProfile || item.id === "profile") {
-    // Icon 5 (Profile): Circular avatar thumbnail showing active user profile picture with clean circular clipping
+    // Icon 5 (Profile): Rounded user avatar matching exact size (24px x 24px) of adjacent icons with a subtle border
     return `
       <div class="profile-nav-circle ${isActive ? 'active-profile' : ''}">
         <img class="current-user-avatar" src="${UserProfileStore.state.avatar}" alt="Profile" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80';" />
@@ -104,41 +105,41 @@ function renderNavBtnContent(item, isActive) {
   }
 
   if (item.id === "home") {
-    // Icon 1 (Home): Solid modern home silhouette from Image 2
+    // Icon 1 (Home): Clean, crisp Instagram-style solid house silhouette icon (24px x 24px)
     return `
-      <svg class="nav-icon home-icon w-[26px] h-[26px] shrink-0" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2.2C8 2.2 4.5 5.8 4.5 11.2V19c0 1.6 1.3 2.8 2.8 2.8h2.2a1 1 0 0 0 1-1v-4.5c0-1.2.9-2.1 2.1-2.1s2.1.9 2.1 2.1v4.5a1 1 0 0 0 1 1h2.2c1.6 0 2.8-1.2 2.8-2.8v-7.8c0-5.4-3.5-9-7.2-9z" />
+      <svg class="nav-icon home-icon w-[24px] h-[24px] shrink-0" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2.099a1.25 1.25 0 0 0-.82.316L2.94 9.493a1.25 1.25 0 0 0-.44.954V20a1.75 1.75 0 0 0 1.75 1.75h4.5a.75.75 0 0 0 .75-.75v-4.75a1.25 1.25 0 0 1 1.25-1.25h2.5a1.25 1.25 0 0 1 1.25 1.25V21c0 .414.336.75.75.75h4.5A1.75 1.75 0 0 0 21.5 20v-9.553a1.25 1.25 0 0 0-.44-.954l-8.24-7.078a1.25 1.25 0 0 0-.82-.316z"/>
       </svg>
     `;
   }
 
   if (item.id === "reels") {
-    // Icon 2 (Reels): Rounded square frame with center play triangle from Image 2
+    // Icon 2 (Reels): Standard reels play square icon (24px x 24px)
     return `
-      <svg class="nav-icon reels-icon w-[25px] h-[25px] shrink-0" viewBox="0 0 24 24" fill="none">
-        <rect x="3.2" y="3.2" width="17.6" height="17.6" rx="5.5" stroke="currentColor" stroke-width="${isActive ? '2.5' : '2.2'}" stroke-linecap="round" stroke-linejoin="round"/>
+      <svg class="nav-icon reels-icon w-[24px] h-[24px] shrink-0" viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M10 8.5L16 12L10 15.5V8.5Z" fill="currentColor"/>
       </svg>
     `;
   }
 
-  if (item.id === "messages") {
-    // Icon 3 (Messages/Chat): Clean chat bubble icon with speech lines inside from Image 2
+  if (item.id === "search") {
+    // Icon 3 (Search): Minimalist magnifying glass icon (24px x 24px)
     return `
-      <svg class="nav-icon messages-icon w-[25px] h-[25px] shrink-0" viewBox="0 0 24 24" fill="none">
-        <path d="M4.5 4.5h15a2.5 2.5 0 0 1 2.5 2.5v7.5a2.5 2.5 0 0 1-2.5 2.5H8.2l-3.8 3.5c-.5.4-1.2.1-1.2-.6v-2.9h-.2A2.5 2.5 0 0 1 2 14.5V7a2.5 2.5 0 0 1 2.5-2.5z" stroke="currentColor" stroke-width="${isActive ? '2.5' : '2.2'}" stroke-linecap="round" stroke-linejoin="round"/>
-        <line x1="7.2" y1="8.8" x2="16.8" y2="8.8" stroke="currentColor" stroke-width="${isActive ? '2.2' : '2'}" stroke-linecap="round"/>
-        <line x1="7.2" y1="12.6" x2="16.8" y2="12.6" stroke="currentColor" stroke-width="${isActive ? '2.2' : '2'}" stroke-linecap="round"/>
+      <svg class="nav-icon search-icon w-[24px] h-[24px] shrink-0" viewBox="0 0 24 24" fill="none">
+        <circle cx="10.5" cy="10.5" r="6.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M15.5 15.5L20.5 20.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     `;
   }
 
-  if (item.id === "search") {
-    // Icon 4 (Search): Crisp minimalist search magnifying glass from Image 2
+  if (item.id === "messages") {
+    // Icon 4 (Chat): Crisp messaging speech bubble icon (24px x 24px)
     return `
-      <svg class="nav-icon search-icon w-[25px] h-[25px] shrink-0" viewBox="0 0 24 24" fill="none">
-        <circle cx="10.5" cy="10.5" r="6.8" stroke="currentColor" stroke-width="${isActive ? '2.7' : '2.3'}" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M15.5 15.5L20.5 20.5" stroke="currentColor" stroke-width="${isActive ? '2.7' : '2.3'}" stroke-linecap="round" stroke-linejoin="round"/>
+      <svg class="nav-icon messages-icon w-[24px] h-[24px] shrink-0" viewBox="0 0 24 24" fill="none">
+        <path d="M4.5 4.5h15a2.5 2.5 0 0 1 2.5 2.5v7.5a2.5 2.5 0 0 1-2.5 2.5H8.2l-3.8 3.5c-.5.4-1.2.1-1.2-.6v-2.9h-.2A2.5 2.5 0 0 1 2 14.5V7a2.5 2.5 0 0 1 2.5-2.5z" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="7.2" y1="8.8" x2="16.8" y2="8.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="7.2" y1="12.6" x2="16.8" y2="12.6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
       </svg>
     `;
   }

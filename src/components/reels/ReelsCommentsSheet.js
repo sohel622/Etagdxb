@@ -7,8 +7,12 @@ let activeReelData = null;
 let currentComments = [];
 
 function getStoredComments(reelId) {
+  if (!reelId) return [];
+  const normalizedId = String(reelId);
   try {
-    const data = localStorage.getItem(`flashgram_reel_comments_${reelId}`);
+    const data = localStorage.getItem(`flashgram_comments_${normalizedId}`) ||
+                 localStorage.getItem(`flashgram_reel_comments_${normalizedId}`) ||
+                 localStorage.getItem(`flashgram_post_comments_${normalizedId}`);
     if (data) {
       return JSON.parse(data);
     }
@@ -17,19 +21,19 @@ function getStoredComments(reelId) {
   // Default initial comments with Shabnam AI pinned at top
   return [
     {
-      id: "shabnam_default_" + reelId,
+      id: "shabnam_default_" + normalizedId,
       user: "shabnam_ai",
       username: "shabnam_ai",
       avatar: SHABNAM_AI_PROFILE.avatar,
       isVerified: true,
-      text: "Loving this creative reel! ✨ Feel free to ask me for any editing tips or music suggestions!",
+      text: "Loving this creative post! ✨ Feel free to ask me for any editing tips or music suggestions!",
       time: "2h",
       likes: 54,
       isLiked: false,
       isOwn: false
     },
     {
-      id: "alex_default_" + reelId,
+      id: "alex_default_" + normalizedId,
       user: "alex_r",
       username: "alex_r",
       avatar: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=120&auto=format&fit=crop&q=80",
@@ -44,9 +48,15 @@ function getStoredComments(reelId) {
 }
 
 function saveComments(reelId, comments) {
+  if (!reelId) return;
+  const normalizedId = String(reelId);
   try {
-    localStorage.setItem(`flashgram_reel_comments_${reelId}`, JSON.stringify(comments));
+    localStorage.setItem(`flashgram_comments_${normalizedId}`, JSON.stringify(comments));
+    localStorage.setItem(`flashgram_reel_comments_${normalizedId}`, JSON.stringify(comments));
+    localStorage.setItem(`flashgram_post_comments_${normalizedId}`, JSON.stringify(comments));
   } catch (_) {}
+
+  updateReelItemCommentCount(normalizedId, comments.length);
 }
 
 function createCommentsSheetDOM() {
@@ -190,13 +200,25 @@ function setupCommentsSheetListeners(backdrop) {
 }
 
 function updateReelItemCommentCount(reelId, count) {
-  const reelItem = document.querySelector(`.reel-item[data-id="${reelId}"]`);
+  const normalizedId = String(reelId);
+  const reelItem = document.querySelector(`.reel-item[data-id="${normalizedId}"]`);
   if (reelItem) {
     const commentCountSpan = reelItem.querySelector(".reel-action-btn:nth-child(2) span");
     if (commentCountSpan) {
       commentCountSpan.textContent = String(count);
     }
   }
+
+  // Synchronize comment count on matching home feed post cards
+  const postCards = document.querySelectorAll(".post-card");
+  postCards.forEach(card => {
+    if (card.dataset.postId === normalizedId || card.dataset.id === normalizedId) {
+      const link = card.querySelector(".post-comments-link");
+      if (link) {
+        link.textContent = `View all ${count} comments`;
+      }
+    }
+  });
 }
 
 function startInlineEdit(commentId) {
@@ -364,40 +386,46 @@ function openReelsCommentsSheet(reelId, reelData = null) {
     avatarImg.src = UserProfileStore.state.avatar;
   }
 
-  // Smoothly translate active reel video to upper half without cropping
+  // Smoothly translate active reel video to upper half without cropping if on Reels view
   const reelsView = document.getElementById("reelsView");
-  if (reelsView) {
+  if (reelsView && reelsView.classList.contains("active")) {
     reelsView.classList.add("comments-sheet-open");
+
+    // Target current reel item
+    const allReelItems = document.querySelectorAll("#reelsFeedWrapper .reel-item");
+    allReelItems.forEach(item => item.classList.remove("active-comment-reel"));
+    let currentItem = document.querySelector(`.reel-item[data-id="${reelId}"]`);
+    if (!currentItem && allReelItems.length > 0) {
+      const rRect = reelsView.getBoundingClientRect();
+      const rCenter = rRect.top + rRect.height / 2;
+      let minD = Infinity;
+      allReelItems.forEach(item => {
+        const itRect = item.getBoundingClientRect();
+        const itCenter = itRect.top + itRect.height / 2;
+        const d = Math.abs(rCenter - itCenter);
+        if (d < minD) {
+          minD = d;
+          currentItem = item;
+        }
+      });
+    }
+    if (!currentItem && allReelItems.length > 0) {
+      currentItem = allReelItems[0];
+    }
+    if (currentItem) {
+      currentItem.classList.add("active-comment-reel");
+      const activeVideo = currentItem.querySelector("video");
+      if (activeVideo && activeVideo.paused) {
+        activeVideo.play().catch(() => {});
+      }
+    }
   }
 
-  // Target current reel item
-  const allReelItems = document.querySelectorAll("#reelsFeedWrapper .reel-item");
-  allReelItems.forEach(item => item.classList.remove("active-comment-reel"));
-  let currentItem = document.querySelector(`.reel-item[data-id="${reelId}"]`);
-  if (!currentItem && reelsView && allReelItems.length > 0) {
-    const rRect = reelsView.getBoundingClientRect();
-    const rCenter = rRect.top + rRect.height / 2;
-    let minD = Infinity;
-    allReelItems.forEach(item => {
-      const itRect = item.getBoundingClientRect();
-      const itCenter = itRect.top + itRect.height / 2;
-      const d = Math.abs(rCenter - itCenter);
-      if (d < minD) {
-        minD = d;
-        currentItem = item;
-      }
-    });
-  }
-  if (!currentItem && allReelItems.length > 0) {
-    currentItem = allReelItems[0];
-  }
-  if (currentItem) {
-    currentItem.classList.add("active-comment-reel");
-    // Ensure active video continues seamless playback without pause or stutter
-    const activeVideo = currentItem.querySelector("video");
-    if (activeVideo && activeVideo.paused) {
-      activeVideo.play().catch(() => {});
-    }
+  // Check if currently on Home Feed view
+  const homeView = document.getElementById("homeView");
+  if (homeView && homeView.classList.contains("active")) {
+    homeView.classList.add("comments-sheet-open");
+    // Feed video remains active and unblurred in background
   }
 
   backdrop.style.display = "flex";
@@ -415,6 +443,11 @@ function closeReelsCommentsSheet() {
     reelsView.classList.remove("comments-sheet-open");
   }
 
+  const homeView = document.getElementById("homeView");
+  if (homeView) {
+    homeView.classList.remove("comments-sheet-open");
+  }
+
   const allReelItems = document.querySelectorAll("#reelsFeedWrapper .reel-item");
   allReelItems.forEach(item => item.classList.remove("active-comment-reel"));
 
@@ -427,9 +460,12 @@ function closeReelsCommentsSheet() {
 if (typeof window !== "undefined") {
   window.openReelsCommentsSheet = openReelsCommentsSheet;
   window.closeReelsCommentsSheet = closeReelsCommentsSheet;
+  window.getStoredComments = getStoredComments;
 }
 
 export {
   openReelsCommentsSheet,
-  closeReelsCommentsSheet
+  closeReelsCommentsSheet,
+  getStoredComments,
+  updateReelItemCommentCount
 };

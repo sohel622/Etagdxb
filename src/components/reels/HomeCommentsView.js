@@ -342,60 +342,16 @@ function renderHomeCommentsList() {
   });
 }
 
+import { openReelsCommentsSheet, closeReelsCommentsSheet } from "./ReelsCommentsSheet.js";
+
 function openHomeFeedComments(post) {
-  // Pause home feed video playback
-  pauseAllHomeVideos();
-
-  activePostId = post.id || "post_" + Date.now();
-  activePostData = post;
-
-  const view = createHomeCommentsDOM();
-
-  // Populate author card
-  const avatarImg = view.querySelector("#homeCommentsPostAvatar");
-  const usernameSpan = view.querySelector("#homeCommentsPostUsername");
-  const captionDiv = view.querySelector("#homeCommentsPostCaption");
-  const timeSpan = view.querySelector("#homeCommentsPostTime");
-
-  if (avatarImg) avatarImg.src = post.avatar || UserProfileStore.state.avatar;
-  if (usernameSpan) usernameSpan.textContent = post.user || UserProfileStore.state.username || "user";
-  if (captionDiv) captionDiv.textContent = post.caption || "Living the best moments ✨";
-  if (timeSpan) timeSpan.textContent = post.time || "2 HOURS AGO";
-
-  currentHomeComments = getStoredHomeComments(activePostId);
-  renderHomeCommentsList();
-
-  const input = view.querySelector("#homeCommentsTextInput");
-  if (input) {
-    input.placeholder = `Comment as ${UserProfileStore.state.username || 'user'}...`;
-  }
-  const myAvatar = view.querySelector(".home-comments-input-bar .comments-input-avatar");
-  if (myAvatar) {
-    myAvatar.src = UserProfileStore.state.avatar;
-  }
-
-  view.style.display = "flex";
-  requestAnimationFrame(() => {
-    view.classList.add("active");
-  });
-
-  try {
-    window.history.pushState({ view: "homeComments" }, "", "");
-  } catch (_) {}
+  if (!post) return;
+  const postId = post.id || "post_" + Date.now();
+  openReelsCommentsSheet(postId, post);
 }
 
 function closeHomeFeedComments() {
-  const view = document.getElementById("homeFeedCommentsView");
-  if (!view) return;
-
-  view.classList.remove("active");
-  setTimeout(() => {
-    view.style.display = "none";
-    // Resume home feed observer and video in center viewport
-    if (typeof setupHomeFeedObserver === "function") {
-      setupHomeFeedObserver();
-    }
-  }, 280);
+  closeReelsCommentsSheet();
 }
 
 // Window popstate handler

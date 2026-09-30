@@ -4,7 +4,7 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
 import { SAMPLE_VIDEOS, SHABNAM_AI_PROFILE } from "../utils/mockData.js";
 import { isGlobalAudioMuted, toggleGlobalAudio } from "./Navbar.js";
 import { spawnFloatingHeart, openMyProfileTab, navigateToReel } from "./ReelsViewer.js";
-import { openHomeFeedComments } from "./reels/index.js";
+import { openReelsCommentsSheet, openReelsShareSheet, getStoredComments } from "./reels/index.js";
 import { openProfile } from "./Profile.js";
 import { renderSuggestedReels } from "./SuggestedReels.js";
 
@@ -49,7 +49,12 @@ import { renderSuggestedReels } from "./SuggestedReels.js";
 
           const card = document.createElement("div");
           card.className = "post-card";
+          card.dataset.id = post.id;
+          card.dataset.postId = post.id;
           if (isCurrentUser) card.dataset.currentUserPost = "true";
+
+          const postComments = typeof getStoredComments === "function" ? getStoredComments(post.id) : [];
+          const initialCommentsCount = (postComments && postComments.length) ? postComments.length : (post.commentsCount || 18);
 
           card.innerHTML = `
             <div class="post-header">
@@ -76,7 +81,7 @@ import { renderSuggestedReels } from "./SuggestedReels.js";
               <div class="post-actions-left">
                 <i class="fa-regular fa-heart action-btn like-btn"></i>
                 <i class="fa-regular fa-comment action-btn comment-icon-btn" title="Comments"></i>
-                <i class="fa-regular fa-paper-plane action-btn" onclick="alert('Shared via Direct')"></i>
+                <i class="fa-regular fa-paper-plane action-btn share-icon-btn" title="Share"></i>
               </div>
               <i class="fa-regular fa-bookmark action-btn bookmark-btn"></i>
             </div>
@@ -86,7 +91,7 @@ import { renderSuggestedReels } from "./SuggestedReels.js";
                 <span class="caption-user ${usernameClass}" ${userClickAttr}>${displayUser}</span>
                 <span>${post.caption}</span>
               </div>
-              <div class="post-comments-link" style="cursor: pointer;">View all ${post.commentsCount || 18} comments</div>
+              <div class="post-comments-link" style="cursor: pointer;" data-post-id="${post.id}">View all ${initialCommentsCount} comments</div>
               <div class="post-time">${post.time || '2 HOURS AGO'}</div>
             </div>
           `;
@@ -138,17 +143,27 @@ import { renderSuggestedReels } from "./SuggestedReels.js";
             bookmarkBtn.classList.toggle("fa-regular");
           };
 
+          const shareBtn = card.querySelector(".share-icon-btn");
+          if (shareBtn) {
+            shareBtn.onclick = (e) => {
+              e.stopPropagation();
+              openReelsShareSheet(post);
+            };
+          }
+
           const commentBtn = card.querySelector(".comment-icon-btn");
           if (commentBtn) {
-            commentBtn.onclick = () => {
-              openHomeFeedComments(post);
+            commentBtn.onclick = (e) => {
+              e.stopPropagation();
+              openReelsCommentsSheet(post.id, post);
             };
           }
 
           const commentsLink = card.querySelector(".post-comments-link");
           if (commentsLink) {
-            commentsLink.onclick = () => {
-              openHomeFeedComments(post);
+            commentsLink.onclick = (e) => {
+              e.stopPropagation();
+              openReelsCommentsSheet(post.id, post);
             };
           }
 
