@@ -4,7 +4,7 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
 import { SAMPLE_VIDEOS, SHABNAM_AI_PROFILE } from "../utils/mockData.js";
 import { isGlobalAudioMuted, toggleGlobalAudio } from "./Navbar.js";
 import { spawnFloatingHeart, openMyProfileTab, navigateToReel } from "./ReelsViewer.js";
-import { openReelsCommentsSheet, openReelsShareSheet, getStoredComments } from "./reels/index.js";
+import { openReelsCommentsSheet, openReelsShareSheet, getStoredComments, openPostOptionsSheet } from "./reels/index.js";
 import { openProfile } from "./Profile.js";
 import { renderSuggestedReels } from "./SuggestedReels.js";
 
@@ -71,7 +71,7 @@ import { renderSuggestedReels } from "./SuggestedReels.js";
                   <span class="post-location">${post.location || 'Original Audio'}</span>
                 </div>
               </div>
-              <i class="fa-solid fa-ellipsis post-more-btn" onclick="alert('Post options')"></i>
+              <i class="fa-solid fa-ellipsis post-more-btn cursor-pointer" title="Post options"></i>
             </div>
             <div class="home-video-container" style="cursor: pointer;" title="Watch Reel">
               <video class="home-video-player" src="${post.url}" loop playsinline preload="metadata"></video>
@@ -142,6 +142,14 @@ import { renderSuggestedReels } from "./SuggestedReels.js";
             bookmarkBtn.classList.toggle("fa-solid");
             bookmarkBtn.classList.toggle("fa-regular");
           };
+
+          const moreBtn = card.querySelector(".post-more-btn");
+          if (moreBtn) {
+            moreBtn.onclick = (e) => {
+              e.stopPropagation();
+              openPostOptionsSheet(post, card);
+            };
+          }
 
           const shareBtn = card.querySelector(".share-icon-btn");
           if (shareBtn) {

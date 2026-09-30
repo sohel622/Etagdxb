@@ -904,3 +904,298 @@
   border-top-color: rgba(255, 255, 255, 0.08);
 }
 
+/* =======================================================
+   6. Post Options Three-Dot Sheet & Report Sub-sheet (Images 1–5)
+======================================================= */
+.post-options-backdrop {
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.post-options-drawer {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  background: #262626;
+  color: #ffffff;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1);
+  overflow: hidden;
+  user-select: none;
+}
+
+.app-container:not(.dark-mode-active) .post-options-drawer {
+  background: #ffffff;
+  color: #121212;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.15);
+}
+
+.reels-sheet-backdrop.active .post-options-drawer {
+  transform: translateY(0);
+}
+
+.post-options-track {
+  display: flex;
+  width: 400%;
+  transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.post-options-subview {
+  width: 25%;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  overflow-y: auto;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ask Shabnam AI Context Card */
+.ask-shabnam-context-card {
+  margin: 12px 16px 8px 16px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.app-container:not(.dark-mode-active) .ask-shabnam-context-card {
+  background: #f4f4f5;
+  border-color: #e4e4e7;
+}
+
+.ask-shabnam-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ask-shabnam-card-summary {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.app-container:not(.dark-mode-active) .ask-shabnam-card-summary {
+  color: #4b5563;
+}
+
+.ask-shabnam-input-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9999px;
+  padding: 5px 8px 5px 10px;
+  transition: border-color 0.15s ease;
+}
+
+.app-container:not(.dark-mode-active) .ask-shabnam-input-box {
+  background: #ffffff;
+  border-color: #d4d4d8;
+}
+
+.ask-shabnam-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  color: inherit;
+}
+
+.ask-shabnam-send-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #0284c7;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.ask-shabnam-send-btn:hover {
+  background: #0369a1;
+  transform: scale(1.05);
+}
+
+.ask-shabnam-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.ask-shabnam-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.ask-shabnam-chip {
+  flex-shrink: 0;
+  padding: 5px 11px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.app-container:not(.dark-mode-active) .ask-shabnam-chip {
+  background: #e4e4e7;
+  border-color: #d4d4d8;
+}
+
+.ask-shabnam-chip:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: scale(1.02);
+}
+
+/* Actions List */
+.post-options-actions-list {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0 16px 0;
+}
+
+.post-options-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 20px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font-size: 14.5px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.app-container:not(.dark-mode-active) .post-options-item {
+  border-bottom-color: rgba(0, 0, 0, 0.05);
+}
+
+.post-options-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.app-container:not(.dark-mode-active) .post-options-item:hover {
+  background: #f4f4f5;
+}
+
+.post-options-item:last-child {
+  border-bottom: none;
+}
+
+.post-options-item-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.post-options-item-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.post-options-icon {
+  font-size: 17px;
+  width: 20px;
+  text-align: center;
+}
+
+/* Sub-views Header */
+.subview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.app-container:not(.dark-mode-active) .subview-header {
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+.subview-back-btn,
+.subview-close-btn {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.subview-title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+/* Report Reasons List */
+.report-reasons-list {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 24px;
+}
+
+.report-reason-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.app-container:not(.dark-mode-active) .report-reason-item {
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+.report-reason-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.app-container:not(.dark-mode-active) .report-reason-item:hover {
+  background: #f4f4f5;
+}
+
+.report-reason-item:last-child {
+  border-bottom: none;
+}
+
+

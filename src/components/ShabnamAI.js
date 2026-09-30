@@ -1,7 +1,8 @@
 // ShabnamAI Component (Direct Messages, AI Chat, Voice Audio & History Drawer)
 import { DEFAULT_CONVERSATIONS, SHABNAM_AI_PROFILE } from "../utils/mockData.js";
 import { UserProfileStore, showInstagramToast, getPinnedConversations, setPinnedConversations, getMutedConversations, setMutedConversations, getDeletedConversations, setDeletedConversations, getBlockedConversations, setBlockedConversations, getShabnamUnread, setShabnamUnread, markShabnamChatAsRead, getShabnamHistory, saveShabnamHistory, getAllShabnamSessions, saveAllShabnamSessions, getActiveSessionId, setActiveSessionId, isFollowingShabnam, toggleFollowShabnam } from "../utils/storage.js";
-import { generateSmartInAppAIResponse, fetchLiveGeminiAI } from "../services/aiService.js";
+import { generateSmartInAppAIResponse, fetchLiveGeminiAI, generateVideoContextAIResponse } from "../services/aiService.js";
+import { navigateToReel } from "./ReelsViewer.js";
 
 let chatSearchQuery = "";
 let chatAttachedImageBase64 = null;
@@ -747,6 +748,32 @@ let justTriggeredChatSheet = false;
             imgMarkup = `<img src="${msg.image}" class="rounded-2xl max-w-full max-h-[220px] object-cover border border-white/20 mb-1" alt="User upload" />`;
           }
 
+          let videoCardMarkup = "";
+          if (msg.videoCard) {
+            videoCardMarkup = `
+              <div class="video-context-card w-full max-w-[260px] rounded-2xl overflow-hidden border border-neutral-200 dark:border-neutral-700/80 bg-neutral-100 dark:bg-neutral-800 shadow-md mb-2 cursor-pointer select-none transition-transform hover:scale-[1.01]" onclick="navigateToReel('${msg.videoCard.id || ''}', '${msg.videoCard.url || ''}')" title="Watch video">
+                <div class="relative w-full aspect-[4/3] bg-black overflow-hidden flex items-center justify-center">
+                  ${msg.videoCard.thumbnail && !msg.videoCard.thumbnail.endsWith('.mp4') ? `<img src="${msg.videoCard.thumbnail}" class="w-full h-full object-cover" />` : `<video src="${msg.videoCard.url}" class="w-full h-full object-cover" preload="metadata" muted playsinline></video>`}
+                  <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20"></div>
+                  <div class="absolute top-2 left-2 flex items-center gap-1.5 text-white text-[11px] font-semibold drop-shadow">
+                    <div class="w-4 h-4 rounded-full overflow-hidden border border-white/60">
+                      <img src="${msg.videoCard.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80'}" class="w-full h-full object-cover" />
+                    </div>
+                    <span class="truncate max-w-[120px]">${msg.videoCard.user || 'creator'}</span>
+                  </div>
+                  <div class="absolute bottom-2 left-2 right-2 flex items-center justify-between text-white text-[10.5px]">
+                    <span class="truncate max-w-[160px] opacity-90">${escapeHtml(msg.videoCard.caption || msg.videoCard.title || 'Reel')}</span>
+                    <span class="w-5 h-5 rounded-full bg-white/20 backdrop-blur-xs flex items-center justify-center text-[8px]"><i class="fa-solid fa-play"></i></span>
+                  </div>
+                </div>
+                <div class="px-2.5 py-1.5 flex items-center justify-between text-[10.5px] text-neutral-500 dark:text-neutral-400 font-medium bg-neutral-50 dark:bg-neutral-800/90">
+                  <span class="flex items-center gap-1 text-sky-500 font-semibold"><i class="fa-solid fa-wand-magic-sparkles text-[9px]"></i> Ask Shabnam AI</span>
+                  <span>Watch Reel <i class="fa-solid fa-chevron-right text-[8px]"></i></span>
+                </div>
+              </div>
+            `;
+          }
+
           let replyMarkup = "";
           if (msg.replyTo) {
             const replyRoleName = msg.replyTo.username || (msg.replyTo.role === "user" ? currentUserDisplay : "Shabnam AI");
@@ -781,6 +808,7 @@ let justTriggeredChatSheet = false;
 
           msgEl.innerHTML = `
             ${pinMarkup}
+            ${videoCardMarkup}
             ${imgMarkup}
             <div class="chat-bubble-row relative max-w-full flex items-center justify-end">
               <div class="swipe-reply-icon"><i class="fa-solid fa-reply"></i></div>
@@ -1842,6 +1870,124 @@ let justTriggeredChatSheet = false;
     }
     window.sendShabnamMessage = sendShabnamMessage;
 
+    /* Contextual Ask Shabnam AI Video Question Handler (Reference Images 3 & 4) */
+    async function sendShabnamVideoContextMessage(promptText, videoCard, contextInstruction) {
+      if (isShabnamChatSending) return;
 
+      const emptyIntro = document.getElementById("shabnamChatEmptyIntro");
+      if (emptyIntro) emptyIntro.style.display = "none";
+      const chatContainer = document.getElementById("shabnamChatMessages");
+      if (chatContainer) chatContainer.style.display = "block";
 
-export { renderChatsList, handleChatSearch, clearChatSearch, openConversationActionSheet, closeConversationActionSheet, actionTogglePinConversation, actionToggleMuteConversation, actionShowDeleteConfirmation, actionCancelDeleteConfirmation, actionConfirmDeleteConversation, actionToggleBlockConversation, unblockShabnamAiFromChat, openShabnamChat, closeShabnamChat, startNewShabnamChat, loadShabnamSession, deleteShabnamSession, openShabnamHistoryDrawer, closeShabnamHistoryDrawer, renderShabnamHistoryDrawer, renderShabnamChatMessages, sendShabnamMessage, formatChatMessageMarkdown, copyChatMessageText, toggleSpeakShabnamMessage, triggerVoiceSpeechPrompt, handleChatInputChange, handleChatImageSelected, removeChatAttachedImage, openChatMessageContextMenu, closeChatMessageContextMenu, applyChatMessageReaction, toggleExpandedEmojiTray, actionReplySelectedMessage, cancelChatReply, actionCopySelectedMessage, actionPinSelectedMessage, scrollToPinnedMessage, unpinCurrentPinnedMessage, openShabnamAiLearnMoreModal, closeShabnamAiLearnMoreModal };
+      const history = getShabnamHistory();
+      const userMsg = {
+        role: "user",
+        text: promptText,
+        videoCard: videoCard,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+
+      history.push(userMsg);
+      saveShabnamHistory(history);
+      renderShabnamChatMessages();
+
+      if (chatContainer) {
+        chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: "smooth" });
+      }
+
+      const typing = document.getElementById("shabnamTypingIndicator");
+      if (typing) typing.style.display = "flex";
+      isShabnamChatSending = true;
+
+      // Realistic natural typing delay (800ms - 1300ms)
+      await new Promise(r => setTimeout(r, 900 + Math.floor(Math.random() * 400)));
+
+      // Generate intelligent context-aware response about this specific video
+      const botReply = generateVideoContextAIResponse(promptText, videoCard);
+
+      let botBubbleCreated = false;
+      let bubbleTextSpan = null;
+      let cursorSpan = null;
+      let actionsRow = null;
+      let streamedFinalText = "";
+
+      function createBotStreamBubble() {
+        if (botBubbleCreated) return;
+        botBubbleCreated = true;
+        if (typing) typing.style.display = "none";
+
+        const botMsgEl = document.createElement("div");
+        botMsgEl.className = "flex items-start gap-2.5 mr-auto max-w-[90%] bot-msg-stream-active";
+        const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        botMsgEl.innerHTML = `
+          <div class="w-8 h-8 rounded-full shrink-0 mt-0.5 overflow-hidden border border-neutral-200 dark:border-neutral-700">
+            <img src="${SHABNAM_AI_PROFILE.avatar}" class="w-full h-full object-cover" alt="Shabnam AI" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5 mb-1">
+              <span class="text-[12px] font-bold text-neutral-800 dark:text-neutral-200">Shabnam AI</span>
+              <span class="text-sky-500 text-[11px]"><i class="fa-solid fa-circle-check"></i></span>
+            </div>
+            <div class="chat-bubble-bot px-4 py-2.5 text-[13.5px] leading-relaxed shadow-sm break-words relative">
+              <span class="stream-text-content"></span><span class="stream-cursor inline-block w-[2px] h-[13px] bg-sky-500 ml-0.5 align-middle animate-pulse"></span>
+            </div>
+            <div class="flex items-center gap-2 mt-1.5 text-neutral-400 px-1 stream-actions" style="opacity: 0; transition: opacity 0.35s ease;">
+              <button type="button" class="chat-action-btn stream-tts-btn" title="Listen via Text-To-Speech">
+                <i class="fa-solid fa-volume-high text-[12px]"></i>
+              </button>
+              <button type="button" class="chat-action-btn stream-copy-btn" title="Copy message">
+                <i class="fa-regular fa-copy text-[12px]"></i>
+              </button>
+              <span class="text-[10px] ml-auto">${timeString}</span>
+            </div>
+          </div>
+        `;
+
+        if (chatContainer) chatContainer.appendChild(botMsgEl);
+        bubbleTextSpan = botMsgEl.querySelector(".stream-text-content");
+        cursorSpan = botMsgEl.querySelector(".stream-cursor");
+        actionsRow = botMsgEl.querySelector(".stream-actions");
+        if (chatContainer) chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: "smooth" });
+      }
+
+      createBotStreamBubble();
+      const tokens = botReply.match(/\S+|\s+/g) || [botReply];
+      let tIdx = 0;
+
+      function pumpVideoTypewriter() {
+        if (tIdx < tokens.length) {
+          const batch = Math.min(2, tokens.length - tIdx);
+          for (let i = 0; i < batch; i++) {
+            streamedFinalText += tokens[tIdx++];
+          }
+          if (bubbleTextSpan) {
+            bubbleTextSpan.innerHTML = formatChatMessageMarkdown(streamedFinalText);
+          }
+          if (chatContainer) {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+          }
+          setTimeout(pumpVideoTypewriter, 20);
+        } else {
+          if (cursorSpan) cursorSpan.remove();
+          if (actionsRow) actionsRow.style.opacity = "1";
+          const freshHistory = getShabnamHistory();
+          freshHistory.push({
+            role: "assistant",
+            text: streamedFinalText,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          });
+          saveShabnamHistory(freshHistory);
+          renderShabnamChatMessages();
+          renderChatsList();
+          if (typing) typing.style.display = "none";
+          isShabnamChatSending = false;
+          if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+      }
+
+      pumpVideoTypewriter();
+    }
+    window.sendShabnamVideoContextMessage = sendShabnamVideoContextMessage;
+
+export { renderChatsList, handleChatSearch, clearChatSearch, openConversationActionSheet, closeConversationActionSheet, actionTogglePinConversation, actionToggleMuteConversation, actionShowDeleteConfirmation, actionCancelDeleteConfirmation, actionConfirmDeleteConversation, actionToggleBlockConversation, unblockShabnamAiFromChat, openShabnamChat, closeShabnamChat, startNewShabnamChat, loadShabnamSession, deleteShabnamSession, openShabnamHistoryDrawer, closeShabnamHistoryDrawer, renderShabnamHistoryDrawer, renderShabnamChatMessages, sendShabnamMessage, sendShabnamVideoContextMessage, formatChatMessageMarkdown, copyChatMessageText, toggleSpeakShabnamMessage, triggerVoiceSpeechPrompt, handleChatInputChange, handleChatImageSelected, removeChatAttachedImage, openChatMessageContextMenu, closeChatMessageContextMenu, applyChatMessageReaction, toggleExpandedEmojiTray, actionReplySelectedMessage, cancelChatReply, actionCopySelectedMessage, actionPinSelectedMessage, scrollToPinnedMessage, unpinCurrentPinnedMessage, openShabnamAiLearnMoreModal, closeShabnamAiLearnMoreModal };

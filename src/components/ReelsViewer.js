@@ -1,7 +1,7 @@
 // ReelsViewer Component (Fullscreen Reels Player, Observer & Progress Bar)
 import { db } from "../services/database.js";
 import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowShabnam } from "../utils/storage.js";
-import { openReelsShareSheet, openReelsCommentsSheet, disableReelsClearMode, setActiveClearModeReelId } from "./reels/index.js";
+import { openReelsShareSheet, openReelsCommentsSheet, disableReelsClearMode, setActiveClearModeReelId, openPostOptionsSheet } from "./reels/index.js";
 
     /* =======================================================
        ৮. রিলস ভিডিও লোডিং
@@ -338,7 +338,7 @@ import { openReelsShareSheet, openReelsCommentsSheet, disableReelsClearMode, set
         if (moreBtn) {
           moreBtn.onclick = (e) => {
             e.stopPropagation();
-            openReelsShareSheet(reel);
+            openPostOptionsSheet(reel, item);
           };
         }
 

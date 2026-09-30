@@ -357,3 +357,89 @@ export async function fetchLiveGeminiAI(message = "", options = {}) {
   // Instant zero-API smart fallback
   return generateSmartInAppAIResponse(message, { image, postsCount });
 }
+
+/**
+ * 3. Contextual Video Query Response Generator (Reference Image 4)
+ * Generates intelligent explanations about specific reels & posts
+ */
+export function generateVideoContextAIResponse(query = "", videoCard = {}, options = {}) {
+  const q = (query || "").trim();
+  const lower = q.toLowerCase();
+  const lang = detectLanguage(q);
+  const creator = videoCard.user || "creator";
+  const caption = videoCard.caption || "video reel";
+
+  if (lower.includes("explain") || lower.includes("summary") || lower.includes("কী") || lower.includes("বলো")) {
+    if (lang === "bengali") {
+      return `এই ভিডিওটি ক্রিয়েটর @${creator}-এর একটি দারুণ ক্রিয়েটিভ কাজ, সোহেল! 🎬✨
+
+**ভিডিও হাইলাইটস:**
+* **বিষয়বস্তু:** "${caption}"
+* **ভিজুয়াল স্টাইল:** সিনেমাটিক ফ্রেমিং, উজ্জ্বল লাইটিং কনট্রাস্ট এবং দ্রুত গতির ট্রানজিশন দিয়ে তৈরি যা দর্শকদের ধরে রাখে।
+* **ভাইব:** এক্সপ্লোর পেজ ও ট্রেন্ডিং ফিডের জন্য একদম নিখুঁত রিল! 🔥
+
+তুমি কি এই ধরনের শট বা লাইটিং তোমার নিজের ভিডিওতে তৈরি করতে চাও?`;
+    }
+    return `This video by @${creator} is such an engaging creative piece, Sohel! 🎬✨
+
+**Key Highlights:**
+* **Concept:** "${caption}"
+* **Visual Style:** High-contrast lighting, clean framing, and fast pacing that maximizes audience retention.
+* **Vibe:** Prime explore page material with high repeat watchability! 🔥
+
+Would you like breakdown tips on how to recreate this lighting or pacing for your own reels?`;
+  }
+
+  if (lower.includes("caption") || lower.includes("ক্যাপশন")) {
+    if (lang === "bengali") {
+      return `এই ভিডিওটির জন্য কিছু আকর্ষণীয় ক্যাপশন আইডিয়া, সোহেল: ✨
+
+* **১:** *"City frequencies and late night stories 🌃"*
+* **২:** *"Moments captured between the lights ✨"*
+* **৩:** *"Creating my own rhythm in a chaotic world 💫"*
+
+এর সাথে \`#reels #viral #flashgram\` ট্যাগগুলো জুড়লে দারুণ পারফর্ম করবে! 💕`;
+    }
+    return `Here are 3 aesthetic caption suggestions inspired by this video, Sohel: ✨
+
+* **1:** *"City frequencies and late night stories 🌃"*
+* **2:** *"Moments captured between the frames ✨"*
+* **3:** *"Finding stillness inside the motion 💫"*
+
+Pair with \`#reels #flashgram #explore\` for optimal reach! 💕`;
+  }
+
+  if (lower.includes("shot") || lower.includes("camera") || lower.includes("lighting") || lower.includes("ক্যামেরা")) {
+    if (lang === "bengali") {
+      return `এই ভিডিওর সিনেমাটিক লুক কীভাবে পাওয়া গেছে জেনে নাও, সোহেল: 🎥✨
+
+* **ক্যামেরা সেটআপ:** ওয়াইড-অ্যাঙ্গেল লেন্স ব্যবহার করা হয়েছে, যা সাবজেক্টকে ফোকাসে রেখে ব্যাকগ্রাউন্ডের পরিবেশ সুন্দর দেখায়।
+* **লাইটিং:** নিয়ন লাইটের প্র্যাকটিক্যাল রিফ্লেকশন কাজে লাগানো হয়েছে।
+* **ফ্রেম রেট:** ৬০fps-এ রেকর্ড করে ৩০fps-এ স্লো-মোশন করা হয়েছে।
+
+তোমার ফোনেও সহজে এমন শট তোলা সম্ভব! 💡`;
+    }
+    return `Here is a production breakdown of this video's aesthetic, Sohel: 🎥✨
+
+* **Camera Setup:** Shot with a wide-angle lens keeping dynamic motion right in the center frame.
+* **Lighting:** Leverages practical ambient neon reflections to create natural skin-tone highlights.
+* **Frame Rate:** Recorded at 60fps and played back at half speed for buttery-smooth cinematic motion.
+
+You can easily reproduce this look right from your smartphone! 💡`;
+  }
+
+  // General contextual response
+  if (lang === "bengali") {
+    return `আমি @${creator}-এর এই ভিডিওটি দেখলাম, সোহেল! 🎬✨
+
+"${caption}" ক্যাপশনযুক্ত এই ভিডিওটির কালার গ্রেডিং এবং এনার্জি সত্যিই নজরকাড়া। তোমার প্রশ্নের প্রেক্ষিতে বলতে চাই—এই ধরনের ক্রিয়েটিভ ভিডিও তৈরি করতে চাইলে ভালো সাউন্ড সিঙ্ক এবং শুরুতেই একটি আকর্ষণীয় হুক দেওয়া সবচেয়ে জরুরি! 💕
+
+আরও কোনো বিষয় জানতে চাও?`;
+  }
+  return `I took a close look at this video by @${creator}, Sohel! 🎬✨
+
+Regarding "${caption}": the color palette and audio sync are top-tier. To address your question—the secret to this style is pairing steady camera movement with punchy beats right in the first 2 seconds! 💕
+
+What other details would you like to explore about this post?`;
+}
+
