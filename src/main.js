@@ -7,6 +7,7 @@ import * as Storage from './utils/storage.js';
 import * as Database from './services/database.js';
 import * as DataService from './services/dataService.js';
 import * as SupabaseAuth from './services/supabaseAuth.js';
+import { supabase } from './supabaseClient.js';
 
 // Components
 import * as Navbar from './components/Navbar.js';
@@ -40,6 +41,7 @@ Object.assign(window, {
   ...ShabnamAI,
   ...Modals,
   ...ReelsComponents,
+  supabase,
   App
 });
 

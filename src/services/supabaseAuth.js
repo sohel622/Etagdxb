@@ -1,36 +1,18 @@
 // Supabase Auth & Google Identity Services One-Tap Controller
 import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
+import { supabase, supabaseUrl, supabaseAnonKey } from "../supabaseClient.js";
 
     /* =======================================================
        ১.১ মাল্টি-স্টেপ ইউজার অনবোর্ডিং ও Supabase Auth কন্ট্রোলার
     ======================================================= */
-    // Supabase Client Initialization
-    const SUPABASE_PROJECT_URL = window.SUPABASE_URL || "https://gxoajbncfpwhisehvbcf.supabase.co";
-    const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd4b2FqYm5jZnB3aGlzZWh2YmNmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5Mjg2ODAsImV4cCI6MjEwNDUwNDY4MH0.Gbpsd3h-MgodjvugosWLomZL51KWbxMZWFazi6zbzsg";
+    // Supabase Client Initialization from dedicated module
+    const SUPABASE_PROJECT_URL = supabaseUrl;
+    const SUPABASE_ANON_KEY = supabaseAnonKey;
 
-    var supabaseClient = null;
-    try {
-      var sbModule = (typeof window !== "undefined" && window.supabase && typeof window.supabase.createClient === "function") 
-        ? window.supabase 
-        : ((typeof supabase !== "undefined" && typeof supabase.createClient === "function") ? supabase : null);
-
-      if (sbModule) {
-        supabaseClient = sbModule.createClient(
-          SUPABASE_PROJECT_URL,
-          SUPABASE_ANON_KEY,
-          {
-            auth: {
-              persistSession: true,
-              autoRefreshToken: true,
-              detectSessionInUrl: true
-            }
-          }
-        );
-        window.supabase = supabaseClient;
-        window.supabaseClient = supabaseClient;
-      }
-    } catch (e) {
-      console.warn("Supabase initialization note:", e);
+    var supabaseClient = supabase;
+    if (typeof window !== "undefined") {
+      window.supabase = supabase;
+      window.supabaseClient = supabase;
     }
 
     let currentAuthStep = 1;
@@ -626,6 +608,9 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
       if (nameInput) nameInput.value = regState.fullName;
       if (userInput) userInput.value = regState.username;
 
+      // Execute OTP request upon email submission
+      triggerSupabaseEmailOtp(true).catch(e => console.warn("OTP delivery notice:", e));
+
       goToAuthStep(2, true);
     }
     window.handleAuthContinue = handleAuthContinue;
@@ -802,38 +787,44 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
     /* =======================================================
        Step 4: Trigger Supabase OTP, Auto-advance & Verify Code
     ======================================================= */
-    async function triggerSupabaseEmailOtp() {
+    async function triggerSupabaseEmailOtp(silent = false) {
       const email = (regState.email || "").trim();
-      if (!email) return;
+      if (!email) return false;
 
       const activeSb = window.supabaseClient || window.supabase || (typeof supabaseClient !== "undefined" ? supabaseClient : null);
       if (!activeSb || !activeSb.auth) {
-        if (typeof showInstagramToast === "function") {
-          showInstagramToast("Supabase service is initializing...");
+        if (!silent && typeof showInstagramToast === "function") {
+          showInstagramToast("Supabase client is initializing...");
         }
-        return;
+        return false;
       }
 
       try {
-        const { error } = await activeSb.auth.signInWithOtp({
+        const { data, error } = await activeSb.auth.signInWithOtp({
           email: email,
           options: {
-            shouldCreateUser: true
+            shouldCreateUser: true,
           }
         });
 
         if (error) {
-          console.warn("Supabase signInWithOtp notice:", error.message);
-          if (typeof showInstagramToast === "function") {
-            showInstagramToast(error.message || "Failed to send verification code");
+          console.error("Supabase OTP Error:", error.message);
+          if (!silent && typeof showInstagramToast === "function") {
+            showInstagramToast("Error sending code: " + error.message);
           }
-        } else {
-          if (typeof showInstagramToast === "function") {
-            showInstagramToast(`Verification code sent to ${email} 📩`);
-          }
+          return false;
         }
+
+        if (typeof showInstagramToast === "function") {
+          showInstagramToast(`Verification code sent to ${email} 📩`);
+        }
+        return true;
       } catch (err) {
-        console.warn("signInWithOtp exception:", err);
+        console.error("Supabase OTP Error:", err);
+        if (!silent && typeof showInstagramToast === "function") {
+          showInstagramToast("Error sending code: " + (err.message || err));
+        }
+        return false;
       }
     }
     window.triggerSupabaseEmailOtp = triggerSupabaseEmailOtp;
@@ -1019,14 +1010,14 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
         const email = regState.email.trim();
         const { data, error } = await activeSb.auth.verifyOtp({
           email: email,
-          token: code,
+          token: code.trim(),
           type: 'email'
         });
 
         if (error) {
-          console.warn("OTP verification error:", error);
+          console.error("Supabase verifyOtp Error:", error.message);
           if (typeof showInstagramToast === "function") {
-            showInstagramToast("Invalid or expired code. Please try again.");
+            showInstagramToast("Incorrect or expired verification code. Please check your email or resend code.");
           }
           otpBoxes.forEach(b => {
             b.classList.add("error");
@@ -1050,10 +1041,24 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
           }
         }
 
-        // 2. Upsert profile into Supabase 'profiles' table
-        const fullName = regState.fullName.trim() || "Flashgram User";
-        const username = regState.username.trim() || fullName.toLowerCase().replace(/[^a-z0-9]/g, "_");
+        // 2. Fetch existing profile if available
+        let existingProfile = null;
+        try {
+          const { data: profData } = await activeSb
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .maybeSingle();
+          existingProfile = profData;
+        } catch (_) {}
 
+        const fullName = regState.fullName.trim() || (existingProfile && (existingProfile.full_name || existingProfile.display_name)) || "Flashgram User";
+        const username = regState.username.trim() || (existingProfile && existingProfile.username) || fullName.toLowerCase().replace(/[^a-z0-9]/g, "_");
+        if (existingProfile && existingProfile.avatar_url && !regState.avatarFile) {
+          finalAvatarUrl = existingProfile.avatar_url;
+        }
+
+        // 3. Upsert profile into Supabase 'profiles' table
         try {
           await activeSb
             .from('profiles')
@@ -1069,7 +1074,7 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
           console.warn("Profile table upsert note:", dbErr);
         }
 
-        // 3. Update UserProfileStore
+        // 4. Update UserProfileStore
         if (typeof UserProfileStore !== "undefined" && UserProfileStore.setState) {
           UserProfileStore.setState({
             name: fullName,
@@ -1082,7 +1087,7 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
           }
         }
 
-        // 4. Save session locally
+        // 5. Save session locally
         try {
           localStorage.setItem("flashgram_authenticated", "true");
           localStorage.setItem("flashgram_user_session", JSON.stringify({
@@ -1095,7 +1100,7 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
           }));
         } catch (_) {}
 
-        // 5. Clean up and redirect to home feed
+        // 6. Clean up and redirect to home feed
         closeAuthOnboardingFlow();
         if (typeof switchTab === "function") {
           switchTab("home");
