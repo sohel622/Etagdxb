@@ -406,14 +406,18 @@
           <!-- Populated by renderShabnamChatMessages() -->
         </div>
 
-        <!-- Typing Indicator -->
-        <div id="shabnamTypingIndicator" class="px-4 py-1.5 flex items-center gap-2 text-[12px] text-neutral-400" style="display: none;">
-          <div class="flex gap-1 items-center">
+        <!-- Typing Indicator with active avatar status -->
+        <div id="shabnamTypingIndicator" class="px-4 py-2 flex items-center gap-2.5 text-[12px] text-neutral-400 select-none animate-in fade-in duration-200" style="display: none;">
+          <div class="relative w-6 h-6 rounded-full overflow-hidden border border-sky-400/40 shrink-0">
+            <img src="https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png" class="w-full h-full object-cover" alt="Shabnam AI" />
+            <span class="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-white dark:ring-neutral-900 animate-pulse"></span>
+          </div>
+          <div class="flex gap-1.5 items-center bg-neutral-100 dark:bg-neutral-800/80 px-3 py-1.5 rounded-full shadow-xs">
             <span class="w-1.5 h-1.5 rounded-full bg-sky-500 animate-bounce"></span>
             <span class="w-1.5 h-1.5 rounded-full bg-sky-500 animate-bounce [animation-delay:0.2s]"></span>
             <span class="w-1.5 h-1.5 rounded-full bg-sky-500 animate-bounce [animation-delay:0.4s]"></span>
           </div>
-          <span class="font-medium">Shabnam is typing...</span>
+          <span class="font-medium text-neutral-500 dark:text-neutral-400">Shabnam AI is typing...</span>
         </div>
 
         <!-- Image preview if attached -->

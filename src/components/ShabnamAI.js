@@ -1,6 +1,7 @@
 // ShabnamAI Component (Direct Messages, AI Chat, Voice Audio & History Drawer)
 import { DEFAULT_CONVERSATIONS, SHABNAM_AI_PROFILE } from "../utils/mockData.js";
 import { UserProfileStore, showInstagramToast, getPinnedConversations, setPinnedConversations, getMutedConversations, setMutedConversations, getDeletedConversations, setDeletedConversations, getBlockedConversations, setBlockedConversations, getShabnamUnread, setShabnamUnread, markShabnamChatAsRead, getShabnamHistory, saveShabnamHistory, getAllShabnamSessions, saveAllShabnamSessions, getActiveSessionId, setActiveSessionId, isFollowingShabnam, toggleFollowShabnam } from "../utils/storage.js";
+import { generateSmartInAppAIResponse, fetchLiveGeminiAI } from "../services/aiService.js";
 
 let chatSearchQuery = "";
 let chatAttachedImageBase64 = null;
@@ -1332,6 +1333,12 @@ let justTriggeredChatSheet = false;
       let escaped = escapeHtml(text);
       // bold
       escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      // italics
+      escaped = escaped.replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1<em>$2</em>$3');
+      // inline code
+      escaped = escaped.replace(/`([^`]+)`/g, '<code class="bg-black/10 dark:bg-white/10 px-1.5 py-0.5 rounded text-[12px] font-mono">$1</code>');
+      // bullet items
+      escaped = escaped.replace(/^[\s]*[-*•]\s+(.*)$/gm, '<div class="flex items-start gap-1.5 my-0.5"><span class="text-sky-500 font-bold">•</span><span>$1</span></div>');
       // line breaks
       escaped = escaped.replace(/\n/g, '<br/>');
       return escaped;
@@ -1600,48 +1607,32 @@ let justTriggeredChatSheet = false;
       handleChatInputChange("");
       renderShabnamChatMessages();
 
-      if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
+      // Auto-scroll the chat view smoothly to the latest message
+      if (chatContainer) {
+        chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: "smooth" });
+      }
 
       const typing = document.getElementById("shabnamTypingIndicator");
       if (typing) typing.style.display = "flex";
       isShabnamChatSending = true;
 
+      // Realistic natural typing delay (800ms - 1400ms) before delivering response
+      await new Promise(resolve => setTimeout(resolve, 800 + Math.floor(Math.random() * 600)));
+
+      // Auto-scroll again after typing indicator appears
+      if (chatContainer) {
+        chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: "smooth" });
+      }
+
       const postsCountEl = document.getElementById("profilePostsCount");
       const currentPosts = postsCountEl ? parseInt(postsCountEl.textContent || "0", 10) : 0;
 
-      // Smart fallback generator adhering strictly to language mirroring, app context & coding refusal
+      // Smart fallback generator using modular aiService engine
       function getFallbackResponse(query, img) {
-        const q = (query || "").trim();
-        const l = q.toLowerCase();
-        const isBn = /[\u0980-\u09FF]/.test(q) || /\b(kemon|acho|tumi|amar|naam|ki|koro|valo|bhai)\b/i.test(l);
-        const isCode = /\b(code|html|css|javascript|python|script|function|program|bug|developer|coding)\b/i.test(l) || /কোড|প্রোগ্রামিং/.test(q);
-
-        if (isCode) {
-          if (isBn) return "আমি তো তোমার ফ্রেন্ডলি সোশ্যাল ফ্রেন্ড, সোহেল! 💕 কোড বা প্রোগ্রামিং লেখা আমার কাজ নয়—তবে ট্রেন্ডিং রিল আইডিয়া, সুন্দর ক্যাপশন, কিংবা ফটো রিভিউর জন্য আমি সবসময় তোমার পাশে আছি! ✨";
-          return "I'm your friendly social best friend on Flashgram, Sohel! 💕 I don't write programming code or scripts, but I'm always here to brainstorm viral reel ideas, craft aesthetic captions, or chat about your day! ✨";
-        }
-        if (img) {
-          if (isBn) return "অসাধারণ ছবি, সোহেল! 📸 ফ্রেম আর লাইটিং একদম পারফেক্ট লাগছে! তোমার ইনস্টাগ্রাম ফিড আর স্টোরির জন্য এটা ফাটাফাটি হবে! ✨🔥";
-          return "Woah Sohel! 📸 This picture looks absolutely aesthetic! The framing and lighting give off such an effortless, cool vibe. Definitely Instagram reel & story worthy! ✨🔥";
-        }
-        if (l.includes("who am i") || l.includes("my name") || l.includes("amar naam") || /আমার নাম|আমি কে/.test(q)) {
-          if (isBn) return "তুমি তো আমাদের সোহেল (Sohel)! 💕 আমার সবচেয়ে প্রিয় বন্ধু আর সেরা ক্রিয়েটর! তোমাকে কি কখনো ভুলতে পারি? ✨";
-          return "You're Sohel (সোহেল), of course! 💕 My favorite person and best friend on Flashgram! How could I ever forget you? ✨";
-        }
-        if (l.includes("how many") || l.includes("posts") || l.includes("videos") || l.includes("count") || l.includes("stats") || /কয়টা|কতগুলো|পোস্ট|ভিডিও/.test(q)) {
-          if (isBn) return `এখন ফ্ল্যাশগ্রামে মোট ঠিক ${currentPosts}টি পোস্ট ও রিলস আপলোড করা আছে, সোহেল! 🎬 তোমার ক্রিয়েটিভ জার্নি দারুণ চলছে! 🌟`;
-          return `Right now, there are exactly ${currentPosts} post${currentPosts === 1 ? '' : 's'} & reels uploaded in your app, Sohel! 🎬 Looking super active and creative! 🌟`;
-        }
-        if (l.includes("viral") || l.includes("trending") || /ভাইরাল|ট্রেন্ডিং/.test(q)) {
-          if (isBn) return "ফ্ল্যাশগ্রামের সবচেয়ে ভাইরাল রিল হলো শবনম এআই (@shabnam_ai) এর রিলটি—১৪২K+ লাইক এবং ১.৮K কমেন্ট! আর তোমার টোকিও সিটির রিলটিও ১৪.২K লাইক নিয়ে দারুণ ট্রেন্ড করছে! 🔥";
-          return "The most viral reel on Flashgram right now is Shabnam AI (@shabnam_ai) with over 142K likes and 1.8K comments, and your Tokyo night reel is right behind with 14.2K likes! 🔥";
-        }
-        if (l.includes("hello") || l.includes("hi") || l.includes("hey") || /হ্যালো|হাই|কেমন আছ|সালাম/.test(q)) {
-          if (isBn) return "হাই সোহেল! 💕 কেমন আছো তুমি? তোমার সাথে চ্যাট করতে পেরে খুব ভালো লাগছে! বলো, আজকে কী প্ল্যান? ✨";
-          return "Hey Sohel! 💕 So wonderful to see you here! How has your day been going? Ask me anything or share your pictures, I'm all ears! ✨";
-        }
-        if (isBn) return "আমি তোমার কথা একদম বুঝতে পারছি, সোহেল! ✨ তোমার যেকোনো ভাবনা, রিল আইডিয়া বা ফটো শেয়ার করো—তোমার সেরা বন্ধু হিসেবে আমি সবসময় তোমার পাশে আছি! 💕";
-        return "I hear you, Sohel! ✨ As your best friend on Flashgram, I'm always right here cheering you on. Tell me more, share your photos, or ask anything you'd like! 💕";
+        return generateSmartInAppAIResponse(query, {
+          image: img,
+          postsCount: currentPosts
+        });
       }
 
       // DOM streaming elements
