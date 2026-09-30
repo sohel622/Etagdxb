@@ -35,6 +35,14 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
 
     let currentAuthStep = 1;
     let temporaryAuthPhoto = null;
+    let otpCountdownTimer = null;
+    let regState = {
+      email: "",
+      fullName: "",
+      username: "",
+      avatarFile: null,
+      avatarPreviewUrl: ""
+    };
 
     // Requirement 2: Save / Sync to Supabase ('profiles' or 'users' with onConflict: 'id')
     async function saveUserToSupabase(user) {
@@ -223,7 +231,7 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
 
     function goToAuthStep(stepNumber, forward = true) {
       currentAuthStep = stepNumber;
-      const steps = [1, 2, 3];
+      const steps = [1, 2, 3, 4];
       steps.forEach(s => {
         const stepEl = document.getElementById(`authStep${s}`);
         if (stepEl) {
@@ -250,17 +258,67 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
 
       if (stepNumber === 2) {
         const nameInput = document.getElementById("authInputFullName");
+        const userInput = document.getElementById("authInputUsername");
         if (nameInput) {
-          if (!nameInput.value) {
-            const currentStored = UserProfileStore.getState();
-            const fallbackName = (currentStored && currentStored.name) ? currentStored.name.replace(/[✨🔥]/g, "").trim() : "Sohel";
-            nameInput.value = fallbackName;
+          if (!nameInput.value && regState.fullName) {
+            nameInput.value = regState.fullName;
           }
           setTimeout(() => {
             nameInput.focus();
             nameInput.select();
           }, 150);
         }
+        if (userInput && !userInput.value && regState.username) {
+          userInput.value = regState.username;
+        }
+      }
+
+      if (stepNumber === 3) {
+        const img = document.getElementById("onboardingAvatarImg");
+        const emptyIcon = document.getElementById("onboardingAvatarEmptyIcon");
+        const btnText = document.getElementById("authBtnPhotoText");
+        const btnIcon = document.getElementById("authBtnPhotoIcon");
+        const badge = document.getElementById("onboardingPhotoSelectedLabel");
+
+        if (regState.avatarPreviewUrl && img) {
+          img.src = regState.avatarPreviewUrl;
+          img.classList.remove("hidden");
+          if (emptyIcon) emptyIcon.classList.add("hidden");
+          if (btnText) btnText.textContent = "Continue";
+          if (btnIcon) btnIcon.className = "fa-solid fa-arrow-right text-[15px]";
+          if (badge) badge.classList.remove("hidden");
+        }
+      }
+
+      if (stepNumber === 4) {
+        // Populate Account Summary Card (Centered Instagram-Style Preview)
+        const sumAvatar = document.getElementById("authSummaryAvatarImg");
+        const sumName = document.getElementById("authSummaryFullName");
+        const sumUser = document.getElementById("authSummaryUsername");
+        const sumEmail = document.getElementById("authSummaryTargetEmail");
+
+        const targetEmail = (regState.email || "").trim() || "your email";
+        const targetFullName = (regState.fullName || "").trim() || "Flashgram User";
+        let targetUsername = (regState.username || "").trim() || "user_077";
+        if (!targetUsername.startsWith("@")) {
+          targetUsername = `@${targetUsername}`;
+        }
+
+        const fallbackAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80";
+
+        if (sumAvatar) {
+          sumAvatar.src = regState.avatarPreviewUrl || fallbackAvatar;
+        }
+        if (sumName) sumName.textContent = targetFullName;
+        if (sumUser) sumUser.textContent = targetUsername;
+        if (sumEmail) sumEmail.textContent = targetEmail;
+
+        // Setup 6-digit OTP Inputs
+        setupOtpInputs();
+
+        // Trigger Supabase OTP send and start 60s countdown
+        triggerSupabaseEmailOtp();
+        startOtpCountdown(60);
       }
     }
     window.goToAuthStep = goToAuthStep;
@@ -528,15 +586,45 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
       const emailInput = document.getElementById("authInputEmailPhone");
       const emailVal = emailInput ? emailInput.value.trim() : "";
 
-      if (emailVal) {
-        // Extract reasonable name from email or input
-        const parts = emailVal.split("@");
-        const cleanName = parts[0].replace(/[._-]/g, " ").replace(/\b\w/g, l => l.toUpperCase());
-        const nameInput = document.getElementById("authInputFullName");
-        if (nameInput && (!nameInput.value || nameInput.value === "Sohel")) {
-          nameInput.value = cleanName || "Sohel";
+      if (!emailVal) {
+        if (typeof showInstagramToast === "function") {
+          showInstagramToast("Please enter your email address");
         }
+        if (emailInput) emailInput.focus();
+        return;
       }
+
+      // Email validation regex
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailPattern.test(emailVal)) {
+        if (typeof showInstagramToast === "function") {
+          showInstagramToast("Please enter a valid email address (e.g., yourname@gmail.com)");
+        }
+        if (emailInput) {
+          emailInput.focus();
+          emailInput.select();
+        }
+        return;
+      }
+
+      regState.email = emailVal;
+
+      // Extract smart suggestions for full name and username from email
+      const emailLocalPart = emailVal.split("@")[0] || "user";
+      const cleanParts = emailLocalPart.replace(/[._-]/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+      const fallbackUsername = emailLocalPart.toLowerCase().replace(/[^a-z0-9]/g, "_").slice(0, 16) + "_077";
+
+      if (!regState.fullName) {
+        regState.fullName = cleanParts || "Sohel";
+      }
+      if (!regState.username) {
+        regState.username = fallbackUsername;
+      }
+
+      const nameInput = document.getElementById("authInputFullName");
+      const userInput = document.getElementById("authInputUsername");
+      if (nameInput) nameInput.value = regState.fullName;
+      if (userInput) userInput.value = regState.username;
 
       goToAuthStep(2, true);
     }
@@ -618,17 +706,28 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
 
     function handleAuthNextName() {
       const nameInput = document.getElementById("authInputFullName");
+      const userInput = document.getElementById("authInputUsername");
+
       const nameVal = nameInput ? nameInput.value.trim() : "";
-      const finalName = nameVal || "Sohel ✨";
+      let userVal = userInput ? userInput.value.trim().replace(/^@+/, "") : "";
 
-      const current = UserProfileStore.getState();
-      const baseUsername = finalName.toLowerCase().replace(/[^a-z0-9]/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "").slice(0, 16);
-      const updatedUsername = (baseUsername ? baseUsername : "user") + (baseUsername.includes("sohel") ? "_077" : "_01");
+      if (!nameVal) {
+        if (typeof showInstagramToast === "function") {
+          showInstagramToast("Please enter your full name");
+        }
+        if (nameInput) nameInput.focus();
+        return;
+      }
 
-      UserProfileStore.setState({
-        name: finalName,
-        username: updatedUsername
-      });
+      if (!userVal) {
+        userVal = nameVal.toLowerCase().replace(/[^a-z0-9]/g, "_").slice(0, 16) + "_077";
+      }
+
+      // Clean username
+      userVal = userVal.toLowerCase().replace(/[^a-z0-9._]/g, "_").replace(/^_+|_+$/g, "");
+
+      regState.fullName = nameVal;
+      regState.username = userVal;
 
       goToAuthStep(3, true);
     }
@@ -643,10 +742,13 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
     function handleOnboardingPhotoSelected(fileInput) {
       if (!fileInput || !fileInput.files || !fileInput.files[0]) return;
       const file = fileInput.files[0];
-      const reader = new FileReader();
+      regState.avatarFile = file;
 
+      const reader = new FileReader();
       reader.onload = function(e) {
         temporaryAuthPhoto = e.target.result;
+        regState.avatarPreviewUrl = e.target.result;
+
         const img = document.getElementById("onboardingAvatarImg");
         const emptyIcon = document.getElementById("onboardingAvatarEmptyIcon");
         const frame = document.getElementById("onboardingAvatarFrame");
@@ -655,7 +757,7 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
         const badge = document.getElementById("onboardingPhotoSelectedLabel");
 
         if (img) {
-          img.src = temporaryAuthPhoto;
+          img.src = regState.avatarPreviewUrl;
           img.classList.remove("hidden");
         }
         if (emptyIcon) {
@@ -680,36 +782,343 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
     }
     window.handleOnboardingPhotoSelected = handleOnboardingPhotoSelected;
 
+    function handleAuthProceedToOtp(isSkip = false) {
+      if (isSkip || !regState.avatarPreviewUrl) {
+        regState.avatarPreviewUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80";
+      }
+      goToAuthStep(4, true);
+    }
+    window.handleAuthProceedToOtp = handleAuthProceedToOtp;
+
     function handleAuthPhotoAction() {
-      if (!temporaryAuthPhoto) {
+      if (!regState.avatarPreviewUrl) {
         triggerOnboardingPhotoPicker();
       } else {
-        finalizeOnboarding(false);
+        handleAuthProceedToOtp(false);
       }
     }
     window.handleAuthPhotoAction = handleAuthPhotoAction;
 
-    function finalizeOnboarding(skippedPhoto = false) {
-      if (!skippedPhoto && temporaryAuthPhoto) {
-        UserProfileStore.setState({
-          avatar: temporaryAuthPhoto
-        });
+    /* =======================================================
+       Step 4: Trigger Supabase OTP, Auto-advance & Verify Code
+    ======================================================= */
+    async function triggerSupabaseEmailOtp() {
+      const email = (regState.email || "").trim();
+      if (!email) return;
+
+      const activeSb = window.supabaseClient || window.supabase || (typeof supabaseClient !== "undefined" ? supabaseClient : null);
+      if (!activeSb || !activeSb.auth) {
+        if (typeof showInstagramToast === "function") {
+          showInstagramToast("Supabase service is initializing...");
+        }
+        return;
       }
 
       try {
-        localStorage.setItem("flashgram_authenticated", "true");
+        const { error } = await activeSb.auth.signInWithOtp({
+          email: email,
+          options: {
+            shouldCreateUser: true
+          }
+        });
+
+        if (error) {
+          console.warn("Supabase signInWithOtp notice:", error.message);
+          if (typeof showInstagramToast === "function") {
+            showInstagramToast(error.message || "Failed to send verification code");
+          }
+        } else {
+          if (typeof showInstagramToast === "function") {
+            showInstagramToast(`Verification code sent to ${email} 📩`);
+          }
+        }
+      } catch (err) {
+        console.warn("signInWithOtp exception:", err);
+      }
+    }
+    window.triggerSupabaseEmailOtp = triggerSupabaseEmailOtp;
+
+    function startOtpCountdown(seconds = 60) {
+      clearInterval(otpCountdownTimer);
+      let timeLeft = seconds;
+      const countdownEl = document.getElementById("authOtpResendCountdown");
+      const numEl = document.getElementById("authOtpCountdownNum");
+      const resendBtn = document.getElementById("authOtpResendBtn");
+
+      if (countdownEl) countdownEl.classList.remove("hidden");
+      if (resendBtn) resendBtn.classList.add("hidden");
+      if (numEl) numEl.textContent = timeLeft;
+
+      otpCountdownTimer = setInterval(() => {
+        timeLeft--;
+        if (numEl) numEl.textContent = timeLeft;
+        if (timeLeft <= 0) {
+          clearInterval(otpCountdownTimer);
+          if (countdownEl) countdownEl.classList.add("hidden");
+          if (resendBtn) resendBtn.classList.remove("hidden");
+        }
+      }, 1000);
+    }
+
+    async function handleResendOtp() {
+      await triggerSupabaseEmailOtp();
+      startOtpCountdown(60);
+    }
+    window.handleResendOtp = handleResendOtp;
+
+    function setupOtpInputs() {
+      const container = document.getElementById("authOtpInputsContainer");
+      if (!container) return;
+
+      const boxes = container.querySelectorAll(".otp-box");
+      boxes.forEach((box, idx) => {
+        box.value = "";
+        box.classList.remove("error");
+
+        box.oninput = (e) => {
+          const val = e.target.value.replace(/\D/g, "");
+          e.target.value = val ? val[val.length - 1] : "";
+          if (e.target.value) {
+            if (idx < boxes.length - 1) {
+              boxes[idx + 1].focus();
+              boxes[idx + 1].select();
+            } else {
+              let fullCode = "";
+              boxes.forEach(b => fullCode += (b.value || "").trim());
+              if (fullCode.length === 6) {
+                handleVerifyOtpSubmit();
+              }
+            }
+          }
+        };
+
+        box.onkeydown = (e) => {
+          if (e.key === "Backspace" || e.key === "Delete") {
+            if (!box.value && idx > 0) {
+              boxes[idx - 1].focus();
+              boxes[idx - 1].value = "";
+              e.preventDefault();
+            }
+          } else if (e.key === "ArrowLeft" && idx > 0) {
+            boxes[idx - 1].focus();
+          } else if (e.key === "ArrowRight" && idx < boxes.length - 1) {
+            boxes[idx + 1].focus();
+          } else if (e.key === "Enter") {
+            handleVerifyOtpSubmit();
+          }
+        };
+
+        box.onpaste = (e) => {
+          e.preventDefault();
+          const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+          const digits = (pasteData || "").replace(/\D/g, "").slice(0, 6);
+          digits.split("").forEach((d, i) => {
+            if (boxes[i]) boxes[i].value = d;
+          });
+          if (digits.length === 6) {
+            handleVerifyOtpSubmit();
+          } else if (boxes[digits.length]) {
+            boxes[digits.length].focus();
+          }
+        };
+      });
+
+      setTimeout(() => {
+        if (boxes[0]) {
+          boxes[0].focus();
+          boxes[0].select();
+        }
+      }, 200);
+    }
+
+    async function handleAutoPasteOtp() {
+      try {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          const text = await navigator.clipboard.readText();
+          const digits = (text || "").replace(/\D/g, "").slice(0, 6);
+          if (digits.length > 0) {
+            const boxes = document.querySelectorAll(".otp-box");
+            digits.split("").forEach((d, idx) => {
+              if (boxes[idx]) boxes[idx].value = d;
+            });
+            if (digits.length === 6) {
+              handleVerifyOtpSubmit();
+            } else if (boxes[digits.length]) {
+              boxes[digits.length].focus();
+            }
+            return;
+          }
+        }
       } catch (_) {}
-
-      closeAuthOnboardingFlow();
-
-      if (typeof switchTab === "function") {
-        switchTab("home");
-      }
-
-      const userName = UserProfileStore.getState().name || "there";
       if (typeof showInstagramToast === "function") {
-        showInstagramToast(`Welcome to Flashgram, ${userName}! 🎉`);
+        showInstagramToast("Clipboard empty. Please type the 6-digit code.");
       }
+    }
+    window.handleAutoPasteOtp = handleAutoPasteOtp;
+
+    async function uploadAvatarToSupabase(file, userId) {
+      if (!file) return null;
+      const activeSb = window.supabaseClient || window.supabase || (typeof supabaseClient !== "undefined" ? supabaseClient : null);
+      if (!activeSb || !activeSb.storage) return null;
+
+      try {
+        const fileExt = file.name ? file.name.split('.').pop() : 'jpg';
+        const fileName = `${userId}_${Date.now()}.${fileExt}`;
+        const filePath = `avatars/${fileName}`;
+
+        const { error } = await activeSb.storage
+          .from('avatars')
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: true
+          });
+
+        if (error) {
+          console.warn("Storage upload note:", error.message);
+          return null;
+        }
+
+        const { data: publicUrlData } = activeSb.storage
+          .from('avatars')
+          .getPublicUrl(filePath);
+
+        return publicUrlData && publicUrlData.publicUrl ? publicUrlData.publicUrl : null;
+      } catch (err) {
+        console.warn("Storage upload exception:", err);
+        return null;
+      }
+    }
+
+    async function handleVerifyOtpSubmit() {
+      const otpBoxes = document.querySelectorAll(".otp-box");
+      let code = "";
+      otpBoxes.forEach(b => {
+        code += (b.value || "").trim();
+      });
+
+      if (code.length < 6) {
+        if (typeof showInstagramToast === "function") {
+          showInstagramToast("Please enter the complete 6-digit verification code");
+        }
+        return;
+      }
+
+      const verifyBtn = document.getElementById("authBtnVerifyOtp");
+      const verifyText = document.getElementById("authBtnVerifyText");
+      const originalText = verifyText ? verifyText.textContent : "Confirm";
+
+      if (verifyText) verifyText.textContent = "Verifying code...";
+      if (verifyBtn) verifyBtn.style.pointerEvents = "none";
+
+      try {
+        const activeSb = window.supabaseClient || window.supabase || (typeof supabaseClient !== "undefined" ? supabaseClient : null);
+        if (!activeSb || !activeSb.auth) {
+          throw new Error("Supabase Auth is not available.");
+        }
+
+        const email = regState.email.trim();
+        const { data, error } = await activeSb.auth.verifyOtp({
+          email: email,
+          token: code,
+          type: 'email'
+        });
+
+        if (error) {
+          console.warn("OTP verification error:", error);
+          if (typeof showInstagramToast === "function") {
+            showInstagramToast("Invalid or expired code. Please try again.");
+          }
+          otpBoxes.forEach(b => {
+            b.classList.add("error");
+            setTimeout(() => b.classList.remove("error"), 1200);
+          });
+          const firstBox = document.querySelector('.otp-box[data-index="0"]');
+          if (firstBox) firstBox.focus();
+          return;
+        }
+
+        const user = (data && data.user) || (data && data.session && data.session.user) || { id: "user_" + Date.now(), email };
+
+        if (verifyText) verifyText.textContent = "Setting up profile...";
+
+        // 1. Upload avatar to Supabase Storage if file was provided
+        let finalAvatarUrl = regState.avatarPreviewUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80";
+        if (regState.avatarFile) {
+          const uploadedUrl = await uploadAvatarToSupabase(regState.avatarFile, user.id);
+          if (uploadedUrl) {
+            finalAvatarUrl = uploadedUrl;
+          }
+        }
+
+        // 2. Upsert profile into Supabase 'profiles' table
+        const fullName = regState.fullName.trim() || "Flashgram User";
+        const username = regState.username.trim() || fullName.toLowerCase().replace(/[^a-z0-9]/g, "_");
+
+        try {
+          await activeSb
+            .from('profiles')
+            .upsert({
+              id: user.id,
+              full_name: fullName,
+              username: username,
+              avatar_url: finalAvatarUrl,
+              email: email,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'id' });
+        } catch (dbErr) {
+          console.warn("Profile table upsert note:", dbErr);
+        }
+
+        // 3. Update UserProfileStore
+        if (typeof UserProfileStore !== "undefined" && UserProfileStore.setState) {
+          UserProfileStore.setState({
+            name: fullName,
+            username: username,
+            email: email,
+            avatar: finalAvatarUrl
+          });
+          if (UserProfileStore.syncDOM) {
+            UserProfileStore.syncDOM();
+          }
+        }
+
+        // 4. Save session locally
+        try {
+          localStorage.setItem("flashgram_authenticated", "true");
+          localStorage.setItem("flashgram_user_session", JSON.stringify({
+            uid: user.id,
+            email: email,
+            displayName: fullName,
+            photoURL: finalAvatarUrl,
+            username: username,
+            loggedInAt: Date.now()
+          }));
+        } catch (_) {}
+
+        // 5. Clean up and redirect to home feed
+        closeAuthOnboardingFlow();
+        if (typeof switchTab === "function") {
+          switchTab("home");
+        }
+
+        if (typeof showInstagramToast === "function") {
+          showInstagramToast(`Welcome to Flashgram, ${fullName}! 🎉`);
+        }
+
+      } catch (err) {
+        console.error("Verification exception:", err);
+        if (typeof showInstagramToast === "function") {
+          showInstagramToast(err.message || "Failed to verify code. Please try again.");
+        }
+      } finally {
+        if (verifyText) verifyText.textContent = originalText;
+        if (verifyBtn) verifyBtn.style.pointerEvents = "auto";
+      }
+    }
+    window.handleVerifyOtpSubmit = handleVerifyOtpSubmit;
+
+    function finalizeOnboarding(skippedPhoto = false) {
+      handleAuthProceedToOtp(skippedPhoto);
     }
     window.finalizeOnboarding = finalizeOnboarding;
 
@@ -727,8 +1136,17 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
         sbLogoutClient.auth.signOut().catch(() => {});
       }
 
-      // Reset photo state
+      // Reset state
       temporaryAuthPhoto = null;
+      regState = {
+        email: "",
+        fullName: "",
+        username: "",
+        avatarFile: null,
+        avatarPreviewUrl: ""
+      };
+      clearInterval(otpCountdownTimer);
+
       const img = document.getElementById("onboardingAvatarImg");
       const emptyIcon = document.getElementById("onboardingAvatarEmptyIcon");
       const frame = document.getElementById("onboardingAvatarFrame");
@@ -736,7 +1154,14 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
       const btnIcon = document.getElementById("authBtnPhotoIcon");
       const badge = document.getElementById("onboardingPhotoSelectedLabel");
       const photoInput = document.getElementById("onboardingPhotoInput");
+      const emailInput = document.getElementById("authInputEmailPhone");
+      const nameInput = document.getElementById("authInputFullName");
+      const userInput = document.getElementById("authInputUsername");
+
       if (photoInput) photoInput.value = "";
+      if (emailInput) emailInput.value = "";
+      if (nameInput) nameInput.value = "";
+      if (userInput) userInput.value = "";
 
       if (img) {
         img.src = "";
@@ -759,6 +1184,31 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
     }
     window.handleAuthLogout = handleAuthLogout;
 
-
-
-export { supabaseClient, saveUserToSupabase, handleSuccessfulGoogleLogin, isUserAuthenticated, openAuthOnboardingFlow, closeAuthOnboardingFlow, goToAuthStep, parseJwt, initGoogleIdentityServices, triggerGoogleOneTap, handleGoogleOneTapResponse, handleExplicitGoogleSignIn, handleAuthContinue, handleAuthGoogle, handleSupabaseDirectGoogleLogin, handleAuthNextName, triggerOnboardingPhotoPicker, handleOnboardingPhotoSelected, handleAuthPhotoAction, finalizeOnboarding, handleAuthLogout };
+export {
+  supabaseClient,
+  saveUserToSupabase,
+  handleSuccessfulGoogleLogin,
+  isUserAuthenticated,
+  openAuthOnboardingFlow,
+  closeAuthOnboardingFlow,
+  goToAuthStep,
+  parseJwt,
+  initGoogleIdentityServices,
+  triggerGoogleOneTap,
+  handleGoogleOneTapResponse,
+  handleExplicitGoogleSignIn,
+  handleAuthContinue,
+  handleAuthGoogle,
+  handleSupabaseDirectGoogleLogin,
+  handleAuthNextName,
+  triggerOnboardingPhotoPicker,
+  handleOnboardingPhotoSelected,
+  handleAuthProceedToOtp,
+  handleAuthPhotoAction,
+  triggerSupabaseEmailOtp,
+  handleResendOtp,
+  handleAutoPasteOtp,
+  handleVerifyOtpSubmit,
+  finalizeOnboarding,
+  handleAuthLogout
+};

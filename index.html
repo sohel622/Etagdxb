@@ -1219,9 +1219,6 @@
                class="hidden">
           </div>
 
-          <!-- Optional native GIS rendered button container -->
-          <div id="g_id_signin_container" class="w-full flex justify-center mb-3 empty:hidden"></div>
-
           <!-- Explicit "Sign in with Google" button that triggers the account picker -->
           <button 
             type="button" 
@@ -1247,15 +1244,15 @@
         </div>
       </div>
 
-      <!-- STEP 2: Set Full Name Screen -->
+      <!-- STEP 2: Set Full Name & Username Screen -->
       <div id="authStep2" class="auth-step-container px-6 pt-5 pb-6" style="display: none !important;">
         <div class="w-full">
-          <!-- Header with back arrow (<-) on the top left -->
+          <!-- Header with back arrow on the top left -->
           <div class="flex items-center justify-between h-12 mb-3 shrink-0">
             <button type="button" onclick="goToAuthStep(1, false)" class="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-95 transition-all cursor-pointer" title="Back to log in">
               <i class="fa-solid fa-arrow-left text-[18px]"></i>
             </button>
-            <span class="text-[13px] font-semibold text-neutral-400 dark:text-neutral-500">Step 2 of 3</span>
+            <span class="text-[13px] font-semibold text-neutral-400 dark:text-neutral-500">Step 2 of 4</span>
           </div>
 
           <!-- Bold title: "What's your name?" -->
@@ -1263,19 +1260,36 @@
             What's your name?
           </h1>
           <p class="text-[13.5px] text-neutral-500 dark:text-neutral-400 mb-6">
-            Add your name so your friends and followers can find you.
+            Add your name and choose a unique username so your friends can find you.
           </p>
 
-          <!-- Rounded text input field with placeholder "Full name" -->
-          <div class="w-full mb-4">
+          <!-- Input 1: Full name -->
+          <div class="w-full mb-3.5">
+            <label class="block text-[12px] font-semibold text-neutral-500 dark:text-neutral-400 mb-1.5 px-1">Full name</label>
             <input 
               type="text" 
               id="authInputFullName" 
               placeholder="Full name" 
               class="w-full px-5 py-3.5 rounded-full bg-neutral-100/90 dark:bg-neutral-900 border border-neutral-200/90 dark:border-neutral-800 text-[15px] font-medium text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all" 
               autocomplete="name"
-              onkeydown="if(event.key==='Enter') handleAuthNextName();"
+              onkeydown="if(event.key==='Enter') document.getElementById('authInputUsername').focus();"
             />
+          </div>
+
+          <!-- Input 2: Username -->
+          <div class="w-full mb-5">
+            <label class="block text-[12px] font-semibold text-neutral-500 dark:text-neutral-400 mb-1.5 px-1">Username</label>
+            <div class="relative w-full">
+              <span class="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500 font-semibold text-[15px]">@</span>
+              <input 
+                type="text" 
+                id="authInputUsername" 
+                placeholder="username" 
+                class="w-full pl-9 pr-5 py-3.5 rounded-full bg-neutral-100/90 dark:bg-neutral-900 border border-neutral-200/90 dark:border-neutral-800 text-[15px] font-medium text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all" 
+                autocomplete="username"
+                onkeydown="if(event.key==='Enter') handleAuthNextName();"
+              />
+            </div>
           </div>
 
           <!-- Primary full-width blue button: "Next" -->
@@ -1290,7 +1304,7 @@
         </div>
 
         <div class="mt-auto pt-4 text-center text-[12px] text-neutral-400 dark:text-neutral-500 select-none">
-          You can change your display name anytime in settings.
+          You can change your username and display name anytime in settings.
         </div>
       </div>
 
@@ -1302,17 +1316,20 @@
             <button type="button" onclick="goToAuthStep(2, false)" class="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-95 transition-all cursor-pointer" title="Back to name">
               <i class="fa-solid fa-arrow-left text-[18px]"></i>
             </button>
-            <button 
-              type="button" 
-              onclick="finalizeOnboarding(true)" 
-              class="text-[14.5px] font-semibold text-neutral-600 dark:text-neutral-300 hover:text-sky-500 active:scale-95 transition-all px-2.5 py-1 rounded-lg cursor-pointer"
-              title="Skip and go to Home"
-            >
-              Skip
-            </button>
+            <div class="flex items-center gap-3">
+              <span class="text-[13px] font-semibold text-neutral-400 dark:text-neutral-500">Step 3 of 4</span>
+              <button 
+                type="button" 
+                onclick="handleAuthProceedToOtp(true)" 
+                class="text-[14.5px] font-semibold text-neutral-600 dark:text-neutral-300 hover:text-sky-500 active:scale-95 transition-all px-2.5 py-1 rounded-lg cursor-pointer"
+                title="Skip photo"
+              >
+                Skip
+              </button>
+            </div>
           </div>
 
-          <!-- Title: "Add a profile photo that shows your vibe" -->
+          <!-- Title -->
           <div class="text-center px-2 mt-2">
             <h1 class="text-[23px] font-extrabold text-neutral-900 dark:text-white tracking-tight leading-snug mb-2">
               Add a profile photo that shows your vibe
@@ -1346,7 +1363,7 @@
           <input type="file" id="onboardingPhotoInput" accept="image/*" style="display:none;" onchange="handleOnboardingPhotoSelected(this)" />
         </div>
 
-        <!-- Bottom primary full-width button: "Add a photo" -->
+        <!-- Bottom primary full-width button: "Add a photo" / "Continue" -->
         <div class="mt-auto pt-4 pb-2 w-full">
           <button 
             type="button" 
@@ -1357,6 +1374,98 @@
             <i class="fa-solid fa-camera text-[15px]" id="authBtnPhotoIcon"></i>
             <span id="authBtnPhotoText">Add a photo</span>
           </button>
+        </div>
+      </div>
+
+      <!-- STEP 4: Instagram-Style OTP Verification Screen -->
+      <div id="authStep4" class="auth-step-container px-6 pt-5 pb-6" style="display: none !important;">
+        <div class="w-full">
+          <!-- Header with back arrow on top left -->
+          <div class="flex items-center justify-between h-12 mb-2 shrink-0">
+            <button type="button" onclick="goToAuthStep(3, false)" class="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-95 transition-all cursor-pointer" title="Back to photo">
+              <i class="fa-solid fa-arrow-left text-[18px]"></i>
+            </button>
+            <span class="text-[13px] font-semibold text-neutral-400 dark:text-neutral-500">Step 4 of 4</span>
+          </div>
+
+          <!-- Instagram-Style Centered Account Preview Card -->
+          <div class="w-full max-w-[340px] mx-auto bg-gradient-to-b from-neutral-50 to-neutral-100/70 dark:from-neutral-900 dark:to-neutral-900/90 border border-neutral-200/90 dark:border-neutral-800 rounded-3xl p-4.5 mb-4 flex flex-col items-center text-center shadow-xs">
+            <!-- Circular Avatar with Instagram Gradient Ring -->
+            <div class="relative mb-2.5">
+              <div class="w-[72px] h-[72px] rounded-full p-[2px] bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888] shadow-md">
+                <div class="w-full h-full rounded-full overflow-hidden bg-white dark:bg-black p-[2px]">
+                  <img id="authSummaryAvatarImg" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" class="w-full h-full rounded-full object-cover" alt="Profile" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'" />
+                </div>
+              </div>
+              <div class="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-sky-500 text-white flex items-center justify-center text-[10px] ring-2 ring-white dark:ring-black shadow-xs" title="Verified">
+                <i class="fa-solid fa-check"></i>
+              </div>
+            </div>
+
+            <!-- Full Name with Verified Badge -->
+            <div class="flex items-center justify-center gap-1.5 leading-tight mb-0.5">
+              <span id="authSummaryFullName" class="font-extrabold text-[16.5px] text-neutral-900 dark:text-white tracking-tight">Sohel</span>
+              <span class="text-sky-500 text-[13px]"><i class="fa-solid fa-circle-check"></i></span>
+            </div>
+
+            <!-- @username -->
+            <div id="authSummaryUsername" class="text-[13px] text-neutral-500 dark:text-neutral-400 font-semibold mb-2.5">
+              @sohel_077
+            </div>
+
+            <!-- Verified Recipient Email Pill -->
+            <div class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-sky-50 dark:bg-sky-950/50 border border-sky-200/60 dark:border-sky-800/60 text-sky-700 dark:text-sky-300 text-[12px] font-medium shadow-xs max-w-full">
+              <i class="fa-regular fa-envelope text-[11.5px] text-sky-500 shrink-0"></i>
+              <span class="truncate">Code sent to: <b id="authSummaryTargetEmail" class="font-bold text-sky-900 dark:text-sky-100">sohelmommy@gmail.com</b></span>
+            </div>
+          </div>
+
+          <!-- Title: "Enter confirmation code" -->
+          <h1 class="text-[20px] font-extrabold text-neutral-900 dark:text-white tracking-tight text-center mb-1">
+            Enter confirmation code
+          </h1>
+          <p class="text-[12.5px] text-neutral-500 dark:text-neutral-400 text-center mb-4 max-w-[280px] mx-auto">
+            Check your email inbox or spam folder for your 6-digit verification code.
+          </p>
+
+          <!-- 6-digit OTP Input Container -->
+          <div class="flex items-center justify-between gap-2 my-2 w-full max-w-[340px] mx-auto" id="authOtpInputsContainer">
+            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-box w-11 h-13 text-center text-[22px] font-bold rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/25 transition-all" data-index="0" />
+            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-box w-11 h-13 text-center text-[22px] font-bold rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/25 transition-all" data-index="1" />
+            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-box w-11 h-13 text-center text-[22px] font-bold rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/25 transition-all" data-index="2" />
+            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-box w-11 h-13 text-center text-[22px] font-bold rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/25 transition-all" data-index="3" />
+            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-box w-11 h-13 text-center text-[22px] font-bold rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/25 transition-all" data-index="4" />
+            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-box w-11 h-13 text-center text-[22px] font-bold rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/25 transition-all" data-index="5" />
+          </div>
+
+          <!-- Actions Row: Auto-paste & Countdown Resend -->
+          <div class="flex items-center justify-between w-full max-w-[340px] mx-auto mt-4 px-1">
+            <button type="button" onclick="handleAutoPasteOtp()" class="text-[12.5px] font-semibold text-neutral-600 dark:text-neutral-400 hover:text-sky-500 flex items-center gap-1.5 py-1 px-2.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800/80 transition-all cursor-pointer">
+              <i class="fa-regular fa-paste"></i>
+              <span>Paste code</span>
+            </button>
+
+            <div>
+              <span id="authOtpResendCountdown" class="text-[12.5px] text-neutral-400 dark:text-neutral-500 font-medium">Resend in <span id="authOtpCountdownNum">60</span>s</span>
+              <button type="button" id="authOtpResendBtn" onclick="handleResendOtp()" class="text-[12.5px] font-semibold text-sky-500 hover:text-sky-600 hover:underline transition-all cursor-pointer hidden">
+                Resend Code
+              </button>
+            </div>
+          </div>
+
+          <!-- Confirm / Verify Button -->
+          <button 
+            type="button" 
+            id="authBtnVerifyOtp" 
+            onclick="handleVerifyOtpSubmit()" 
+            class="w-full py-3.5 rounded-full bg-[#0095F6] hover:bg-sky-600 active:scale-[0.99] text-white font-semibold text-[14.5px] transition-all shadow-sm flex items-center justify-center gap-2 mt-6 cursor-pointer"
+          >
+            <span id="authBtnVerifyText">Confirm</span>
+          </button>
+        </div>
+
+        <div class="mt-auto pt-4 text-center text-[12px] text-neutral-400 dark:text-neutral-500 select-none">
+          Having trouble? You can also sign in directly using Google One-Tap.
         </div>
       </div>
 
