@@ -546,6 +546,16 @@ let justTriggeredChatSheet = false;
     }
     window.closeShabnamChat = closeShabnamChat;
 
+    function openReelFromChatCard(videoId, videoUrl) {
+      closeShabnamChat();
+      if (typeof navigateToReel === "function") {
+        navigateToReel(videoId, videoUrl);
+      } else if (typeof window !== "undefined" && typeof window.navigateToReel === "function") {
+        window.navigateToReel(videoId, videoUrl);
+      }
+    }
+    window.openReelFromChatCard = openReelFromChatCard;
+
     function startNewShabnamChat() {
       stopSpeaking();
       setActiveSessionId(null);
@@ -750,25 +760,62 @@ let justTriggeredChatSheet = false;
 
           let videoCardMarkup = "";
           if (msg.videoCard) {
+            const videoId = msg.videoCard.id || "sample_1";
+            const videoUrl = msg.videoCard.url || "";
+            const videoUser = msg.videoCard.user || "sohel_077";
+            const isShabnamCreator = videoUser === "shabnam_ai";
+            const creatorAvatar = msg.videoCard.avatar || (isShabnamCreator ? "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png" : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80");
+            const cardCaption = msg.videoCard.caption || msg.videoCard.title || "Flashgram Reel";
+            
+            // Resolve reliable thumbnail image
+            let thumbUrl = "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80";
+            if (msg.videoCard.thumbnail && typeof msg.videoCard.thumbnail === "string" && !msg.videoCard.thumbnail.endsWith(".mp4") && !msg.videoCard.thumbnail.endsWith(".webm")) {
+              thumbUrl = msg.videoCard.thumbnail;
+            } else if (videoId === "shabnam_reel_1" || isShabnamCreator) {
+              thumbUrl = "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png";
+            } else if (videoId === "sample_1" || videoId.includes("sample_1")) {
+              thumbUrl = "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80";
+            } else if (creatorAvatar && !creatorAvatar.includes("default")) {
+              thumbUrl = creatorAvatar;
+            }
+
             videoCardMarkup = `
-              <div class="video-context-card w-full max-w-[260px] rounded-2xl overflow-hidden border border-neutral-200 dark:border-neutral-700/80 bg-neutral-100 dark:bg-neutral-800 shadow-md mb-2 cursor-pointer select-none transition-transform hover:scale-[1.01]" onclick="navigateToReel('${msg.videoCard.id || ''}', '${msg.videoCard.url || ''}')" title="Watch video">
-                <div class="relative w-full aspect-[4/3] bg-black overflow-hidden flex items-center justify-center">
-                  ${msg.videoCard.thumbnail && !msg.videoCard.thumbnail.endsWith('.mp4') ? `<img src="${msg.videoCard.thumbnail}" class="w-full h-full object-cover" />` : `<video src="${msg.videoCard.url}" class="w-full h-full object-cover" preload="metadata" muted playsinline></video>`}
-                  <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20"></div>
-                  <div class="absolute top-2 left-2 flex items-center gap-1.5 text-white text-[11px] font-semibold drop-shadow">
-                    <div class="w-4 h-4 rounded-full overflow-hidden border border-white/60">
-                      <img src="${msg.videoCard.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80'}" class="w-full h-full object-cover" />
-                    </div>
-                    <span class="truncate max-w-[120px]">${msg.videoCard.user || 'creator'}</span>
+              <div class="video-context-card mb-2.5" onclick="window.openReelFromChatCard('${escapeHtml(videoId)}', '${escapeHtml(videoUrl)}')" title="Watch Reel">
+                <!-- Creator Header -->
+                <div class="px-3 py-2 flex items-center justify-between bg-black/40 dark:bg-black/60 border-b border-white/10 text-white text-[12px]">
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <img src="${creatorAvatar}" class="w-5 h-5 rounded-full object-cover border border-white/40 shrink-0" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'" />
+                    <span class="font-bold text-[12px] truncate max-w-[130px]">${escapeHtml(videoUser)}</span>
+                    ${isShabnamCreator ? '<span class="text-sky-400 text-[10px]"><i class="fa-solid fa-circle-check"></i></span>' : ''}
                   </div>
-                  <div class="absolute bottom-2 left-2 right-2 flex items-center justify-between text-white text-[10.5px]">
-                    <span class="truncate max-w-[160px] opacity-90">${escapeHtml(msg.videoCard.caption || msg.videoCard.title || 'Reel')}</span>
-                    <span class="w-5 h-5 rounded-full bg-white/20 backdrop-blur-xs flex items-center justify-center text-[8px]"><i class="fa-solid fa-play"></i></span>
+                  <i class="fa-solid fa-ellipsis text-[11px] text-white/60"></i>
+                </div>
+
+                <!-- Video Thumbnail Box (Vertical Aspect Ratio 9:13) -->
+                <div class="card-media-box">
+                  <img src="${thumbUrl}" class="w-full h-full object-cover" alt="Reel thumbnail" onerror="this.src='https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80'" />
+                  <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent"></div>
+                  
+                  <!-- Center Play Button -->
+                  <div class="card-play-icon">
+                    <i class="fa-solid fa-play ml-0.5"></i>
+                  </div>
+
+                  <!-- Bottom Caption Overlay -->
+                  <div class="absolute bottom-2 left-2.5 right-2.5 text-white">
+                    <div class="text-[11.5px] font-medium leading-snug line-clamp-2 drop-shadow-md opacity-95">
+                      ${escapeHtml(cardCaption)}
+                    </div>
                   </div>
                 </div>
-                <div class="px-2.5 py-1.5 flex items-center justify-between text-[10.5px] text-neutral-500 dark:text-neutral-400 font-medium bg-neutral-50 dark:bg-neutral-800/90">
-                  <span class="flex items-center gap-1 text-sky-500 font-semibold"><i class="fa-solid fa-wand-magic-sparkles text-[9px]"></i> Ask Shabnam AI</span>
-                  <span>Watch Reel <i class="fa-solid fa-chevron-right text-[8px]"></i></span>
+
+                <!-- Watch Reel Footer -->
+                <div class="px-3 py-2 flex items-center justify-between text-[11px] font-semibold text-neutral-300 dark:text-neutral-300 bg-neutral-900 border-t border-white/10">
+                  <span class="flex items-center gap-1.5 text-sky-400">
+                    <i class="fa-solid fa-play text-[9px]"></i>
+                    <span>Watch Reel</span>
+                  </span>
+                  <i class="fa-solid fa-chevron-right text-[10px] text-neutral-400"></i>
                 </div>
               </div>
             `;

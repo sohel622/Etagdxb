@@ -58,6 +58,7 @@ export const SAMPLE_VIDEOS = [
   {
     id: "sample_1",
     url: "https://assets.mixkit.co/videos/preview/mixkit-girl-in-neon-sign-1232-large.mp4",
+    thumbnail: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80",
     user: "sohel_077",
     avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
     location: "Tokyo, Shibuya",
@@ -73,6 +74,7 @@ export const SAMPLE_VIDEOS = [
   {
     id: "shabnam_reel_1",
     url: "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/0chichan077-20260921-0001.mp4",
+    thumbnail: "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png",
     user: "shabnam_ai",
     avatar: "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png",
     location: "AI Studio",

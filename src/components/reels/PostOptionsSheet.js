@@ -58,6 +58,25 @@ function generatePostSummary(post) {
   return `Trending video by @${user} showcasing creative visual pacing and popular audio 🎬`;
 }
 
+function resolveVideoThumbnail(post) {
+  if (!post) return "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80";
+  if (post.thumbnail && typeof post.thumbnail === "string" && !post.thumbnail.endsWith(".mp4") && !post.thumbnail.endsWith(".webm")) {
+    return post.thumbnail;
+  }
+  const id = String(post.id || "");
+  const user = String(post.user || "");
+  if (id === "sample_1" || id.includes("sample_1")) {
+    return "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80";
+  }
+  if (id === "shabnam_reel_1" || user === "shabnam_ai") {
+    return "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png";
+  }
+  if (post.avatar && !post.avatar.includes("default")) {
+    return post.avatar;
+  }
+  return "https://images.unsplash.com/photo-1542051841857-5f90071e7989?w=600&auto=format&fit=crop&q=80";
+}
+
 function createPostOptionsDOM() {
   let backdrop = document.getElementById("postOptionsSheetBackdrop");
   if (backdrop) return backdrop;
@@ -76,9 +95,9 @@ function createPostOptionsDOM() {
       <!-- Views Sliding Track -->
       <div class="post-options-track" id="postOptionsTrack">
 
-        <!-- VIEW 1: MAIN OPTIONS -->
+        <!-- VIEW 1: MAIN OPTIONS (Clean Match to Reference Image 1) -->
         <div class="post-options-subview active" id="postOptionsViewMain">
-          <!-- Contextual Ask Shabnam AI Card (Reference Images 3 & 4) -->
+          <!-- Contextual Ask Shabnam AI Card -->
           <div class="ask-shabnam-context-card">
             <div class="ask-shabnam-card-header">
               <div class="flex items-center gap-1.5 text-[13px] font-bold text-neutral-900 dark:text-white">
@@ -97,24 +116,12 @@ function createPostOptionsDOM() {
                 <i class="fa-solid fa-arrow-up text-[12px]"></i>
               </button>
             </form>
-
-            <div class="ask-shabnam-chips">
-              <button type="button" class="ask-shabnam-chip" onclick="window.submitAskShabnamPrompt('Explain this video 🎬')">
-                <span>Explain this video 🎬</span>
-              </button>
-              <button type="button" class="ask-shabnam-chip" onclick="window.submitAskShabnamPrompt('Suggest caption ideas ✨')">
-                <span>Suggest caption ideas ✨</span>
-              </button>
-              <button type="button" class="ask-shabnam-chip" onclick="window.submitAskShabnamPrompt('How was this shot? 💡')">
-                <span>How was this shot? 💡</span>
-              </button>
-            </div>
           </div>
 
-          <!-- Actions List (Reference Image 3) -->
+          <!-- Actions List (Reference Image 1 & 3) -->
           <div class="post-options-actions-list">
             <!-- Save -->
-            <button type="button" class="post-options-item" id="postOptionsBtnSave">
+            <button type="button" class="post-options-item" id="postOptionsBtnSave" onclick="window.handlePostOptionsSave()">
               <div class="post-options-item-left">
                 <i class="fa-regular fa-bookmark post-options-icon" id="postOptionsSaveIcon"></i>
                 <span id="postOptionsSaveLabel">Save</span>
@@ -122,10 +129,10 @@ function createPostOptionsDOM() {
             </button>
 
             <!-- Playback -->
-            <button type="button" class="post-options-item" id="postOptionsBtnPlayback">
+            <button type="button" class="post-options-item" id="postOptionsBtnPlayback" onclick="window.switchPostOptionsSubview('playback')">
               <div class="post-options-item-left">
                 <i class="fa-solid fa-gauge-high post-options-icon"></i>
-                <span>Playback speed</span>
+                <span>Playback</span>
               </div>
               <div class="post-options-item-right">
                 <span class="text-[12px] text-neutral-400 font-medium" id="postOptionsSpeedCurrent">1.0x</span>
@@ -134,7 +141,7 @@ function createPostOptionsDOM() {
             </button>
 
             <!-- Why you're seeing this post -->
-            <button type="button" class="post-options-item" id="postOptionsBtnWhy">
+            <button type="button" class="post-options-item" id="postOptionsBtnWhy" onclick="window.switchPostOptionsSubview('why')">
               <div class="post-options-item-left">
                 <i class="fa-solid fa-circle-info post-options-icon"></i>
                 <span>Why you're seeing this post</span>
@@ -143,7 +150,7 @@ function createPostOptionsDOM() {
             </button>
 
             <!-- Interested -->
-            <button type="button" class="post-options-item" id="postOptionsBtnInterested">
+            <button type="button" class="post-options-item" id="postOptionsBtnInterested" onclick="window.handlePostOptionsInterested()">
               <div class="post-options-item-left">
                 <i class="fa-regular fa-star post-options-icon text-amber-500"></i>
                 <span>Interested</span>
@@ -151,7 +158,7 @@ function createPostOptionsDOM() {
             </button>
 
             <!-- Not interested -->
-            <button type="button" class="post-options-item" id="postOptionsBtnNotInterested">
+            <button type="button" class="post-options-item" id="postOptionsBtnNotInterested" onclick="window.handlePostOptionsNotInterested()">
               <div class="post-options-item-left">
                 <i class="fa-regular fa-eye-slash post-options-icon"></i>
                 <span>Not interested</span>
@@ -159,7 +166,7 @@ function createPostOptionsDOM() {
             </button>
 
             <!-- Report (Red Exclamation) -->
-            <button type="button" class="post-options-item report-item" id="postOptionsBtnReport">
+            <button type="button" class="post-options-item report-item" id="postOptionsBtnReport" onclick="window.switchPostOptionsSubview('report')">
               <div class="post-options-item-left text-red-500">
                 <i class="fa-solid fa-circle-exclamation post-options-icon text-red-500"></i>
                 <span class="font-semibold text-red-500">Report</span>
@@ -513,6 +520,39 @@ function submitReportReason(reason) {
  * 3. Automatically append a rich preview card of the current video at the top of the conversation
  * 4. Display user's question, show typing indicator, and trigger context-aware smart response from Shabnam AI
  */
+function handlePostOptionsSave() {
+  if (!activePostData) return;
+  const isNowSaved = toggleSavePost(activePostData.id);
+  showInstagramToast(isNowSaved ? "Saved to collection ✨" : "Removed from saved");
+  updateSaveItemState(isNowSaved);
+  closePostOptionsSheet();
+}
+
+function handlePostOptionsInterested() {
+  if (activePostData) {
+    try {
+      localStorage.setItem(`affinity_${activePostData.id}`, "interested");
+    } catch (_) {}
+  }
+  showInstagramToast("We'll show you more posts like this ✨");
+  closePostOptionsSheet();
+}
+
+function handlePostOptionsNotInterested() {
+  if (activePostData) {
+    try {
+      localStorage.setItem(`affinity_${activePostData.id}`, "not_interested");
+    } catch (_) {}
+  }
+  if (activePostElement && activePostElement.classList.contains("post-card")) {
+    activePostElement.style.opacity = "0.3";
+    activePostElement.style.pointerEvents = "none";
+    activePostElement.style.filter = "grayscale(100%)";
+  }
+  showInstagramToast("Post hidden. We'll show fewer posts like this 🚫");
+  closePostOptionsSheet();
+}
+
 function handleAskShabnamContext(customPrompt) {
   if (!activePostData) return;
 
@@ -528,14 +568,14 @@ function handleAskShabnamContext(customPrompt) {
   // 2. Navigate immediately to Shabnam AI DM screen
   openShabnamChat();
 
-  // 3. Construct rich preview card message
+  // 3. Construct rich preview card message using verified image thumbnail
   const videoCard = {
     id: currentPost.id || "post_" + Date.now(),
     url: currentPost.url || "",
     user: currentPost.user || "creator",
     avatar: currentPost.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80",
     caption: currentPost.caption || "Flashgram Reel",
-    thumbnail: currentPost.thumbnail || currentPost.url || ""
+    thumbnail: resolveVideoThumbnail(currentPost)
   };
 
   // 4. Pass contextual prompt to Shabnam AI
@@ -557,6 +597,9 @@ if (typeof window !== "undefined") {
   window.switchPostOptionsSubview = switchPostOptionsSubview;
   window.applyPlaybackSpeed = applyPlaybackSpeed;
   window.submitReportReason = submitReportReason;
+  window.handlePostOptionsSave = handlePostOptionsSave;
+  window.handlePostOptionsInterested = handlePostOptionsInterested;
+  window.handlePostOptionsNotInterested = handlePostOptionsNotInterested;
   window.submitAskShabnamContext = () => handleAskShabnamContext();
   window.submitAskShabnamPrompt = (prompt) => handleAskShabnamContext(prompt);
 }
@@ -566,5 +609,9 @@ export {
   closePostOptionsSheet,
   applyPlaybackSpeed,
   submitReportReason,
-  handleAskShabnamContext
+  handleAskShabnamContext,
+  handlePostOptionsSave,
+  handlePostOptionsInterested,
+  handlePostOptionsNotInterested,
+  resolveVideoThumbnail
 };
