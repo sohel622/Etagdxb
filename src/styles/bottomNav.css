@@ -173,24 +173,40 @@
                   inset 0 1px 1.5px rgba(255, 255, 255, 0.45);
     }
 
-    .bottom-bar.liquid-glass-mode .profile-nav-circle {
-      width: 24px;
-      height: 24px;
-      border-color: currentColor;
+    .nav-btn .nav-icon {
+      display: block;
+      transition: transform 0.15s ease, opacity 0.15s ease;
     }
 
-    /* Profile Avatar Navigation Item */
+    .bottom-bar.liquid-glass-mode .profile-nav-circle {
+      width: 26px;
+      height: 26px;
+    }
+
+    /* Profile Avatar Navigation Item (Circular clipping from Image 2) */
     .profile-nav-circle {
-      width: 27px;
-      height: 27px;
+      width: 28px;
+      height: 28px;
       border-radius: 50%;
       overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
-      border: 1.5px solid currentColor;
-      font-size: 13px;
+      border: 1.5px solid transparent;
       background: rgba(120, 120, 120, 0.2);
+      transition: border-color 0.15s ease, transform 0.15s ease;
+      box-sizing: border-box;
+      flex-shrink: 0;
+    }
+
+    .profile-nav-circle.active-profile {
+      border: 1.8px solid #000000;
+    }
+
+    .dark .profile-nav-circle.active-profile,
+    .app-container.dark-mode-active .profile-nav-circle.active-profile,
+    .app-container.reels-active .profile-nav-circle.active-profile {
+      border-color: #ffffff;
     }
 
     .profile-nav-circle img {
@@ -199,11 +215,6 @@
       object-fit: cover;
       display: block;
       border-radius: 50%;
-    }
-
-    .profile-nav-circle .user-icon {
-      font-size: 14px;
-      color: inherit;
     }
 
     /* =======================================================

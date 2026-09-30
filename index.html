@@ -41,6 +41,13 @@
           if (typeof e.preventDefault === 'function') e.preventDefault();
         }
       });
+      // Pre-declare global GIS callback so it's always a valid function when GIS library initializes from HTML
+      window.handleGoogleOneTapResponse = function(response) {
+        if (typeof window.__handleGoogleOneTapResponseImpl === 'function') {
+          return window.__handleGoogleOneTapResponseImpl(response);
+        }
+        window.__pendingGoogleOneTapResponse = response;
+      };
     })();
   </script>
   <!-- 1. Google Identity Services (GIS) Client Library for One-Tap & Account Picker -->

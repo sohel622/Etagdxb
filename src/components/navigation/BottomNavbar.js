@@ -95,75 +95,50 @@ function updateActivePillPosition(btnElement) {
 
 function renderNavBtnContent(item, isActive) {
   if (item.isProfile || item.id === "profile") {
+    // Icon 5 (Profile): Circular avatar thumbnail showing active user profile picture with clean circular clipping
     return `
       <div class="profile-nav-circle ${isActive ? 'active-profile' : ''}">
-        <img class="current-user-avatar" src="${UserProfileStore.state.avatar}" alt="Profile" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-        <i class="fa-solid fa-user user-icon" style="display:none;"></i>
+        <img class="current-user-avatar" src="${UserProfileStore.state.avatar}" alt="Profile" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80';" />
       </div>
     `;
   }
 
   if (item.id === "home") {
-    if (isActive) {
-      return `
-        <svg class="w-[26px] h-[26px] shrink-0" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 2.1a1.2 1.2 0 0 0-.78.29l-8.5 7.08a1.2 1.2 0 0 0-.42.92v10.11A1.5 1.5 0 0 0 3.8 22h5.45a.75.75 0 0 0 .75-.75v-5.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5.5a.75.75 0 0 0 .75.75h5.45a1.5 1.5 0 0 0 1.5-1.5V10.39a1.2 1.2 0 0 0-.42-.92l-8.5-7.08a1.2 1.2 0 0 0-.78-.29z"/>
-        </svg>
-      `;
-    }
+    // Icon 1 (Home): Solid modern home silhouette from Image 2
     return `
-      <svg class="w-[26px] h-[26px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="m3 9.5 9-7 9 7v10.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-        <polyline points="9 22 9 12 15 12 15 22"/>
-      </svg>
-    `;
-  }
-
-  if (item.id === "messages") {
-    // Clean Lucide MessageCircle / Instagram Chat SVG icon
-    if (isActive) {
-      return `
-        <svg class="w-[25px] h-[25px] shrink-0" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>
-        </svg>
-      `;
-    }
-    return `
-      <svg class="w-[25px] h-[25px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>
+      <svg class="nav-icon home-icon w-[26px] h-[26px] shrink-0" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2.2C8 2.2 4.5 5.8 4.5 11.2V19c0 1.6 1.3 2.8 2.8 2.8h2.2a1 1 0 0 0 1-1v-4.5c0-1.2.9-2.1 2.1-2.1s2.1.9 2.1 2.1v4.5a1 1 0 0 0 1 1h2.2c1.6 0 2.8-1.2 2.8-2.8v-7.8c0-5.4-3.5-9-7.2-9z" />
       </svg>
     `;
   }
 
   if (item.id === "reels") {
-    if (isActive) {
-      return `
-        <svg class="w-[25px] h-[25px] shrink-0" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 13V8l6 4-6 4z"/>
-        </svg>
-      `;
-    }
+    // Icon 2 (Reels): Rounded square frame with center play triangle from Image 2
     return `
-      <svg class="w-[25px] h-[25px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect width="18" height="18" x="3" y="3" rx="2"/>
-        <path d="m9 8 7 4-7 4Z"/>
+      <svg class="nav-icon reels-icon w-[25px] h-[25px] shrink-0" viewBox="0 0 24 24" fill="none">
+        <rect x="3.2" y="3.2" width="17.6" height="17.6" rx="5.5" stroke="currentColor" stroke-width="${isActive ? '2.5' : '2.2'}" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M10 8.5L16 12L10 15.5V8.5Z" fill="currentColor"/>
+      </svg>
+    `;
+  }
+
+  if (item.id === "messages") {
+    // Icon 3 (Messages/Chat): Clean chat bubble icon with speech lines inside from Image 2
+    return `
+      <svg class="nav-icon messages-icon w-[25px] h-[25px] shrink-0" viewBox="0 0 24 24" fill="none">
+        <path d="M4.5 4.5h15a2.5 2.5 0 0 1 2.5 2.5v7.5a2.5 2.5 0 0 1-2.5 2.5H8.2l-3.8 3.5c-.5.4-1.2.1-1.2-.6v-2.9h-.2A2.5 2.5 0 0 1 2 14.5V7a2.5 2.5 0 0 1 2.5-2.5z" stroke="currentColor" stroke-width="${isActive ? '2.5' : '2.2'}" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="7.2" y1="8.8" x2="16.8" y2="8.8" stroke="currentColor" stroke-width="${isActive ? '2.2' : '2'}" stroke-linecap="round"/>
+        <line x1="7.2" y1="12.6" x2="16.8" y2="12.6" stroke="currentColor" stroke-width="${isActive ? '2.2' : '2'}" stroke-linecap="round"/>
       </svg>
     `;
   }
 
   if (item.id === "search") {
-    if (isActive) {
-      return `
-        <svg class="w-[25px] h-[25px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"/>
-          <path d="m21 21-4.3-4.3"/>
-        </svg>
-      `;
-    }
+    // Icon 4 (Search): Crisp minimalist search magnifying glass from Image 2
     return `
-      <svg class="w-[25px] h-[25px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="11" cy="11" r="8"/>
-        <path d="m21 21-4.3-4.3"/>
+      <svg class="nav-icon search-icon w-[25px] h-[25px] shrink-0" viewBox="0 0 24 24" fill="none">
+        <circle cx="10.5" cy="10.5" r="6.8" stroke="currentColor" stroke-width="${isActive ? '2.7' : '2.3'}" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M15.5 15.5L20.5 20.5" stroke="currentColor" stroke-width="${isActive ? '2.7' : '2.3'}" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     `;
   }
@@ -192,17 +167,27 @@ function renderNavigation() {
         return;
       }
       e.stopPropagation();
+      const routeMap = {
+        home: "/",
+        reels: "/reels",
+        messages: "/messages",
+        search: "/search",
+        profile: "/profile"
+      };
+
       if (item.id === "profile") {
         if (typeof closeUserProfile === "function") {
           closeUserProfile();
         } else if (typeof window !== "undefined" && typeof window.closeUserProfile === "function") {
           window.closeUserProfile();
         }
-        try {
-          window.history.pushState({ tab: "profile" }, "", "/profile");
-        } catch (_) {}
       }
-      switchTab(item.id, btn);
+
+      if (routeMap[item.id]) {
+        navigate(routeMap[item.id]);
+      } else {
+        switchTab(item.id, btn);
+      }
     };
 
     container.appendChild(btn);
@@ -211,6 +196,36 @@ function renderNavigation() {
   requestAnimationFrame(() => {
     const activeBtn = document.querySelector('.nav-btn.active') || document.querySelector('.nav-btn');
     if (activeBtn) updateActivePillPosition(activeBtn);
+  });
+}
+
+function navigate(route) {
+  try {
+    window.history.pushState({ route }, "", route);
+  } catch (_) {}
+
+  if (route === "/" || route === "/home") {
+    switchTab("home");
+  } else if (route === "/reels") {
+    switchTab("reels");
+  } else if (route === "/messages") {
+    switchTab("messages");
+  } else if (route === "/search") {
+    switchTab("search");
+  } else if (route === "/profile") {
+    switchTab("profile");
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.navigate = navigate;
+  window.addEventListener("popstate", () => {
+    const path = window.location.pathname;
+    if (path === "/reels") switchTab("reels");
+    else if (path === "/messages") switchTab("messages");
+    else if (path === "/search") switchTab("search");
+    else if (path === "/profile") switchTab("profile");
+    else switchTab("home");
   });
 }
 
@@ -446,11 +461,10 @@ function switchTab(tabId, btnElement) {
     }
   }
     
-  const labelMap = {
-    search: "Explore & Search"
-  };
-  if (labelMap[tabId]) {
-    alert(labelMap[tabId]);
+  if (tabId === "search") {
+    if (typeof showInstagramToast === "function") {
+      showInstagramToast("Explore & Search 🔍");
+    }
   }
 }
 
@@ -559,6 +573,7 @@ if (typeof window !== "undefined") {
 }
 
 export {
+  navigate,
   renderNavigation,
   renderNavBtnContent,
   updateActivePillPosition,

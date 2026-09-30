@@ -492,7 +492,13 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
         if (btnText) btnText.textContent = origBtnText;
       }
     }
+    window.__handleGoogleOneTapResponseImpl = handleGoogleOneTapResponse;
     window.handleGoogleOneTapResponse = handleGoogleOneTapResponse;
+    if (window.__pendingGoogleOneTapResponse) {
+      const pendingResp = window.__pendingGoogleOneTapResponse;
+      window.__pendingGoogleOneTapResponse = null;
+      handleGoogleOneTapResponse(pendingResp);
+    }
 
     // 5. Explicit "Sign in with Google" button that triggers the account picker
     function handleExplicitGoogleSignIn() {
