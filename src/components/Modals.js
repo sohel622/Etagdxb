@@ -7,7 +7,7 @@ import { renderHomeFeed, pauseAllHomeVideos, prependPostToHomeFeed } from "./Fee
 import { updateProfilePostsCount, renderProfileGrid } from "./Profile.js";
 import { switchTab } from "./navigation/BottomNavbar.js";
 import { uploadVideoToCloudinary, deriveCloudinaryThumbnailUrl, savePostToSupabase } from "../services/cloudinaryService.js";
-import { uploadUserAvatar } from "../services/avatarService.js";
+import { uploadUserAvatar, getCurrentUserId } from "../services/avatarService.js";
 
 // --- Shared State Variables ---
 let currentEditingBio = null;
@@ -320,29 +320,24 @@ function executeCropAndSave() {
   const ctx = canvas.getContext("2d");
 
   ctx.drawImage(cropTargetImg, srcX, srcY, srcW, srcH, 0, 0, 500, 500);
-  const croppedDataUrl = canvas.toDataURL("image/jpeg", 0.92);
-
-  // Instantly apply locally so user sees update with zero latency
-  UserProfileStore.setState({
-    avatar: croppedDataUrl
-  });
 
   closeImageCropModal();
-  showInstagramToast("Saving avatar to Supabase... ☁️");
+  showInstagramToast("Uploading avatar to Supabase Storage... ☁️");
 
-  // Asynchronously upload permanently to Supabase Storage bucket ('avatars') under path: ${userId}/${Date.now()}.jpg
+  // Asynchronously upload permanently to Supabase Storage bucket ('avatars') under path: ${userId}/avatar_${Date.now()}.jpg
   canvas.toBlob(async (blob) => {
     if (blob) {
       try {
         const publicUrl = await uploadUserAvatar(blob);
         if (publicUrl) {
-          showInstagramToast("Avatar permanently saved to Supabase! ✨");
+          showInstagramToast("Avatar updated in Supabase! ✨");
         }
       } catch (err) {
-        console.warn("Avatar permanent upload error:", err);
+        console.error("Avatar permanent upload error:", err);
+        showInstagramToast("Avatar upload failed: " + (err.message || "Storage error"));
       }
     }
-  }, "image/jpeg", 0.92);
+  }, "image/jpeg", 0.9);
 }
 
 function initCropGestures() {
@@ -974,75 +969,63 @@ function startRecordingSession() {
     recorder.onstop = async () => {
       if (recordedChunks.length > 0) {
         const blob = new Blob(recordedChunks, { type: recorder.mimeType || "video/webm" });
+        showInstagramToast("Uploading reel to Cloudinary... ☁️");
+
         try {
-          const activeDb = db || (typeof window !== "undefined" && window.db);
-          if (activeDb && typeof activeDb.transaction === "function") {
-            const tx = activeDb.transaction("videos", "readwrite");
-            const store = tx.objectStore("videos");
-            const addReq = store.add({ blob: blob, type: blob.type });
-            addReq.onsuccess = async (ev) => {
-              const newId = ev.target.result || Date.now();
-              const blobUrl = URL.createObjectURL(blob);
-              let thumbUrl = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80";
-              try {
-                thumbUrl = await captureVideoFirstFrame(blobUrl);
-              } catch (_) {}
-
-              const newPost = {
-                id: 'local_' + newId,
-                url: blobUrl,
-                thumbnail: thumbUrl,
-                thumbnail_url: thumbUrl,
-                user: UserProfileStore.state.username,
-                avatar: UserProfileStore.state.avatar,
-                isCurrentUser: true,
-                location: 'Original Audio',
-                caption: 'Recorded Reel! ✨ #lifestyle',
-                likesCount: 1,
-                commentsCount: 0,
-                time: 'JUST NOW'
-              };
-              prependPostToHomeFeed(newPost);
-              loadReels();
-              updateProfilePostsCount();
-              renderProfileGrid();
-              if (typeof switchTab === "function") {
-                switchTab("home");
-              } else if (typeof window.switchTab === "function") {
-                window.switchTab("home");
-              }
-              const homeView = document.getElementById("homeView");
-              if (homeView) {
-                homeView.scrollTo({ top: 0, behavior: "smooth" });
-              }
-              if (typeof showInstagramToast === "function") {
-                showInstagramToast("Reel recorded and posted! 🎬");
-              }
-
-              // Background Cloudinary Direct Upload & Supabase sync
-              uploadVideoToCloudinary(blob).then(async (cld) => {
-                if (cld && cld.secure_url) {
-                  const posterJpg = deriveCloudinaryThumbnailUrl(cld.secure_url);
-                  await savePostToSupabase({
-                    videoUrl: cld.secure_url,
-                    thumbnailUrl: posterJpg,
-                    caption: 'Recorded Reel! ✨ #lifestyle'
-                  });
-                  const postCard = document.querySelector(`.post-card[data-id="local_${newId}"]`);
-                  if (postCard) {
-                    postCard.dataset.videoUrl = cld.secure_url;
-                    const vidContainer = postCard.querySelector(".home-video-container");
-                    if (vidContainer) {
-                      vidContainer.dataset.videoUrl = cld.secure_url;
-                      vidContainer.dataset.posterUrl = posterJpg;
-                    }
-                  }
-                }
-              }).catch(e => console.warn("Cloudinary upload note:", e));
-            };
+          // Direct real HTTP POST upload to Cloudinary (no dummy local storage)
+          const cldData = await uploadVideoToCloudinary(blob);
+          if (!cldData || !cldData.secure_url) {
+            throw new Error("No secure URL received from Cloudinary");
           }
+
+          const posterJpg = deriveCloudinaryThumbnailUrl(cldData.secure_url);
+
+          // Do NOT save the post to Supabase until Cloudinary returns HTTP 200 with the live secure_url
+          const savedRecord = await savePostToSupabase({
+            videoUrl: cldData.secure_url,
+            thumbnailUrl: posterJpg,
+            caption: 'Recorded Reel! ✨ #lifestyle',
+            userId: getCurrentUserId()
+          });
+
+          const postId = (savedRecord && savedRecord.id) ? String(savedRecord.id) : ('post_' + Date.now());
+
+          const newPost = {
+            id: postId,
+            url: cldData.secure_url,
+            video_url: cldData.secure_url,
+            thumbnail: posterJpg,
+            thumbnail_url: posterJpg,
+            user: UserProfileStore.state.username,
+            avatar: UserProfileStore.state.avatar,
+            isCurrentUser: true,
+            location: 'Original Audio',
+            caption: 'Recorded Reel! ✨ #lifestyle',
+            likesCount: 1,
+            commentsCount: 0,
+            time: 'JUST NOW'
+          };
+
+          prependPostToHomeFeed(newPost);
+          loadReels();
+          updateProfilePostsCount();
+          renderProfileGrid();
+
+          if (typeof switchTab === "function") {
+            switchTab("home");
+          } else if (typeof window.switchTab === "function") {
+            window.switchTab("home");
+          }
+
+          const homeView = document.getElementById("homeView");
+          if (homeView) {
+            homeView.scrollTo({ top: 0, behavior: "smooth" });
+          }
+
+          showInstagramToast("Reel published to Cloudinary & Supabase! 🚀");
         } catch (err) {
-          console.warn("Error saving recorded reel:", err);
+          console.error("Cloudinary / Supabase Reel upload error:", err);
+          showInstagramToast("Upload failed: " + (err.message || "Network error"));
         }
       }
     };
@@ -1092,79 +1075,72 @@ function stopRecordingSession(save = true) {
 function initMediaCreationAndCamera() {
   const videoFileInput = document.getElementById("videoFileInput");
   if (videoFileInput) {
-    videoFileInput.onchange = (e) => {
+    videoFileInput.onchange = async (e) => {
       const file = e.target.files && e.target.files[0];
       if (file) {
+        videoFileInput.value = "";
+        showInstagramToast("Uploading video to Cloudinary... ☁️");
+
         try {
-          const activeDb = db || (typeof window !== "undefined" && window.db);
-          if (activeDb && typeof activeDb.transaction === "function") {
-            const tx = activeDb.transaction("videos", "readwrite");
-            const store = tx.objectStore("videos");
-            const addReq = store.add({ blob: file, type: file.type });
-            addReq.onsuccess = async (ev) => {
-              const newId = ev.target.result || Date.now();
-              const blobUrl = URL.createObjectURL(file);
-              let thumbUrl = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80";
-              try {
-                thumbUrl = await captureVideoFirstFrame(blobUrl);
-              } catch (_) {}
+          // Direct real HTTP POST upload to Cloudinary (no dummy local storage)
+          const cldData = await uploadVideoToCloudinary(file, (percent) => {
+            if (percent % 25 === 0 || percent === 100) {
+              showInstagramToast(`Uploading to Cloudinary... ☁️ (${percent}%)`);
+            }
+          });
 
-              const newPost = {
-                id: 'local_' + newId,
-                url: blobUrl,
-                thumbnail: thumbUrl,
-                thumbnail_url: thumbUrl,
-                user: UserProfileStore.state.username,
-                avatar: UserProfileStore.state.avatar,
-                isCurrentUser: true,
-                location: 'Original Audio',
-                caption: 'Uploaded Video Post! ✨ #lifestyle',
-                likesCount: 1,
-                commentsCount: 0,
-                time: 'JUST NOW'
-              };
-              videoFileInput.value = "";
-              prependPostToHomeFeed(newPost);
-              loadReels();
-              updateProfilePostsCount();
-              renderProfileGrid();
-              if (typeof switchTab === "function") {
-                switchTab("home");
-              } else if (typeof window.switchTab === "function") {
-                window.switchTab("home");
-              }
-              const homeView = document.getElementById("homeView");
-              if (homeView) {
-                homeView.scrollTo({ top: 0, behavior: "smooth" });
-              }
-              if (typeof showInstagramToast === "function") {
-                showInstagramToast("Video uploaded successfully! 🎬");
-              }
-
-              // Background Cloudinary Direct Upload & Supabase sync
-              uploadVideoToCloudinary(file).then(async (cld) => {
-                if (cld && cld.secure_url) {
-                  const posterJpg = deriveCloudinaryThumbnailUrl(cld.secure_url);
-                  await savePostToSupabase({
-                    videoUrl: cld.secure_url,
-                    thumbnailUrl: posterJpg,
-                    caption: 'Uploaded Video Post! ✨ #lifestyle'
-                  });
-                  const postCard = document.querySelector(`.post-card[data-id="local_${newId}"]`);
-                  if (postCard) {
-                    postCard.dataset.videoUrl = cld.secure_url;
-                    const vidContainer = postCard.querySelector(".home-video-container");
-                    if (vidContainer) {
-                      vidContainer.dataset.videoUrl = cld.secure_url;
-                      vidContainer.dataset.posterUrl = posterJpg;
-                    }
-                  }
-                }
-              }).catch(e => console.warn("Cloudinary upload note:", e));
-            };
+          if (!cldData || !cldData.secure_url) {
+            throw new Error("No secure URL received from Cloudinary");
           }
+
+          const posterJpg = deriveCloudinaryThumbnailUrl(cldData.secure_url);
+
+          // Do NOT save the post to Supabase until Cloudinary returns HTTP 200 with the live secure_url
+          const savedRecord = await savePostToSupabase({
+            videoUrl: cldData.secure_url,
+            thumbnailUrl: posterJpg,
+            caption: 'Uploaded Video Post! ✨ #lifestyle',
+            userId: getCurrentUserId()
+          });
+
+          const postId = (savedRecord && savedRecord.id) ? String(savedRecord.id) : ('post_' + Date.now());
+
+          const newPost = {
+            id: postId,
+            url: cldData.secure_url,
+            video_url: cldData.secure_url,
+            thumbnail: posterJpg,
+            thumbnail_url: posterJpg,
+            user: UserProfileStore.state.username,
+            avatar: UserProfileStore.state.avatar,
+            isCurrentUser: true,
+            location: 'Original Audio',
+            caption: 'Uploaded Video Post! ✨ #lifestyle',
+            likesCount: 1,
+            commentsCount: 0,
+            time: 'JUST NOW'
+          };
+
+          prependPostToHomeFeed(newPost);
+          loadReels();
+          updateProfilePostsCount();
+          renderProfileGrid();
+
+          if (typeof switchTab === "function") {
+            switchTab("home");
+          } else if (typeof window.switchTab === "function") {
+            window.switchTab("home");
+          }
+
+          const homeView = document.getElementById("homeView");
+          if (homeView) {
+            homeView.scrollTo({ top: 0, behavior: "smooth" });
+          }
+
+          showInstagramToast("Video published to Cloudinary & Supabase! 🚀");
         } catch (err) {
-          console.warn("Error uploading video:", err);
+          console.error("Cloudinary / Supabase video upload error:", err);
+          showInstagramToast("Upload failed: " + (err.message || "Network error"));
         }
       }
     };

@@ -6,6 +6,7 @@ import { switchTab, activeNavId } from "./BottomNavigation.js";
 import { openShabnamChat } from "./ShabnamAI.js";
 import { playShabnamReelVideo, navigateToReel } from "./ReelsViewer.js";
 import { openEditProfileScreen, openMediaCreationPrompt } from "./Modals.js";
+import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl } from "../services/cloudinaryService.js";
 
 let viewingProfileUserId = null;
 let previousScreenBeforeProfile = "home";
@@ -220,7 +221,7 @@ window.addEventListener("popstate", (e) => {
     }
     window.switchProfileTab = switchProfileTab;
 
-    function renderProfileGrid() {
+    async function renderProfileGrid() {
       const container = document.getElementById("profileGridContainer");
       if (!container) return;
       container.innerHTML = "";
@@ -266,25 +267,10 @@ window.addEventListener("popstate", (e) => {
         return;
       }
 
-      const activeDb = db || (typeof window !== "undefined" && window.db);
-      if (!activeDb || typeof activeDb.transaction !== "function") {
-        updateProfilePostsCount(0);
-        renderProfileGridItems([]);
-        return;
-      }
-
       try {
-        const tx = activeDb.transaction("videos", "readonly");
-        const req = tx.objectStore("videos").getAll();
-        req.onsuccess = () => {
-          const userPosts = req.result || [];
-          updateProfilePostsCount(userPosts.length);
-          renderProfileGridItems(userPosts);
-        };
-        req.onerror = () => {
-          updateProfilePostsCount(0);
-          renderProfileGridItems([]);
-        };
+        const livePosts = await fetchSupabasePosts();
+        updateProfilePostsCount(livePosts.length);
+        renderProfileGridItems(livePosts);
       } catch (e) {
         updateProfilePostsCount(0);
         renderProfileGridItems([]);
@@ -297,15 +283,20 @@ window.addEventListener("popstate", (e) => {
       if (!container) return;
       container.innerHTML = "";
 
-      const userGridItems = userPosts.map((p, idx) => ({
-        id: 'local_' + p.id,
-        type: 'video',
-        isLocal: true,
-        videoSrc: URL.createObjectURL(p.blob),
-        badge: '<i class="fa-solid fa-play"></i>',
-        likes: '0',
-        views: '1'
-      })).reverse();
+      const userGridItems = userPosts.map((p, idx) => {
+        const vidSrc = p.video_url || p.url || (p.blob ? URL.createObjectURL(p.blob) : '');
+        const posterUrl = p.thumbnail_url || (vidSrc ? deriveCloudinaryThumbnailUrl(vidSrc) : '');
+        return {
+          id: String(p.id || idx),
+          type: 'video',
+          isLocal: false,
+          videoSrc: vidSrc,
+          poster: posterUrl,
+          badge: '<i class="fa-solid fa-play"></i>',
+          likes: p.likes_count ? String(p.likes_count) : '0',
+          views: '1'
+        };
+      }).reverse();
 
       if (currentProfileTab === "grid") {
         if (userGridItems.length === 0) {

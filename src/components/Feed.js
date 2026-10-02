@@ -7,7 +7,7 @@ import { openMyProfileTab, navigateToReel } from "./ReelsViewer.js";
 import { openReelsCommentsSheet, openReelsShareSheet, getStoredComments, openPostOptionsSheet } from "./reels/index.js";
 import { openProfile } from "./Profile.js";
 import { renderSuggestedReels } from "./SuggestedReels.js";
-import { deriveCloudinaryThumbnailUrl } from "../services/cloudinaryService.js";
+import { deriveCloudinaryThumbnailUrl, fetchSupabasePosts } from "../services/cloudinaryService.js";
 
 /* =======================================================
    ১. হোম ফিড এরর বাউন্ডারি (Error Boundary Fallback)
@@ -217,62 +217,53 @@ function createPostCardElement(post, index = 0) {
 /* =======================================================
    ৩. হোম ফিড রেন্ডারার ও প্রিপেন্ডার (Feed Renderer & Prepend)
 ======================================================= */
-function renderHomeFeed() {
+async function renderHomeFeed() {
   const feedContainer = document.getElementById("feedContainer");
   if (!feedContainer) return;
 
   try {
-    const renderPosts = (userPosts = []) => {
+    const livePosts = await fetchSupabasePosts();
+    const formattedUserPosts = (livePosts || []).map(p => {
+      const vidUrl = p.video_url || p.url || '';
+      const thumbUrl = p.thumbnail_url || (vidUrl ? deriveCloudinaryThumbnailUrl(vidUrl) : '');
+      const isMine = (p.user_id && p.user_id.includes(UserProfileStore.state.username)) || (p.user === UserProfileStore.state.username);
+      return {
+        id: 'sb_' + (p.id || Date.now()),
+        url: vidUrl,
+        video_url: vidUrl,
+        thumbnail: thumbUrl,
+        thumbnail_url: thumbUrl,
+        user: isMine ? UserProfileStore.state.username : (p.username || p.user || 'flashgram_creator'),
+        avatar: isMine ? UserProfileStore.state.avatar : (p.avatar_url || p.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'),
+        isCurrentUser: isMine,
+        location: p.location || 'Original Audio',
+        caption: p.caption || 'Flashgram Video Post! ✨ #lifestyle',
+        likesCount: p.likes_count || 1248,
+        commentsCount: p.comments_count || 24,
+        time: p.created_at ? 'RECENT' : 'JUST NOW'
+      };
+    });
+
+    const allPosts = formattedUserPosts.length > 0 ? [...formattedUserPosts, ...SAMPLE_VIDEOS] : SAMPLE_VIDEOS;
+    
+    // Clean up any previously playing video decoder instances before clearing container
+    pauseAllHomeVideos();
+    feedContainer.innerHTML = "";
+
+    allPosts.forEach((post, index) => {
       try {
-        const formattedUserPosts = (userPosts || []).map(p => ({
-          id: 'local_' + p.id,
-          url: p.blob ? URL.createObjectURL(p.blob) : (p.url || ''),
-          thumbnail: p.thumbnail || p.poster || (p.blob ? URL.createObjectURL(p.blob) + '#t=0.001' : ''),
-          thumbnail_url: p.thumbnail_url || (p.blob ? URL.createObjectURL(p.blob) + '#t=0.001' : ''),
-          user: UserProfileStore.state.username,
-          avatar: UserProfileStore.state.avatar,
-          isCurrentUser: true,
-          location: 'Original Audio',
-          caption: 'Uploaded Video Post! ✨ #lifestyle',
-          likesCount: 1248,
-          commentsCount: 24,
-          time: 'JUST NOW'
-        })).reverse();
-
-        const allPosts = formattedUserPosts.length > 0 ? [...formattedUserPosts, ...SAMPLE_VIDEOS] : SAMPLE_VIDEOS;
-        
-        // Clean up any previously playing video decoder instances before clearing container
-        pauseAllHomeVideos();
-        feedContainer.innerHTML = "";
-
-        allPosts.forEach((post, index) => {
-          try {
-            const card = createPostCardElement(post, index);
-            feedContainer.appendChild(card);
-            if (index === 1) {
-              renderSuggestedReels(feedContainer);
-            }
-          } catch (postErr) {
-            console.warn("Error rendering individual post:", postErr);
-          }
-        });
-
-        // Initialize observation with 0.7 threshold & single audio enforcement
-        setupHomeFeedObserver();
-      } catch (innerErr) {
-        renderFeedErrorBoundary(feedContainer, innerErr);
+        const card = createPostCardElement(post, index);
+        feedContainer.appendChild(card);
+        if (index === 1) {
+          renderSuggestedReels(feedContainer);
+        }
+      } catch (postErr) {
+        console.warn("Error rendering individual post:", postErr);
       }
-    };
+    });
 
-    const activeDb = db || (typeof window !== "undefined" && window.db);
-    if (!activeDb || typeof activeDb.transaction !== "function") {
-      renderPosts([]);
-      return;
-    }
-    const tx = activeDb.transaction("videos", "readonly");
-    const req = tx.objectStore("videos").getAll();
-    req.onsuccess = () => renderPosts(req.result || []);
-    req.onerror = () => renderPosts([]);
+    // Initialize observation with 0.7 threshold & single audio enforcement
+    setupHomeFeedObserver();
   } catch (err) {
     renderFeedErrorBoundary(feedContainer, err);
   }

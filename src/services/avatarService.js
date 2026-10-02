@@ -32,14 +32,14 @@ export function getCurrentUserId() {
 
 /**
  * Upload profile photo to Supabase Storage bucket ('avatars')
- * Path: ${userId}/${Date.now()}.jpg
- * Upsert into 'profiles' table with avatar_url: publicUrl
+ * Path: ${userId}/avatar_${Date.now()}.jpg
+ * Update 'profiles' table with avatar_url: publicUrl
  */
 export async function uploadUserAvatar(fileOrBlob, customUserId = null) {
   if (!fileOrBlob || !supabase) return null;
 
   const userId = customUserId || getCurrentUserId();
-  const filePath = `${userId}/${Date.now()}.jpg`;
+  const filePath = `${userId}/avatar_${Date.now()}.jpg`;
 
   try {
     // 1. Upload to Supabase Storage 'avatars' bucket
@@ -52,51 +52,54 @@ export async function uploadUserAvatar(fileOrBlob, customUserId = null) {
       });
 
     if (uploadError) {
-      console.warn("Supabase avatar upload notice:", uploadError.message);
-      // If error might be bucket structure, attempt fallback without directory prefix
-      const fallbackPath = `${userId}_${Date.now()}.jpg`;
-      const { error: fallbackError } = await supabase.storage
-        .from("avatars")
-        .upload(fallbackPath, fileOrBlob, {
-          contentType: "image/jpeg",
-          upsert: true
-        });
-      if (fallbackError) {
-        console.warn("Fallback upload notice:", fallbackError.message);
+      console.error(
+        "%c🚨 Supabase Storage Error (check RLS / bucket permissions):",
+        "background: #ef4444; color: white; font-weight: bold; padding: 2px 6px; border-radius: 4px;",
+        uploadError.message || uploadError
+      );
+      if (uploadError.statusCode) {
+        console.error("HTTP Status Code:", uploadError.statusCode);
       }
+      throw uploadError;
     }
 
-    // 2. Get Public URL
+    // 2. Fetch Public URL
     const { data: publicUrlData } = supabase.storage
       .from("avatars")
       .getPublicUrl(filePath);
 
     const publicUrl = publicUrlData && publicUrlData.publicUrl ? publicUrlData.publicUrl : null;
-    if (!publicUrl) return null;
-
-    // 3. Upsert into Supabase 'profiles' table
-    try {
-      const { error: upsertError } = await supabase
-        .from("profiles")
-        .upsert({
-          id: userId,
-          avatar_url: publicUrl,
-          username: UserProfileStore.state.username,
-          full_name: UserProfileStore.state.name,
-          updated_at: new Date().toISOString()
-        }, { onConflict: "id" });
-
-      if (upsertError) {
-        console.warn("Profiles upsert note:", upsertError.message);
-      }
-    } catch (e) {
-      console.warn("Profiles upsert exception:", e);
+    if (!publicUrl) {
+      throw new Error("Could not resolve public URL from Supabase Storage");
     }
 
-    // 4. Update local state & trigger instant DOM synchronization
+    // 3. Immediately update the 'profiles' table
+    try {
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ avatar_url: publicUrl })
+        .eq("id", userId);
+
+      if (updateError) {
+        console.warn("Profiles update notice, running upsert fallback:", updateError.message);
+        await supabase
+          .from("profiles")
+          .upsert({
+            id: userId,
+            avatar_url: publicUrl,
+            username: UserProfileStore.state.username,
+            full_name: UserProfileStore.state.name,
+            updated_at: new Date().toISOString()
+          }, { onConflict: "id" });
+      }
+    } catch (e) {
+      console.error("Profiles table update error:", e);
+    }
+
+    // 4. Refresh the global auth/user state so the new logo displays across the entire app without page reload
     UserProfileStore.setState({ avatar: publicUrl });
 
-    // Update localStorage user session with permanent avatar
+    // Update localStorage user session with permanent Supabase URL (NOT raw base64 data)
     try {
       const savedSession = localStorage.getItem("flashgram_user_session");
       if (savedSession) {
@@ -104,12 +107,13 @@ export async function uploadUserAvatar(fileOrBlob, customUserId = null) {
         parsed.photoURL = publicUrl;
         localStorage.setItem("flashgram_user_session", JSON.stringify(parsed));
       }
+      localStorage.setItem("user_custom_avatar_data", publicUrl);
     } catch (_) {}
 
     return publicUrl;
   } catch (err) {
     console.error("uploadUserAvatar exception:", err);
-    return null;
+    throw err;
   }
 }
 

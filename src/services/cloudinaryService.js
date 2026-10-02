@@ -34,19 +34,28 @@ export function deriveCloudinaryThumbnailUrl(secureUrl) {
 
 /**
  * Upload video directly to Cloudinary (unsigned preset)
- * @param {File|Blob} file - The video file or recorded blob
+ * @param {File|Blob} file - The raw video File object or recorded Blob
  * @param {Function} [onProgress] - Optional upload progress callback (percent 0-100)
  * @returns {Promise<{ secure_url: string, thumbnail_url: string, public_id: string }>}
  */
 export async function uploadVideoToCloudinary(file, onProgress) {
   const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", UPLOAD_PRESET);
-  formData.append("api_key", API_KEY);
+  if (file instanceof Blob && !(file instanceof File)) {
+    formData.append("file", file, "recorded_reel.webm");
+  } else {
+    formData.append("file", file);
+  }
+  formData.append("upload_preset", UPLOAD_PRESET || "flashgram_videos");
+  formData.append("resource_type", "video");
+  if (API_KEY) {
+    formData.append("api_key", API_KEY);
+  }
+
+  const endpoint = `https://api.cloudinary.com/v1_1/${CLOUD_NAME || 'yrfaotod'}/video/upload`;
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", CLOUDINARY_VIDEO_UPLOAD_URL, true);
+    xhr.open("POST", endpoint, true);
 
     if (xhr.upload && typeof onProgress === "function") {
       xhr.upload.onprogress = (e) => {
@@ -58,10 +67,15 @@ export async function uploadVideoToCloudinary(file, onProgress) {
     }
 
     xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
+      // Must receive HTTP 200 / 201 before proceeding
+      if (xhr.status === 200 || xhr.status === 201) {
         try {
           const data = JSON.parse(xhr.responseText);
           const secure_url = data.secure_url || data.url;
+          if (!secure_url) {
+            reject(new Error("Cloudinary response missing secure_url"));
+            return;
+          }
           const thumbnail_url = deriveCloudinaryThumbnailUrl(secure_url);
           resolve({
             ...data,
@@ -88,6 +102,38 @@ export async function uploadVideoToCloudinary(file, onProgress) {
 
     xhr.send(formData);
   });
+}
+
+/**
+ * Fetch all live posts directly from Supabase
+ */
+export async function fetchSupabasePosts() {
+  if (!supabase) return [];
+  try {
+    const { data, error } = await supabase
+      .from("posts")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return data;
+    }
+  } catch (err) {
+    console.warn("Supabase posts query note:", err);
+  }
+
+  try {
+    const { data: reelsData, error: reelsError } = await supabase
+      .from("reels")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (!reelsError && Array.isArray(reelsData) && reelsData.length > 0) {
+      return reelsData;
+    }
+  } catch (_) {}
+
+  return [];
 }
 
 /**

@@ -57,7 +57,7 @@ import { db } from "../services/database.js";
         this.state = { ...this.state, ...updates };
 
         try {
-          if (updates.avatar !== undefined && updates.avatar) {
+          if (updates.avatar !== undefined && updates.avatar && !String(updates.avatar).startsWith("data:")) {
             localStorage.setItem("user_custom_avatar_data", this.state.avatar);
           }
           localStorage.setItem("user_profile_info", JSON.stringify({
