@@ -2,9 +2,24 @@
 import { supabase } from "../supabaseClient.js";
 import { showInstagramToast } from "../utils/storage.js";
 
-export const CLOUD_NAME = "yrfaotod";
-export const API_KEY = "414958444676865";
-export const UPLOAD_PRESET = "flashgram_videos";
+export const CLOUD_NAME = 
+  (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_CLOUDINARY_CLOUD_NAME) || 
+  (typeof process !== "undefined" && process.env && process.env.VITE_CLOUDINARY_CLOUD_NAME) || 
+  (typeof window !== "undefined" && window.CLOUDINARY_CLOUD_NAME) || 
+  'yrfaotod';
+
+export const UPLOAD_PRESET = 
+  (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET) || 
+  (typeof process !== "undefined" && process.env && process.env.VITE_CLOUDINARY_UPLOAD_PRESET) || 
+  (typeof window !== "undefined" && window.CLOUDINARY_UPLOAD_PRESET) || 
+  'flashgram_videos';
+
+export const API_KEY = 
+  (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_CLOUDINARY_API_KEY) || 
+  (typeof process !== "undefined" && process.env && process.env.VITE_CLOUDINARY_API_KEY) || 
+  (typeof window !== "undefined" && window.CLOUDINARY_API_KEY) || 
+  '414958444676865';
+
 export const CLOUDINARY_VIDEO_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`;
 
 /**
