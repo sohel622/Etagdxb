@@ -19,16 +19,22 @@ export function renderSuggestedReels(container, videos = SAMPLE_VIDEOS) {
       </button>
     </div>
     <div class="suggested-reels-slider flex items-center gap-3 overflow-x-auto no-scrollbar pb-2 snap-x snap-mandatory">
-      ${videos.slice(0, 6).map(video => `
+      ${videos.slice(0, 6).map(video => {
+        const coverThumbnail = video.thumbnail || video.thumbnail_url || video.poster || (video.id === 'sample_1' 
+          ? 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80' 
+          : (video.id === 'shabnam_reel_1' 
+              ? 'https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png' 
+              : 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80'));
+        return `
         <div class="suggested-reel-card flex-shrink-0 w-36 h-56 rounded-xl overflow-hidden relative cursor-pointer group shadow-sm bg-neutral-900 snap-start" onclick="openSuggestedReel('${video.id}')">
-          <video src="${video.url}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" preload="metadata" muted playsinline></video>
-          <div class="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/80 pointer-events-none"></div>
+          <img src="${coverThumbnail}" class="w-full h-full object-cover rounded-lg group-hover:scale-105 transition-transform duration-300" alt="${video.user || 'Reel'} cover" loading="lazy" crossorigin="anonymous" onerror="this.src='https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80';" />
+          <div class="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/80 pointer-events-none rounded-lg"></div>
           <div class="absolute top-2 right-2 text-white/90 text-xs">
             <i class="fa-solid fa-play text-[10px]"></i>
           </div>
-          <div class="absolute bottom-2.5 left-2.5 right-2 text-white">
+          <div class="absolute bottom-2.5 left-2.5 right-2 text-white pointer-events-none">
             <div class="flex items-center gap-1.5 mb-1">
-              <img src="${video.avatar || SHABNAM_AI_PROFILE.avatar}" class="w-4 h-4 rounded-full object-cover border border-white/40" alt="${video.user}" />
+              <img src="${video.avatar || SHABNAM_AI_PROFILE.avatar}" class="w-4 h-4 rounded-full object-cover border border-white/40" alt="${video.user}" crossorigin="anonymous" onerror="this.style.display='none';" />
               <span class="text-[11px] font-medium truncate">${video.user}</span>
             </div>
             <div class="text-[10px] text-white/80 flex items-center gap-1 font-mono">
@@ -37,7 +43,8 @@ export function renderSuggestedReels(container, videos = SAMPLE_VIDEOS) {
             </div>
           </div>
         </div>
-      `).join('')}
+      `;
+      }).join('')}
     </div>
   `;
 

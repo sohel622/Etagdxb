@@ -30,19 +30,24 @@ function renderFeedErrorBoundary(container, error) {
   `;
 }
 
-// Requirement 2: Generate or attach automatic thumbnail / first-frame poster (thumbnail_url || url + '#t=0.001')
+// Requirement 2: Generate or attach automatic thumbnail image without broken video URL
 function getPostThumbnail(post) {
-  if (post.thumbnail_url) return post.thumbnail_url;
-  if (post.thumbnail) return post.thumbnail;
-  if (post.poster) return post.poster;
-  if (post.url && !String(post.url).startsWith("blob:")) {
-    return post.url + '#t=0.001';
+  if (post.thumbnail_url && !post.thumbnail_url.includes(".mp4") && !post.thumbnail_url.includes(".webm") && !String(post.thumbnail_url).startsWith("blob:")) {
+    return post.thumbnail_url;
   }
-  if (post.id === 'sample_1') return "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80";
-  if (post.id === 'shabnam_reel_1') return "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png";
-  if (post.url && String(post.url).startsWith("blob:")) {
-    return post.url + '#t=0.001';
+  if (post.thumbnail && !post.thumbnail.includes(".mp4") && !post.thumbnail.includes(".webm") && !String(post.thumbnail).startsWith("blob:")) {
+    return post.thumbnail;
   }
+  if (post.poster && !post.poster.includes(".mp4") && !post.poster.includes(".webm") && !String(post.poster).startsWith("blob:")) {
+    return post.poster;
+  }
+  if (post.id === 'sample_1') {
+    return "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80";
+  }
+  if (post.id === 'shabnam_reel_1') {
+    return "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png";
+  }
+  // High quality fallback cover for uploaded videos without a separate static cover image
   return "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80";
 }
 
@@ -74,12 +79,12 @@ function createPostCardElement(post, index = 0) {
   const postComments = typeof getStoredComments === "function" ? getStoredComments(post.id) : [];
   const initialCommentsCount = (postComments && postComments.length) ? postComments.length : (post.commentsCount || 18);
 
-  // Requirement 1 & 2: Lightweight poster frame thumbnail with proportional container
+  // Requirement 1 & 2: Exact Instagram feed dimensions (4:5 / 16:9), skeleton shimmer & zero broken image
   card.innerHTML = `
     <div class="post-header">
       <div class="post-user" ${userClickAttr}>
         <div class="post-avatar">
-          ${displayAvatar ? `<img src="${displayAvatar}" class="${avatarClass}" alt="${displayUser}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : ''}
+          ${displayAvatar ? `<img src="${displayAvatar}" class="${avatarClass}" alt="${displayUser}" crossorigin="anonymous" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : ''}
           <i class="fa-solid fa-user" style="${displayAvatar ? 'display:none;' : ''}"></i>
         </div>
         <div class="post-user-meta">
@@ -93,7 +98,8 @@ function createPostCardElement(post, index = 0) {
       <i class="fa-solid fa-ellipsis post-more-btn cursor-pointer" title="Post options"></i>
     </div>
     <div class="home-video-container" data-post-id="${post.id}" data-video-url="${post.url}" data-poster-url="${posterImg}" style="cursor: pointer;" title="Watch Reel">
-      <img class="home-video-poster" src="${posterImg}" alt="${displayUser} video" loading="lazy" />
+      <div class="home-video-skeleton"></div>
+      <img class="home-video-poster" src="${posterImg}" alt="${displayUser} video" loading="lazy" crossorigin="anonymous" onerror="this.style.display='none';" />
       <div class="home-play-badge"><i class="fa-solid fa-play ml-0.5"></i></div>
       <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
     </div>
@@ -124,13 +130,22 @@ function createPostCardElement(post, index = 0) {
   let currentLikes = post.likesCount || 1248;
   let isLiked = false;
 
-  // Requirement 1: Proportional scaling without cropping or overflowing (support portrait 9:16 / 4:5 and landscape 16:9)
+  // Requirement 1: Proportional scaling - support portrait (4:5 / 9:16) and landscape (16:9)
   if (posterElement) {
     posterElement.onload = () => {
       const w = posterElement.naturalWidth;
       const h = posterElement.naturalHeight;
       if (w && h) {
-        videoBox.style.aspectRatio = (w / h).toFixed(3);
+        const ratio = w / h;
+        if (ratio > 1.25) {
+          videoBox.classList.add("is-landscape");
+          videoBox.classList.remove("is-square");
+        } else if (ratio >= 0.88 && ratio <= 1.15) {
+          videoBox.classList.add("is-square");
+          videoBox.classList.remove("is-landscape");
+        } else {
+          videoBox.classList.remove("is-landscape", "is-square");
+        }
       }
     };
   }
@@ -337,9 +352,12 @@ function mountAndPlayVideo(container) {
     video.playsInline = true;
     video.setAttribute("playsinline", "");
     video.setAttribute("webkit-playsinline", "");
+    video.crossOrigin = "anonymous";
+    video.setAttribute("crossorigin", "anonymous");
     video.preload = "auto";
-    // Requirement 2: Attach crisp first-frame poster on video element
-    if (posterUrl) {
+
+    // Requirement 2: Attach crisp first-frame poster on video element (valid image or #t=0.001)
+    if (posterUrl && !posterUrl.includes(".mp4") && !posterUrl.includes(".webm") && !String(posterUrl).startsWith("blob:")) {
       video.poster = posterUrl;
       video.setAttribute("poster", posterUrl);
     }
@@ -350,7 +368,16 @@ function mountAndPlayVideo(container) {
       const w = video.videoWidth;
       const h = video.videoHeight;
       if (w && h) {
-        container.style.aspectRatio = (w / h).toFixed(3);
+        const ratio = w / h;
+        if (ratio > 1.25) {
+          container.classList.add("is-landscape");
+          container.classList.remove("is-square");
+        } else if (ratio >= 0.88 && ratio <= 1.15) {
+          container.classList.add("is-square");
+          container.classList.remove("is-landscape");
+        } else {
+          container.classList.remove("is-landscape", "is-square");
+        }
       }
     };
 

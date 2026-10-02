@@ -896,6 +896,42 @@ function toggleMicMute() {
   }
 }
 
+function captureVideoFirstFrame(blobUrl) {
+  return new Promise((resolve) => {
+    try {
+      const vid = document.createElement("video");
+      vid.preload = "metadata";
+      vid.crossOrigin = "anonymous";
+      vid.muted = true;
+      vid.playsInline = true;
+      vid.src = blobUrl;
+      vid.onloadeddata = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = vid.videoWidth || 400;
+          canvas.height = vid.videoHeight || 500;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+            const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+            resolve(dataUrl);
+            return;
+          }
+        } catch (_) {}
+        resolve("https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80");
+      };
+      vid.onerror = () => {
+        resolve("https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80");
+      };
+      setTimeout(() => {
+        resolve("https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80");
+      }, 1200);
+    } catch (_) {
+      resolve("https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80");
+    }
+  });
+}
+
 function startRecordingSession() {
   if (!liveMediaStream) {
     openCameraMicrophoneSession();
@@ -917,7 +953,7 @@ function startRecordingSession() {
       }
     };
 
-    recorder.onstop = () => {
+    recorder.onstop = async () => {
       if (recordedChunks.length > 0) {
         const blob = new Blob(recordedChunks, { type: recorder.mimeType || "video/webm" });
         try {
@@ -926,14 +962,19 @@ function startRecordingSession() {
             const tx = activeDb.transaction("videos", "readwrite");
             const store = tx.objectStore("videos");
             const addReq = store.add({ blob: blob, type: blob.type });
-            addReq.onsuccess = (ev) => {
+            addReq.onsuccess = async (ev) => {
               const newId = ev.target.result || Date.now();
               const blobUrl = URL.createObjectURL(blob);
+              let thumbUrl = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80";
+              try {
+                thumbUrl = await captureVideoFirstFrame(blobUrl);
+              } catch (_) {}
+
               const newPost = {
                 id: 'local_' + newId,
                 url: blobUrl,
-                thumbnail: blobUrl + '#t=0.001',
-                thumbnail_url: blobUrl + '#t=0.001',
+                thumbnail: thumbUrl,
+                thumbnail_url: thumbUrl,
                 user: UserProfileStore.state.username,
                 avatar: UserProfileStore.state.avatar,
                 isCurrentUser: true,
@@ -1021,14 +1062,19 @@ function initMediaCreationAndCamera() {
             const tx = activeDb.transaction("videos", "readwrite");
             const store = tx.objectStore("videos");
             const addReq = store.add({ blob: file, type: file.type });
-            addReq.onsuccess = (ev) => {
+            addReq.onsuccess = async (ev) => {
               const newId = ev.target.result || Date.now();
               const blobUrl = URL.createObjectURL(file);
+              let thumbUrl = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80";
+              try {
+                thumbUrl = await captureVideoFirstFrame(blobUrl);
+              } catch (_) {}
+
               const newPost = {
                 id: 'local_' + newId,
                 url: blobUrl,
-                thumbnail: blobUrl + '#t=0.001',
-                thumbnail_url: blobUrl + '#t=0.001',
+                thumbnail: thumbUrl,
+                thumbnail_url: thumbUrl,
                 user: UserProfileStore.state.username,
                 avatar: UserProfileStore.state.avatar,
                 isCurrentUser: true,
