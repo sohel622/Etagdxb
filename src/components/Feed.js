@@ -1,24 +1,57 @@
-// Feed Component (Home Post Feed & Observer)
+// Feed Component (Home Post Feed & Observer with Aggressive Video Memory Cleanup)
 import { db } from "../services/database.js";
 import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
 import { SAMPLE_VIDEOS, SHABNAM_AI_PROFILE } from "../utils/mockData.js";
-import { isGlobalAudioMuted, toggleGlobalAudio } from "./Navbar.js";
-import { spawnFloatingHeart, openMyProfileTab, navigateToReel } from "./ReelsViewer.js";
+import { isGlobalAudioMuted } from "./Navbar.js";
+import { openMyProfileTab, navigateToReel } from "./ReelsViewer.js";
 import { openReelsCommentsSheet, openReelsShareSheet, getStoredComments, openPostOptionsSheet } from "./reels/index.js";
 import { openProfile } from "./Profile.js";
 import { renderSuggestedReels } from "./SuggestedReels.js";
 
-    /* =======================================================
-       ৯. হোম ফিড
-    ======================================================= */
-    function renderHomeFeed() {
-      const feedContainer = document.getElementById("feedContainer");
-      if (!feedContainer) return;
+/* =======================================================
+   ১. হোম ফিড এরর বাউন্ডারি (Error Boundary Fallback)
+======================================================= */
+function renderFeedErrorBoundary(container, error) {
+  if (!container) return;
+  console.error("Home Feed ErrorBoundary caught failure:", error);
+  container.innerHTML = `
+    <div class="feed-error-boundary">
+      <div class="w-14 h-14 rounded-full bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 flex items-center justify-center text-neutral-400 dark:text-neutral-500 text-2xl shadow-inner mb-1">
+        <i class="fa-solid fa-circle-exclamation"></i>
+      </div>
+      <h3 class="text-[17px] font-bold text-neutral-900 dark:text-white">Couldn't load feed</h3>
+      <p class="text-[13px] text-neutral-500 dark:text-neutral-400 max-w-[280px]">
+        There was an unexpected issue loading feed posts. Tap below to retry.
+      </p>
+      <button type="button" class="mt-2 px-5 py-2 rounded-full bg-[#0095F6] hover:bg-sky-600 active:scale-95 text-white font-semibold text-[13.5px] transition-all shadow-sm cursor-pointer" onclick="renderHomeFeed()">
+        Tap to retry
+      </button>
+    </div>
+  `;
+}
 
-      const renderPosts = (userPosts = []) => {
+function getPostThumbnail(post) {
+  if (post.thumbnail) return post.thumbnail;
+  if (post.poster) return post.poster;
+  if (post.id === 'sample_1') return "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80";
+  if (post.id === 'shabnam_reel_1') return "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png";
+  return "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80";
+}
+
+/* =======================================================
+   ২. হোম ফিড রেন্ডারার (Home Feed Renderer)
+======================================================= */
+function renderHomeFeed() {
+  const feedContainer = document.getElementById("feedContainer");
+  if (!feedContainer) return;
+
+  try {
+    const renderPosts = (userPosts = []) => {
+      try {
         const formattedUserPosts = (userPosts || []).map(p => ({
           id: 'local_' + p.id,
           url: p.blob ? URL.createObjectURL(p.blob) : (p.url || ''),
+          thumbnail: p.thumbnail || p.poster || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80",
           user: UserProfileStore.state.username,
           avatar: UserProfileStore.state.avatar,
           isCurrentUser: true,
@@ -30,296 +63,397 @@ import { renderSuggestedReels } from "./SuggestedReels.js";
         })).reverse();
 
         const allPosts = formattedUserPosts.length > 0 ? [...formattedUserPosts, ...SAMPLE_VIDEOS] : SAMPLE_VIDEOS;
+        
+        // Clean up any previously playing video decoder instances before clearing container
+        pauseAllHomeVideos();
         feedContainer.innerHTML = "";
 
         allPosts.forEach((post, index) => {
-          const isCurrentUser = post.isCurrentUser || post.user === 'my_profile' || post.user === 'sohel_077' || post.user === 'arya.gmr_' || post.user === UserProfileStore.state.username || post.id === 'sample_1' || (post.id && String(post.id).startsWith('local_'));
-          const isShabnam = post.user === 'shabnam_ai' || post.id === 'shabnam_reel_1';
-          const displayUser = isCurrentUser ? UserProfileStore.state.username : (isShabnam ? "shabnam_ai" : post.user);
-          const displayAvatar = isCurrentUser ? UserProfileStore.state.avatar : (isShabnam ? SHABNAM_AI_PROFILE.avatar : post.avatar);
-          const avatarClass = isCurrentUser ? "current-user-avatar current-user-post-avatar" : "";
-          const usernameClass = isCurrentUser ? "current-user-username current-user-post-username" : "";
+          try {
+            const isCurrentUser = post.isCurrentUser || post.user === 'my_profile' || post.user === 'sohel_077' || post.user === 'arya.gmr_' || post.user === UserProfileStore.state.username || post.id === 'sample_1' || (post.id && String(post.id).startsWith('local_'));
+            const isShabnam = post.user === 'shabnam_ai' || post.id === 'shabnam_reel_1';
+            const displayUser = isCurrentUser ? UserProfileStore.state.username : (isShabnam ? "shabnam_ai" : post.user);
+            const displayAvatar = isCurrentUser ? UserProfileStore.state.avatar : (isShabnam ? SHABNAM_AI_PROFILE.avatar : post.avatar);
+            const avatarClass = isCurrentUser ? "current-user-avatar current-user-post-avatar" : "";
+            const usernameClass = isCurrentUser ? "current-user-username current-user-post-username" : "";
+            const posterImg = getPostThumbnail(post);
 
-          let userClickAttr = "";
-          if (isCurrentUser) {
-            userClickAttr = 'onclick="openMyProfileTab()" style="cursor: pointer;" title="View Profile"';
-          } else if (isShabnam) {
-            userClickAttr = 'onclick="openProfile(\'shabnam_ai\')" style="cursor: pointer;" title="View Shabnam AI Profile"';
-          }
+            let userClickAttr = "";
+            if (isCurrentUser) {
+              userClickAttr = 'onclick="openMyProfileTab()" style="cursor: pointer;" title="View Profile"';
+            } else if (isShabnam) {
+              userClickAttr = 'onclick="openProfile(\'shabnam_ai\')" style="cursor: pointer;" title="View Shabnam AI Profile"';
+            }
 
-          const card = document.createElement("div");
-          card.className = "post-card";
-          card.dataset.id = post.id;
-          card.dataset.postId = post.id;
-          if (isCurrentUser) card.dataset.currentUserPost = "true";
+            const card = document.createElement("div");
+            card.className = "post-card";
+            card.dataset.id = post.id;
+            card.dataset.postId = post.id;
+            if (isCurrentUser) card.dataset.currentUserPost = "true";
 
-          const postComments = typeof getStoredComments === "function" ? getStoredComments(post.id) : [];
-          const initialCommentsCount = (postComments && postComments.length) ? postComments.length : (post.commentsCount || 18);
+            const postComments = typeof getStoredComments === "function" ? getStoredComments(post.id) : [];
+            const initialCommentsCount = (postComments && postComments.length) ? postComments.length : (post.commentsCount || 18);
 
-          card.innerHTML = `
-            <div class="post-header">
-              <div class="post-user" ${userClickAttr}>
-                <div class="post-avatar">
-                  ${displayAvatar ? `<img src="${displayAvatar}" class="${avatarClass}" alt="${displayUser}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : ''}
-                  <i class="fa-solid fa-user" style="${displayAvatar ? 'display:none;' : ''}"></i>
-                </div>
-                <div class="post-user-meta">
-                  <div class="flex items-center gap-1">
-                    <span class="post-username ${usernameClass}">${displayUser}</span>
-                    ${isShabnam ? '<span class="text-sky-500 text-[11px]" title="Verified"><i class="fa-solid fa-circle-check"></i></span>' : ''}
+            // Lightweight initial markup: Render poster thumbnail image ONLY, NO raw <video> tag in DOM yet
+            card.innerHTML = `
+              <div class="post-header">
+                <div class="post-user" ${userClickAttr}>
+                  <div class="post-avatar">
+                    ${displayAvatar ? `<img src="${displayAvatar}" class="${avatarClass}" alt="${displayUser}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : ''}
+                    <i class="fa-solid fa-user" style="${displayAvatar ? 'display:none;' : ''}"></i>
                   </div>
-                  <span class="post-location">${post.location || 'Original Audio'}</span>
+                  <div class="post-user-meta">
+                    <div class="flex items-center gap-1">
+                      <span class="post-username ${usernameClass}">${displayUser}</span>
+                      ${isShabnam ? '<span class="text-sky-500 text-[11px]" title="Verified"><i class="fa-solid fa-circle-check"></i></span>' : ''}
+                    </div>
+                    <span class="post-location">${post.location || 'Original Audio'}</span>
+                  </div>
                 </div>
+                <i class="fa-solid fa-ellipsis post-more-btn cursor-pointer" title="Post options"></i>
               </div>
-              <i class="fa-solid fa-ellipsis post-more-btn cursor-pointer" title="Post options"></i>
-            </div>
-            <div class="home-video-container" style="cursor: pointer;" title="Watch Reel">
-              <video class="home-video-player" src="${post.url}" loop playsinline preload="metadata"></video>
-              <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
-            </div>
-            <div class="post-actions">
-              <div class="post-actions-left">
-                <i class="fa-regular fa-heart action-btn like-btn"></i>
-                <i class="fa-regular fa-comment action-btn comment-icon-btn" title="Comments"></i>
-                <i class="fa-regular fa-paper-plane action-btn share-icon-btn" title="Share"></i>
+              <div class="home-video-container" data-post-id="${post.id}" data-video-url="${post.url}" style="cursor: pointer;" title="Watch Reel">
+                <img class="home-video-poster" src="${posterImg}" alt="${displayUser} video" loading="lazy" />
+                <div class="home-play-badge"><i class="fa-solid fa-play ml-0.5"></i></div>
+                <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
               </div>
-              <i class="fa-regular fa-bookmark action-btn bookmark-btn"></i>
-            </div>
-            <div class="post-details">
-              <div class="post-likes"><span class="likes-count">${(post.likesCount || 1248).toLocaleString()}</span> likes</div>
-              <div class="post-caption">
-                <span class="caption-user ${usernameClass}" ${userClickAttr}>${displayUser}</span>
-                <span>${post.caption}</span>
+              <div class="post-actions">
+                <div class="post-actions-left">
+                  <i class="fa-regular fa-heart action-btn like-btn"></i>
+                  <i class="fa-regular fa-comment action-btn comment-icon-btn" title="Comments"></i>
+                  <i class="fa-regular fa-paper-plane action-btn share-icon-btn" title="Share"></i>
+                </div>
+                <i class="fa-regular fa-bookmark action-btn bookmark-btn"></i>
               </div>
-              <div class="post-comments-link" style="cursor: pointer;" data-post-id="${post.id}">View all ${initialCommentsCount} comments</div>
-              <div class="post-time">${post.time || '2 HOURS AGO'}</div>
-            </div>
-          `;
+              <div class="post-details">
+                <div class="post-likes"><span class="likes-count">${(post.likesCount || 1248).toLocaleString()}</span> likes</div>
+                <div class="post-caption">
+                  <span class="caption-user ${usernameClass}" ${userClickAttr}>${displayUser}</span>
+                  <span>${post.caption}</span>
+                </div>
+                <div class="post-comments-link" style="cursor: pointer;" data-post-id="${post.id}">View all ${initialCommentsCount} comments</div>
+                <div class="post-time">${post.time || '2 HOURS AGO'}</div>
+              </div>
+            `;
 
-          const videoBox = card.querySelector(".home-video-container");
-          const vid = card.querySelector("video");
-          const likeBtn = card.querySelector(".like-btn");
-          const bookmarkBtn = card.querySelector(".bookmark-btn");
-          const likesSpan = card.querySelector(".likes-count");
-          let currentLikes = post.likesCount || 1248;
-          let isLiked = false;
+            const videoBox = card.querySelector(".home-video-container");
+            const posterElement = card.querySelector(".home-video-poster");
+            const likeBtn = card.querySelector(".like-btn");
+            const bookmarkBtn = card.querySelector(".bookmark-btn");
+            const likesSpan = card.querySelector(".likes-count");
+            let currentLikes = post.likesCount || 1248;
+            let isLiked = false;
 
-          // Automatically adapt aspect ratio to standard Instagram ratios (1:1 square or 4:5 portrait)
-          vid.addEventListener('loadedmetadata', () => {
-            const w = vid.videoWidth;
-            const h = vid.videoHeight;
-            if (w && h) {
-              const ratio = w / h;
-              if (ratio >= 0.88 && ratio <= 1.12) {
-                videoBox.style.aspectRatio = "1 / 1";
-              } else if (ratio < 0.88) {
-                videoBox.style.aspectRatio = "4 / 5";
-              } else {
-                const clamped = Math.min(1.91, Math.max(1.0, ratio));
-                videoBox.style.aspectRatio = clamped.toFixed(3);
-              }
+            // Adapt aspect ratio from poster natural dimensions if available
+            if (posterElement) {
+              posterElement.onload = () => {
+                const w = posterElement.naturalWidth;
+                const h = posterElement.naturalHeight;
+                if (w && h) {
+                  const ratio = w / h;
+                  if (ratio >= 0.88 && ratio <= 1.12) {
+                    videoBox.style.aspectRatio = "1 / 1";
+                  } else if (ratio < 0.88) {
+                    videoBox.style.aspectRatio = "4 / 5";
+                  } else {
+                    const clamped = Math.min(1.91, Math.max(1.0, ratio));
+                    videoBox.style.aspectRatio = clamped.toFixed(3);
+                  }
+                }
+              };
             }
-          });
 
-          // Single tap immediately navigates to the full-screen Reels viewer with this video active
-          videoBox.addEventListener("click", (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            pauseAllHomeVideos();
-            navigateToReel(post.id, post.url);
-          });
-
-          likeBtn.onclick = () => {
-            isLiked = !isLiked;
-            likeBtn.classList.toggle("liked", isLiked);
-            likeBtn.classList.toggle("fa-solid", isLiked);
-            likeBtn.classList.toggle("fa-regular", !isLiked);
-            currentLikes += isLiked ? 1 : -1;
-            likesSpan.textContent = currentLikes.toLocaleString();
-          };
-
-          bookmarkBtn.onclick = () => {
-            bookmarkBtn.classList.toggle("fa-solid");
-            bookmarkBtn.classList.toggle("fa-regular");
-          };
-
-          const moreBtn = card.querySelector(".post-more-btn");
-          if (moreBtn) {
-            moreBtn.onclick = (e) => {
+            // Single tap immediately navigates to the full-screen Reels viewer with this video active
+            videoBox.addEventListener("click", (e) => {
+              e.preventDefault();
               e.stopPropagation();
-              openPostOptionsSheet(post, card);
-            };
-          }
+              pauseAllHomeVideos();
+              navigateToReel(post.id, post.url);
+            });
 
-          const shareBtn = card.querySelector(".share-icon-btn");
-          if (shareBtn) {
-            shareBtn.onclick = (e) => {
-              e.stopPropagation();
-              openReelsShareSheet(post);
+            likeBtn.onclick = () => {
+              isLiked = !isLiked;
+              likeBtn.classList.toggle("liked", isLiked);
+              likeBtn.classList.toggle("fa-solid", isLiked);
+              likeBtn.classList.toggle("fa-regular", !isLiked);
+              currentLikes += isLiked ? 1 : -1;
+              likesSpan.textContent = currentLikes.toLocaleString();
             };
-          }
 
-          const commentBtn = card.querySelector(".comment-icon-btn");
-          if (commentBtn) {
-            commentBtn.onclick = (e) => {
-              e.stopPropagation();
-              openReelsCommentsSheet(post.id, post);
+            bookmarkBtn.onclick = () => {
+              bookmarkBtn.classList.toggle("fa-solid");
+              bookmarkBtn.classList.toggle("fa-regular");
             };
-          }
 
-          const commentsLink = card.querySelector(".post-comments-link");
-          if (commentsLink) {
-            commentsLink.onclick = (e) => {
-              e.stopPropagation();
-              openReelsCommentsSheet(post.id, post);
-            };
-          }
+            const moreBtn = card.querySelector(".post-more-btn");
+            if (moreBtn) {
+              moreBtn.onclick = (e) => {
+                e.stopPropagation();
+                openPostOptionsSheet(post, card);
+              };
+            }
 
-          feedContainer.appendChild(card);
-          if (index === 1) {
-            renderSuggestedReels(feedContainer);
+            const shareBtn = card.querySelector(".share-icon-btn");
+            if (shareBtn) {
+              shareBtn.onclick = (e) => {
+                e.stopPropagation();
+                openReelsShareSheet(post);
+              };
+            }
+
+            const commentBtn = card.querySelector(".comment-icon-btn");
+            if (commentBtn) {
+              commentBtn.onclick = (e) => {
+                e.stopPropagation();
+                openReelsCommentsSheet(post.id, post);
+              };
+            }
+
+            const commentsLink = card.querySelector(".post-comments-link");
+            if (commentsLink) {
+              commentsLink.onclick = (e) => {
+                e.stopPropagation();
+                openReelsCommentsSheet(post.id, post);
+              };
+            }
+
+            feedContainer.appendChild(card);
+            if (index === 1) {
+              renderSuggestedReels(feedContainer);
+            }
+          } catch (postErr) {
+            console.warn("Error rendering individual post:", postErr);
           }
         });
 
+        // Initialize observation with 0.75 threshold & OOM protection
         setupHomeFeedObserver();
-      };
-
-      try {
-        const activeDb = db || (typeof window !== "undefined" && window.db);
-        if (!activeDb || typeof activeDb.transaction !== "function") {
-          renderPosts([]);
-          return;
-        }
-        const tx = activeDb.transaction("videos", "readonly");
-        const req = tx.objectStore("videos").getAll();
-        req.onsuccess = () => renderPosts(req.result || []);
-        req.onerror = () => renderPosts([]);
-      } catch (err) {
-        console.warn("renderHomeFeed db transaction error:", err);
-        renderPosts([]);
+      } catch (innerErr) {
+        renderFeedErrorBoundary(feedContainer, innerErr);
       }
+    };
+
+    const activeDb = db || (typeof window !== "undefined" && window.db);
+    if (!activeDb || typeof activeDb.transaction !== "function") {
+      renderPosts([]);
+      return;
+    }
+    const tx = activeDb.transaction("videos", "readonly");
+    const req = tx.objectStore("videos").getAll();
+    req.onsuccess = () => renderPosts(req.result || []);
+    req.onerror = () => renderPosts([]);
+  } catch (err) {
+    renderFeedErrorBoundary(feedContainer, err);
+  }
+}
+
+/* =======================================================
+   ৩. অন-ডিমান্ড ভিডিও মাউন্টিং ও অ্যাগ্রেসিভ মেমরি ক্লিনআপ
+   (On-Demand Video Mounting & Aggressive RAM Cleanup)
+======================================================= */
+let homeFeedObserver = null;
+let currentlyPlayingBox = null;
+let currentlyPlayingHomeVideo = null;
+let isScrollScheduled = false;
+let scrollListenerCleanup = null;
+
+function mountAndPlayVideo(container) {
+  if (!container) return;
+
+  // If already playing this exact box, ensure video plays
+  if (currentlyPlayingBox === container) {
+    const existingVid = container.querySelector("video");
+    if (existingVid && existingVid.paused) {
+      existingVid.play().catch(() => {});
+    }
+    return;
+  }
+
+  // Aggressively unmount and flush previous video from memory
+  if (currentlyPlayingBox && currentlyPlayingBox !== container) {
+    unmountAndCleanupVideo(currentlyPlayingBox);
+  }
+
+  currentlyPlayingBox = container;
+  const videoUrl = container.dataset.videoUrl;
+  if (!videoUrl) return;
+
+  let video = container.querySelector("video");
+  if (!video) {
+    video = document.createElement("video");
+    video.className = "home-video-player";
+    video.loop = true;
+    video.playsInline = true;
+    video.setAttribute("playsinline", "");
+    video.setAttribute("webkit-playsinline", "");
+    video.preload = "auto";
+    video.src = videoUrl;
+    container.appendChild(video);
+  }
+
+  video.muted = (typeof isGlobalAudioMuted === "boolean") ? isGlobalAudioMuted : false;
+
+  video.onplaying = () => {
+    container.classList.add("is-playing");
+    currentlyPlayingHomeVideo = video;
+  };
+
+  video.play().then(() => {
+    container.classList.add("is-playing");
+    currentlyPlayingHomeVideo = video;
+  }).catch(() => {
+    // If unmuted autoplay blocked by browser policy, fallback to muted
+    if (!video.muted) {
+      video.muted = true;
+      video.play().then(() => {
+        container.classList.add("is-playing");
+        currentlyPlayingHomeVideo = video;
+      }).catch(() => {});
+    }
+  });
+}
+
+function unmountAndCleanupVideo(container) {
+  if (!container) return;
+  const video = container.querySelector("video");
+  if (video) {
+    try {
+      video.pause();
+      video.onplaying = null;
+      video.onloadeddata = null;
+      video.onerror = null;
+      video.removeAttribute("src"); // Detach video buffer
+      video.load(); // Aggressively flush hardware video decoders and RAM
+      video.remove(); // Fully unmount DOM element
+    } catch (e) {
+      console.warn("Video cleanup notice:", e);
+    }
+  }
+
+  container.classList.remove("is-playing");
+  if (currentlyPlayingBox === container) {
+    currentlyPlayingBox = null;
+  }
+  if (currentlyPlayingHomeVideo === video) {
+    currentlyPlayingHomeVideo = null;
+  }
+}
+
+function setupHomeFeedObserver() {
+  // Clean up previous observer and event handlers
+  if (homeFeedObserver) {
+    homeFeedObserver.disconnect();
+    homeFeedObserver = null;
+  }
+  if (scrollListenerCleanup) {
+    scrollListenerCleanup();
+    scrollListenerCleanup = null;
+  }
+
+  const homeView = document.getElementById("homeView");
+  if (!homeView) return;
+
+  const videoBoxes = Array.from(document.querySelectorAll(".home-video-container"));
+  if (videoBoxes.length === 0) return;
+
+  const visibilityMap = new Map();
+
+  const evaluateCenterVideo = () => {
+    isScrollScheduled = false;
+
+    // If home view is not active, unmount all video decoders immediately
+    if (!homeView.classList.contains("active") && window.activeNavId !== "home") {
+      if (currentlyPlayingBox) {
+        unmountAndCleanupVideo(currentlyPlayingBox);
+      }
+      return;
     }
 
-    let homeFeedObserver = null;
-    let currentlyPlayingHomeVideo = null;
+    const homeRect = homeView.getBoundingClientRect();
+    const homeCenterY = homeRect.top + homeRect.height / 2;
 
-    function setupHomeFeedObserver() {
-      if (homeFeedObserver) {
-        homeFeedObserver.disconnect();
-      }
+    let bestBox = null;
+    let minDistance = Infinity;
 
-      const homeView = document.getElementById("homeView");
-      if (!homeView) return;
-
-      const videoBoxes = Array.from(document.querySelectorAll(".home-video-container"));
-      if (videoBoxes.length === 0) return;
-
-      const visibilityMap = new Map();
-
-      const updateCenterVideo = () => {
-        if (!homeView.classList.contains("active")) {
-          if (currentlyPlayingHomeVideo) {
-            currentlyPlayingHomeVideo.pause();
-            currentlyPlayingHomeVideo = null;
-          }
-          return;
+    videoBoxes.forEach(box => {
+      const ratio = visibilityMap.get(box) || 0;
+      // Requirement 1: Only qualify for video playback when at or above threshold 0.75
+      if (ratio >= 0.75) {
+        const rect = box.getBoundingClientRect();
+        const boxCenterY = rect.top + rect.height / 2;
+        const dist = Math.abs(homeCenterY - boxCenterY);
+        if (dist < minDistance) {
+          minDistance = dist;
+          bestBox = box;
         }
-
-        const homeRect = homeView.getBoundingClientRect();
-        const homeCenterY = homeRect.top + homeRect.height / 2;
-
-        let bestBox = null;
-        let minDiff = Infinity;
-
-        videoBoxes.forEach(box => {
-          const ratio = visibilityMap.get(box) || 0;
-          if (ratio > 0.3) {
-            const rect = box.getBoundingClientRect();
-            const boxCenterY = rect.top + rect.height / 2;
-            const diff = Math.abs(homeCenterY - boxCenterY);
-            if (diff < minDiff) {
-              minDiff = diff;
-              bestBox = box;
-            }
-          }
-        });
-
-        videoBoxes.forEach(box => {
-          const video = box.querySelector("video");
-          if (!video) return;
-
-          if (box === bestBox) {
-            if (video !== currentlyPlayingHomeVideo || video.paused) {
-              currentlyPlayingHomeVideo = video;
-              video.muted = false; // Play with sound enabled by default
-              video.play().catch(() => {
-                // If browser blocks unmuted play before first user interaction
-                video.muted = true;
-                video.play().catch(() => {});
-              });
-            }
-          } else {
-            // As soon as a post leaves the center viewport, pause its playback and audio immediately
-            if (!video.paused) {
-              video.pause();
-            }
-            video.muted = true;
-            if (video === currentlyPlayingHomeVideo) {
-              currentlyPlayingHomeVideo = null;
-            }
-          }
-        });
-      };
-
-      homeFeedObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-          visibilityMap.set(entry.target, entry.isIntersecting ? entry.intersectionRatio : 0);
-          const v = entry.target.querySelector("video");
-          if (!entry.isIntersecting && v) {
-            v.pause();
-            v.muted = true;
-            if (v === currentlyPlayingHomeVideo) {
-              currentlyPlayingHomeVideo = null;
-            }
-          }
-        });
-        updateCenterVideo();
-      }, {
-        root: homeView,
-        threshold: [0, 0.25, 0.5, 0.75, 1.0]
-      });
-
-      videoBoxes.forEach(box => homeFeedObserver.observe(box));
-
-      let scrollTimeout = null;
-      homeView.addEventListener("scroll", () => {
-        if (scrollTimeout) cancelAnimationFrame(scrollTimeout);
-        scrollTimeout = requestAnimationFrame(updateCenterVideo);
-      }, { passive: true });
-
-      // Unlock audio on initial user touch/click/scroll gesture if restricted by browser policy
-      const unlockAudio = () => {
-        if (currentlyPlayingHomeVideo && currentlyPlayingHomeVideo.muted) {
-          currentlyPlayingHomeVideo.muted = false;
-          currentlyPlayingHomeVideo.play().catch(() => {});
-        }
-      };
-      window.addEventListener("touchstart", unlockAudio, { once: true, passive: true });
-      window.addEventListener("click", unlockAudio, { once: true, passive: true });
-      window.addEventListener("scroll", unlockAudio, { once: true, passive: true });
-
-      setTimeout(updateCenterVideo, 120);
-      setTimeout(updateCenterVideo, 350);
-    }
-
-    function pauseAllHomeVideos() {
-      if (currentlyPlayingHomeVideo) {
-        currentlyPlayingHomeVideo.pause();
-        currentlyPlayingHomeVideo = null;
       }
-      document.querySelectorAll(".home-video-player").forEach(v => v.pause());
+    });
+
+    if (bestBox) {
+      mountAndPlayVideo(bestBox);
+    } else {
+      // If no box is centered >= 0.75, unmount active video to release RAM
+      if (currentlyPlayingBox) {
+        unmountAndCleanupVideo(currentlyPlayingBox);
+      }
     }
+  };
 
+  // Requirement 1: IntersectionObserver threshold 0.75 for active centered video
+  homeFeedObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      visibilityMap.set(entry.target, entry.isIntersecting ? entry.intersectionRatio : 0);
+      // Requirement 2: As soon as a video leaves the viewport or threshold drops, unmount & release buffer
+      if (!entry.isIntersecting || entry.intersectionRatio < 0.75) {
+        if (currentlyPlayingBox === entry.target) {
+          unmountAndCleanupVideo(entry.target);
+        }
+      }
+    });
+    if (!isScrollScheduled) {
+      isScrollScheduled = true;
+      requestAnimationFrame(evaluateCenterVideo);
+    }
+  }, {
+    root: homeView,
+    threshold: [0, 0.25, 0.5, 0.75, 1.0]
+  });
 
+  videoBoxes.forEach(box => homeFeedObserver.observe(box));
+
+  // Requirement 3: Debounced scroll handler to prevent infinite re-renders & layout thrashing
+  const onHomeScroll = () => {
+    if (!isScrollScheduled) {
+      isScrollScheduled = true;
+      requestAnimationFrame(evaluateCenterVideo);
+    }
+  };
+
+  homeView.addEventListener("scroll", onHomeScroll, { passive: true });
+  scrollListenerCleanup = () => {
+    homeView.removeEventListener("scroll", onHomeScroll);
+  };
+
+  // Initial evaluation after DOM paint
+  setTimeout(evaluateCenterVideo, 100);
+}
+
+function pauseAllHomeVideos() {
+  if (currentlyPlayingBox) {
+    unmountAndCleanupVideo(currentlyPlayingBox);
+  }
+  // Remove any orphan video tags to ensure zero memory leakage
+  document.querySelectorAll(".home-video-player").forEach(v => {
+    try {
+      v.pause();
+      v.removeAttribute("src");
+      v.load();
+      v.remove();
+    } catch (_) {}
+  });
+  currentlyPlayingHomeVideo = null;
+  currentlyPlayingBox = null;
+}
 
 export { renderHomeFeed, setupHomeFeedObserver, pauseAllHomeVideos };
+

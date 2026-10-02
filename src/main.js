@@ -20,6 +20,8 @@ import * as BottomNavigation from './components/BottomNavigation.js';
 import * as ShabnamAI from './components/ShabnamAI.js';
 import * as Modals from './components/Modals.js';
 import * as ReelsComponents from './components/reels/index.js';
+import * as ShareModal from './components/FlashgramShareModal.js';
+import * as ShareIntentHandler from './services/shareIntentHandler.js';
 
 // App Controller
 import { App } from './App.js';
@@ -41,6 +43,8 @@ Object.assign(window, {
   ...ShabnamAI,
   ...Modals,
   ...ReelsComponents,
+  ...ShareModal,
+  ...ShareIntentHandler,
   supabase,
   App
 });

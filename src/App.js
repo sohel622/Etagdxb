@@ -8,6 +8,7 @@ import { initProfileInteractions, updateProfilePostsCount, renderProfileGrid } f
 import { initStories } from "./components/Stories.js";
 import { initModals, requestInitialBrowserNotificationPermission } from "./components/Modals.js";
 import { isUserAuthenticated, openAuthOnboardingFlow, triggerGoogleOneTap } from "./services/supabaseAuth.js";
+import { initIncomingShareListener } from "./services/shareIntentHandler.js";
 
 export const App = {
   async init() {
@@ -53,6 +54,9 @@ export const App = {
       openAuthOnboardingFlow(1);
       setTimeout(triggerGoogleOneTap, 500);
     }
+
+    // 7. Android Native & Web Share Intent Receiver
+    initIncomingShareListener();
   }
 };
 
