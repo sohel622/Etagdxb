@@ -3,8 +3,9 @@ import { db } from "../services/database.js";
 import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
 import { renderDragBox, updateActivePillPosition, showStandardNavBar } from "./BottomNavigation.js";
 import { loadReels } from "./ReelsViewer.js";
-import { renderHomeFeed, pauseAllHomeVideos } from "./Feed.js";
+import { renderHomeFeed, pauseAllHomeVideos, prependPostToHomeFeed } from "./Feed.js";
 import { updateProfilePostsCount, renderProfileGrid } from "./Profile.js";
+import { switchTab } from "./navigation/BottomNavbar.js";
 
 // --- Shared State Variables ---
 let currentEditingBio = null;
@@ -923,20 +924,42 @@ function startRecordingSession() {
           const activeDb = db || (typeof window !== "undefined" && window.db);
           if (activeDb && typeof activeDb.transaction === "function") {
             const tx = activeDb.transaction("videos", "readwrite");
-            tx.objectStore("videos").add({ blob: blob, type: blob.type });
-            tx.oncomplete = () => {
+            const store = tx.objectStore("videos");
+            const addReq = store.add({ blob: blob, type: blob.type });
+            addReq.onsuccess = (ev) => {
+              const newId = ev.target.result || Date.now();
+              const blobUrl = URL.createObjectURL(blob);
+              const newPost = {
+                id: 'local_' + newId,
+                url: blobUrl,
+                thumbnail: blobUrl + '#t=0.001',
+                thumbnail_url: blobUrl + '#t=0.001',
+                user: UserProfileStore.state.username,
+                avatar: UserProfileStore.state.avatar,
+                isCurrentUser: true,
+                location: 'Original Audio',
+                caption: 'Recorded Reel! ✨ #lifestyle',
+                likesCount: 1,
+                commentsCount: 0,
+                time: 'JUST NOW'
+              };
+              prependPostToHomeFeed(newPost);
               loadReels();
-              renderHomeFeed();
               updateProfilePostsCount();
               renderProfileGrid();
+              if (typeof switchTab === "function") {
+                switchTab("home");
+              } else if (typeof window.switchTab === "function") {
+                window.switchTab("home");
+              }
+              const homeView = document.getElementById("homeView");
+              if (homeView) {
+                homeView.scrollTo({ top: 0, behavior: "smooth" });
+              }
               if (typeof showInstagramToast === "function") {
-                showInstagramToast("Reel recorded and saved!");
+                showInstagramToast("Reel recorded and posted! 🎬");
               }
             };
-          } else {
-            if (typeof showInstagramToast === "function") {
-              showInstagramToast("Reel recorded!");
-            }
           }
         } catch (err) {
           console.warn("Error saving recorded reel:", err);
@@ -996,17 +1019,41 @@ function initMediaCreationAndCamera() {
           const activeDb = db || (typeof window !== "undefined" && window.db);
           if (activeDb && typeof activeDb.transaction === "function") {
             const tx = activeDb.transaction("videos", "readwrite");
-            tx.objectStore("videos").add({ blob: file, type: file.type });
-            tx.oncomplete = () => {
+            const store = tx.objectStore("videos");
+            const addReq = store.add({ blob: file, type: file.type });
+            addReq.onsuccess = (ev) => {
+              const newId = ev.target.result || Date.now();
+              const blobUrl = URL.createObjectURL(file);
+              const newPost = {
+                id: 'local_' + newId,
+                url: blobUrl,
+                thumbnail: blobUrl + '#t=0.001',
+                thumbnail_url: blobUrl + '#t=0.001',
+                user: UserProfileStore.state.username,
+                avatar: UserProfileStore.state.avatar,
+                isCurrentUser: true,
+                location: 'Original Audio',
+                caption: 'Uploaded Video Post! ✨ #lifestyle',
+                likesCount: 1,
+                commentsCount: 0,
+                time: 'JUST NOW'
+              };
               videoFileInput.value = "";
+              prependPostToHomeFeed(newPost);
               loadReels();
-              renderHomeFeed();
               updateProfilePostsCount();
               renderProfileGrid();
+              if (typeof switchTab === "function") {
+                switchTab("home");
+              } else if (typeof window.switchTab === "function") {
+                window.switchTab("home");
+              }
+              const homeView = document.getElementById("homeView");
+              if (homeView) {
+                homeView.scrollTo({ top: 0, behavior: "smooth" });
+              }
               if (typeof showInstagramToast === "function") {
-                showInstagramToast("Video uploaded successfully!");
-              } else {
-                alert("ভিডিও সফলভাবে আপলোড হয়েছে!");
+                showInstagramToast("Video uploaded successfully! 🎬");
               }
             };
           }

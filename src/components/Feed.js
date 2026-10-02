@@ -30,16 +30,170 @@ function renderFeedErrorBoundary(container, error) {
   `;
 }
 
+// Requirement 2: Generate or attach automatic thumbnail / first-frame poster (thumbnail_url || url + '#t=0.001')
 function getPostThumbnail(post) {
+  if (post.thumbnail_url) return post.thumbnail_url;
   if (post.thumbnail) return post.thumbnail;
   if (post.poster) return post.poster;
+  if (post.url && !String(post.url).startsWith("blob:")) {
+    return post.url + '#t=0.001';
+  }
   if (post.id === 'sample_1') return "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80";
   if (post.id === 'shabnam_reel_1') return "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png";
+  if (post.url && String(post.url).startsWith("blob:")) {
+    return post.url + '#t=0.001';
+  }
   return "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80";
 }
 
 /* =======================================================
-   ২. হোম ফিড রেন্ডারার (Home Feed Renderer)
+   ২. পোস্ট কার্ড ক্রিয়েটর (Create Post Card Element)
+======================================================= */
+function createPostCardElement(post, index = 0) {
+  const isCurrentUser = post.isCurrentUser || post.user === 'my_profile' || post.user === 'sohel_077' || post.user === 'arya.gmr_' || post.user === UserProfileStore.state.username || post.id === 'sample_1' || (post.id && String(post.id).startsWith('local_'));
+  const isShabnam = post.user === 'shabnam_ai' || post.id === 'shabnam_reel_1';
+  const displayUser = isCurrentUser ? UserProfileStore.state.username : (isShabnam ? "shabnam_ai" : post.user);
+  const displayAvatar = isCurrentUser ? UserProfileStore.state.avatar : (isShabnam ? SHABNAM_AI_PROFILE.avatar : post.avatar);
+  const avatarClass = isCurrentUser ? "current-user-avatar current-user-post-avatar" : "";
+  const usernameClass = isCurrentUser ? "current-user-username current-user-post-username" : "";
+  const posterImg = getPostThumbnail(post);
+
+  let userClickAttr = "";
+  if (isCurrentUser) {
+    userClickAttr = 'onclick="openMyProfileTab()" style="cursor: pointer;" title="View Profile"';
+  } else if (isShabnam) {
+    userClickAttr = 'onclick="openProfile(\'shabnam_ai\')" style="cursor: pointer;" title="View Shabnam AI Profile"';
+  }
+
+  const card = document.createElement("div");
+  card.className = "post-card";
+  card.dataset.id = post.id;
+  card.dataset.postId = post.id;
+  if (isCurrentUser) card.dataset.currentUserPost = "true";
+
+  const postComments = typeof getStoredComments === "function" ? getStoredComments(post.id) : [];
+  const initialCommentsCount = (postComments && postComments.length) ? postComments.length : (post.commentsCount || 18);
+
+  // Requirement 1 & 2: Lightweight poster frame thumbnail with proportional container
+  card.innerHTML = `
+    <div class="post-header">
+      <div class="post-user" ${userClickAttr}>
+        <div class="post-avatar">
+          ${displayAvatar ? `<img src="${displayAvatar}" class="${avatarClass}" alt="${displayUser}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : ''}
+          <i class="fa-solid fa-user" style="${displayAvatar ? 'display:none;' : ''}"></i>
+        </div>
+        <div class="post-user-meta">
+          <div class="flex items-center gap-1">
+            <span class="post-username ${usernameClass}">${displayUser}</span>
+            ${isShabnam ? '<span class="text-sky-500 text-[11px]" title="Verified"><i class="fa-solid fa-circle-check"></i></span>' : ''}
+          </div>
+          <span class="post-location">${post.location || 'Original Audio'}</span>
+        </div>
+      </div>
+      <i class="fa-solid fa-ellipsis post-more-btn cursor-pointer" title="Post options"></i>
+    </div>
+    <div class="home-video-container" data-post-id="${post.id}" data-video-url="${post.url}" data-poster-url="${posterImg}" style="cursor: pointer;" title="Watch Reel">
+      <img class="home-video-poster" src="${posterImg}" alt="${displayUser} video" loading="lazy" />
+      <div class="home-play-badge"><i class="fa-solid fa-play ml-0.5"></i></div>
+      <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
+    </div>
+    <div class="post-actions">
+      <div class="post-actions-left">
+        <i class="fa-regular fa-heart action-btn like-btn"></i>
+        <i class="fa-regular fa-comment action-btn comment-icon-btn" title="Comments"></i>
+        <i class="fa-regular fa-paper-plane action-btn share-icon-btn" title="Share"></i>
+      </div>
+      <i class="fa-regular fa-bookmark action-btn bookmark-btn"></i>
+    </div>
+    <div class="post-details">
+      <div class="post-likes"><span class="likes-count">${(post.likesCount || 1248).toLocaleString()}</span> likes</div>
+      <div class="post-caption">
+        <span class="caption-user ${usernameClass}" ${userClickAttr}>${displayUser}</span>
+        <span>${post.caption}</span>
+      </div>
+      <div class="post-comments-link" style="cursor: pointer;" data-post-id="${post.id}">View all ${initialCommentsCount} comments</div>
+      <div class="post-time">${post.time || '2 HOURS AGO'}</div>
+    </div>
+  `;
+
+  const videoBox = card.querySelector(".home-video-container");
+  const posterElement = card.querySelector(".home-video-poster");
+  const likeBtn = card.querySelector(".like-btn");
+  const bookmarkBtn = card.querySelector(".bookmark-btn");
+  const likesSpan = card.querySelector(".likes-count");
+  let currentLikes = post.likesCount || 1248;
+  let isLiked = false;
+
+  // Requirement 1: Proportional scaling without cropping or overflowing (support portrait 9:16 / 4:5 and landscape 16:9)
+  if (posterElement) {
+    posterElement.onload = () => {
+      const w = posterElement.naturalWidth;
+      const h = posterElement.naturalHeight;
+      if (w && h) {
+        videoBox.style.aspectRatio = (w / h).toFixed(3);
+      }
+    };
+  }
+
+  // Single tap immediately navigates to the full-screen Reels viewer with this video active
+  videoBox.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    pauseAllHomeVideos();
+    navigateToReel(post.id, post.url);
+  });
+
+  likeBtn.onclick = () => {
+    isLiked = !isLiked;
+    likeBtn.classList.toggle("liked", isLiked);
+    likeBtn.classList.toggle("fa-solid", isLiked);
+    likeBtn.classList.toggle("fa-regular", !isLiked);
+    currentLikes += isLiked ? 1 : -1;
+    likesSpan.textContent = currentLikes.toLocaleString();
+  };
+
+  bookmarkBtn.onclick = () => {
+    bookmarkBtn.classList.toggle("fa-solid");
+    bookmarkBtn.classList.toggle("fa-regular");
+  };
+
+  const moreBtn = card.querySelector(".post-more-btn");
+  if (moreBtn) {
+    moreBtn.onclick = (e) => {
+      e.stopPropagation();
+      openPostOptionsSheet(post, card);
+    };
+  }
+
+  const shareBtn = card.querySelector(".share-icon-btn");
+  if (shareBtn) {
+    shareBtn.onclick = (e) => {
+      e.stopPropagation();
+      openReelsShareSheet(post);
+    };
+  }
+
+  const commentBtn = card.querySelector(".comment-icon-btn");
+  if (commentBtn) {
+    commentBtn.onclick = (e) => {
+      e.stopPropagation();
+      openReelsCommentsSheet(post.id, post);
+    };
+  }
+
+  const commentsLink = card.querySelector(".post-comments-link");
+  if (commentsLink) {
+    commentsLink.onclick = (e) => {
+      e.stopPropagation();
+      openReelsCommentsSheet(post.id, post);
+    };
+  }
+
+  return card;
+}
+
+/* =======================================================
+   ৩. হোম ফিড রেন্ডারার ও প্রিপেন্ডার (Feed Renderer & Prepend)
 ======================================================= */
 function renderHomeFeed() {
   const feedContainer = document.getElementById("feedContainer");
@@ -51,7 +205,8 @@ function renderHomeFeed() {
         const formattedUserPosts = (userPosts || []).map(p => ({
           id: 'local_' + p.id,
           url: p.blob ? URL.createObjectURL(p.blob) : (p.url || ''),
-          thumbnail: p.thumbnail || p.poster || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80",
+          thumbnail: p.thumbnail || p.poster || (p.blob ? URL.createObjectURL(p.blob) + '#t=0.001' : ''),
+          thumbnail_url: p.thumbnail_url || (p.blob ? URL.createObjectURL(p.blob) + '#t=0.001' : ''),
           user: UserProfileStore.state.username,
           avatar: UserProfileStore.state.avatar,
           isCurrentUser: true,
@@ -70,153 +225,7 @@ function renderHomeFeed() {
 
         allPosts.forEach((post, index) => {
           try {
-            const isCurrentUser = post.isCurrentUser || post.user === 'my_profile' || post.user === 'sohel_077' || post.user === 'arya.gmr_' || post.user === UserProfileStore.state.username || post.id === 'sample_1' || (post.id && String(post.id).startsWith('local_'));
-            const isShabnam = post.user === 'shabnam_ai' || post.id === 'shabnam_reel_1';
-            const displayUser = isCurrentUser ? UserProfileStore.state.username : (isShabnam ? "shabnam_ai" : post.user);
-            const displayAvatar = isCurrentUser ? UserProfileStore.state.avatar : (isShabnam ? SHABNAM_AI_PROFILE.avatar : post.avatar);
-            const avatarClass = isCurrentUser ? "current-user-avatar current-user-post-avatar" : "";
-            const usernameClass = isCurrentUser ? "current-user-username current-user-post-username" : "";
-            const posterImg = getPostThumbnail(post);
-
-            let userClickAttr = "";
-            if (isCurrentUser) {
-              userClickAttr = 'onclick="openMyProfileTab()" style="cursor: pointer;" title="View Profile"';
-            } else if (isShabnam) {
-              userClickAttr = 'onclick="openProfile(\'shabnam_ai\')" style="cursor: pointer;" title="View Shabnam AI Profile"';
-            }
-
-            const card = document.createElement("div");
-            card.className = "post-card";
-            card.dataset.id = post.id;
-            card.dataset.postId = post.id;
-            if (isCurrentUser) card.dataset.currentUserPost = "true";
-
-            const postComments = typeof getStoredComments === "function" ? getStoredComments(post.id) : [];
-            const initialCommentsCount = (postComments && postComments.length) ? postComments.length : (post.commentsCount || 18);
-
-            // Lightweight initial markup: Render poster thumbnail image ONLY, NO raw <video> tag in DOM yet
-            card.innerHTML = `
-              <div class="post-header">
-                <div class="post-user" ${userClickAttr}>
-                  <div class="post-avatar">
-                    ${displayAvatar ? `<img src="${displayAvatar}" class="${avatarClass}" alt="${displayUser}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : ''}
-                    <i class="fa-solid fa-user" style="${displayAvatar ? 'display:none;' : ''}"></i>
-                  </div>
-                  <div class="post-user-meta">
-                    <div class="flex items-center gap-1">
-                      <span class="post-username ${usernameClass}">${displayUser}</span>
-                      ${isShabnam ? '<span class="text-sky-500 text-[11px]" title="Verified"><i class="fa-solid fa-circle-check"></i></span>' : ''}
-                    </div>
-                    <span class="post-location">${post.location || 'Original Audio'}</span>
-                  </div>
-                </div>
-                <i class="fa-solid fa-ellipsis post-more-btn cursor-pointer" title="Post options"></i>
-              </div>
-              <div class="home-video-container" data-post-id="${post.id}" data-video-url="${post.url}" style="cursor: pointer;" title="Watch Reel">
-                <img class="home-video-poster" src="${posterImg}" alt="${displayUser} video" loading="lazy" />
-                <div class="home-play-badge"><i class="fa-solid fa-play ml-0.5"></i></div>
-                <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
-              </div>
-              <div class="post-actions">
-                <div class="post-actions-left">
-                  <i class="fa-regular fa-heart action-btn like-btn"></i>
-                  <i class="fa-regular fa-comment action-btn comment-icon-btn" title="Comments"></i>
-                  <i class="fa-regular fa-paper-plane action-btn share-icon-btn" title="Share"></i>
-                </div>
-                <i class="fa-regular fa-bookmark action-btn bookmark-btn"></i>
-              </div>
-              <div class="post-details">
-                <div class="post-likes"><span class="likes-count">${(post.likesCount || 1248).toLocaleString()}</span> likes</div>
-                <div class="post-caption">
-                  <span class="caption-user ${usernameClass}" ${userClickAttr}>${displayUser}</span>
-                  <span>${post.caption}</span>
-                </div>
-                <div class="post-comments-link" style="cursor: pointer;" data-post-id="${post.id}">View all ${initialCommentsCount} comments</div>
-                <div class="post-time">${post.time || '2 HOURS AGO'}</div>
-              </div>
-            `;
-
-            const videoBox = card.querySelector(".home-video-container");
-            const posterElement = card.querySelector(".home-video-poster");
-            const likeBtn = card.querySelector(".like-btn");
-            const bookmarkBtn = card.querySelector(".bookmark-btn");
-            const likesSpan = card.querySelector(".likes-count");
-            let currentLikes = post.likesCount || 1248;
-            let isLiked = false;
-
-            // Adapt aspect ratio from poster natural dimensions if available
-            if (posterElement) {
-              posterElement.onload = () => {
-                const w = posterElement.naturalWidth;
-                const h = posterElement.naturalHeight;
-                if (w && h) {
-                  const ratio = w / h;
-                  if (ratio >= 0.88 && ratio <= 1.12) {
-                    videoBox.style.aspectRatio = "1 / 1";
-                  } else if (ratio < 0.88) {
-                    videoBox.style.aspectRatio = "4 / 5";
-                  } else {
-                    const clamped = Math.min(1.91, Math.max(1.0, ratio));
-                    videoBox.style.aspectRatio = clamped.toFixed(3);
-                  }
-                }
-              };
-            }
-
-            // Single tap immediately navigates to the full-screen Reels viewer with this video active
-            videoBox.addEventListener("click", (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              pauseAllHomeVideos();
-              navigateToReel(post.id, post.url);
-            });
-
-            likeBtn.onclick = () => {
-              isLiked = !isLiked;
-              likeBtn.classList.toggle("liked", isLiked);
-              likeBtn.classList.toggle("fa-solid", isLiked);
-              likeBtn.classList.toggle("fa-regular", !isLiked);
-              currentLikes += isLiked ? 1 : -1;
-              likesSpan.textContent = currentLikes.toLocaleString();
-            };
-
-            bookmarkBtn.onclick = () => {
-              bookmarkBtn.classList.toggle("fa-solid");
-              bookmarkBtn.classList.toggle("fa-regular");
-            };
-
-            const moreBtn = card.querySelector(".post-more-btn");
-            if (moreBtn) {
-              moreBtn.onclick = (e) => {
-                e.stopPropagation();
-                openPostOptionsSheet(post, card);
-              };
-            }
-
-            const shareBtn = card.querySelector(".share-icon-btn");
-            if (shareBtn) {
-              shareBtn.onclick = (e) => {
-                e.stopPropagation();
-                openReelsShareSheet(post);
-              };
-            }
-
-            const commentBtn = card.querySelector(".comment-icon-btn");
-            if (commentBtn) {
-              commentBtn.onclick = (e) => {
-                e.stopPropagation();
-                openReelsCommentsSheet(post.id, post);
-              };
-            }
-
-            const commentsLink = card.querySelector(".post-comments-link");
-            if (commentsLink) {
-              commentsLink.onclick = (e) => {
-                e.stopPropagation();
-                openReelsCommentsSheet(post.id, post);
-              };
-            }
-
+            const card = createPostCardElement(post, index);
             feedContainer.appendChild(card);
             if (index === 1) {
               renderSuggestedReels(feedContainer);
@@ -226,7 +235,7 @@ function renderHomeFeed() {
           }
         });
 
-        // Initialize observation with 0.75 threshold & OOM protection
+        // Initialize observation with 0.7 threshold & single audio enforcement
         setupHomeFeedObserver();
       } catch (innerErr) {
         renderFeedErrorBoundary(feedContainer, innerErr);
@@ -247,10 +256,40 @@ function renderHomeFeed() {
   }
 }
 
+// Requirement 3: Prevent Full Page Hard Reload on Video Upload - Prepend directly to active feed
+function prependPostToHomeFeed(newPost) {
+  const feedContainer = document.getElementById("feedContainer");
+  if (!feedContainer || !newPost) return;
+
+  try {
+    const card = createPostCardElement(newPost, 0);
+    if (card) {
+      if (feedContainer.firstChild) {
+        feedContainer.insertBefore(card, feedContainer.firstChild);
+      } else {
+        feedContainer.appendChild(card);
+      }
+    }
+
+    // Refresh observer so the newly prepended video is tracked
+    setupHomeFeedObserver();
+
+    // Seamless scroll retention at top of feed
+    const homeView = document.getElementById("homeView");
+    if (homeView) {
+      homeView.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  } catch (e) {
+    console.warn("Error prepending post to feed:", e);
+    renderHomeFeed();
+  }
+}
+
 /* =======================================================
-   ৩. অন-ডিমান্ড ভিডিও মাউন্টিং ও অ্যাগ্রেসিভ মেমরি ক্লিনআপ
-   (On-Demand Video Mounting & Aggressive RAM Cleanup)
+   ৪. অন-ডিমান্ড ভিডিও মাউন্টিং ও সিঙ্গেল অডিও প্লেব্যাক
+   (Enforce Single Active Video & Audio Playback)
 ======================================================= */
+let activePlayingId = null; // Requirement 4: Single active video tracking state
 let homeFeedObserver = null;
 let currentlyPlayingBox = null;
 let currentlyPlayingHomeVideo = null;
@@ -259,23 +298,35 @@ let scrollListenerCleanup = null;
 
 function mountAndPlayVideo(container) {
   if (!container) return;
+  const postId = String(container.dataset.postId || "");
 
-  // If already playing this exact box, ensure video plays
-  if (currentlyPlayingBox === container) {
+  // If already playing this exact post, ensure it is playing and unmuted
+  if (activePlayingId === postId && currentlyPlayingBox === container) {
     const existingVid = container.querySelector("video");
-    if (existingVid && existingVid.paused) {
-      existingVid.play().catch(() => {});
+    if (existingVid) {
+      if (existingVid.paused) {
+        existingVid.play().catch(() => {});
+      }
+      existingVid.muted = false;
     }
     return;
   }
+
+  // Requirement 4: For all other video posts, force pause and mute immediately
+  document.querySelectorAll(".home-video-player").forEach(vid => {
+    vid.pause();
+    vid.muted = true;
+  });
 
   // Aggressively unmount and flush previous video from memory
   if (currentlyPlayingBox && currentlyPlayingBox !== container) {
     unmountAndCleanupVideo(currentlyPlayingBox);
   }
 
+  activePlayingId = postId;
   currentlyPlayingBox = container;
   const videoUrl = container.dataset.videoUrl;
+  const posterUrl = container.dataset.posterUrl || (videoUrl ? videoUrl + '#t=0.001' : '');
   if (!videoUrl) return;
 
   let video = container.querySelector("video");
@@ -287,11 +338,27 @@ function mountAndPlayVideo(container) {
     video.setAttribute("playsinline", "");
     video.setAttribute("webkit-playsinline", "");
     video.preload = "auto";
+    // Requirement 2: Attach crisp first-frame poster on video element
+    if (posterUrl) {
+      video.poster = posterUrl;
+      video.setAttribute("poster", posterUrl);
+    }
     video.src = videoUrl;
+
+    // Requirement 1: Proportional container aspect ratio based on video metadata
+    video.onloadedmetadata = () => {
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+      if (w && h) {
+        container.style.aspectRatio = (w / h).toFixed(3);
+      }
+    };
+
     container.appendChild(video);
   }
 
-  video.muted = (typeof isGlobalAudioMuted === "boolean") ? isGlobalAudioMuted : false;
+  // Requirement 4: Strictly guarantee that ONLY the active video post plays audio
+  video.muted = false;
 
   video.onplaying = () => {
     container.classList.add("is-playing");
@@ -303,13 +370,11 @@ function mountAndPlayVideo(container) {
     currentlyPlayingHomeVideo = video;
   }).catch(() => {
     // If unmuted autoplay blocked by browser policy, fallback to muted
-    if (!video.muted) {
-      video.muted = true;
-      video.play().then(() => {
-        container.classList.add("is-playing");
-        currentlyPlayingHomeVideo = video;
-      }).catch(() => {});
-    }
+    video.muted = true;
+    video.play().then(() => {
+      container.classList.add("is-playing");
+      currentlyPlayingHomeVideo = video;
+    }).catch(() => {});
   });
 }
 
@@ -319,8 +384,10 @@ function unmountAndCleanupVideo(container) {
   if (video) {
     try {
       video.pause();
+      video.muted = true; // Requirement 4: Force muted={true}
       video.onplaying = null;
       video.onloadeddata = null;
+      video.onloadedmetadata = null;
       video.onerror = null;
       video.removeAttribute("src"); // Detach video buffer
       video.load(); // Aggressively flush hardware video decoders and RAM
@@ -333,6 +400,9 @@ function unmountAndCleanupVideo(container) {
   container.classList.remove("is-playing");
   if (currentlyPlayingBox === container) {
     currentlyPlayingBox = null;
+  }
+  if (container.dataset.postId === activePlayingId) {
+    activePlayingId = null;
   }
   if (currentlyPlayingHomeVideo === video) {
     currentlyPlayingHomeVideo = null;
@@ -363,9 +433,7 @@ function setupHomeFeedObserver() {
 
     // If home view is not active, unmount all video decoders immediately
     if (!homeView.classList.contains("active") && window.activeNavId !== "home") {
-      if (currentlyPlayingBox) {
-        unmountAndCleanupVideo(currentlyPlayingBox);
-      }
+      pauseAllHomeVideos();
       return;
     }
 
@@ -377,8 +445,8 @@ function setupHomeFeedObserver() {
 
     videoBoxes.forEach(box => {
       const ratio = visibilityMap.get(box) || 0;
-      // Requirement 1: Only qualify for video playback when at or above threshold 0.75
-      if (ratio >= 0.75) {
+      // Requirement 4: IntersectionObserver threshold: 0.7 to detect exact video centered in screen
+      if (ratio >= 0.7) {
         const rect = box.getBoundingClientRect();
         const boxCenterY = rect.top + rect.height / 2;
         const dist = Math.abs(homeCenterY - boxCenterY);
@@ -392,20 +460,25 @@ function setupHomeFeedObserver() {
     if (bestBox) {
       mountAndPlayVideo(bestBox);
     } else {
-      // If no box is centered >= 0.75, unmount active video to release RAM
+      // If no box is centered >= 0.7, pause and mute outgoing video
       if (currentlyPlayingBox) {
         unmountAndCleanupVideo(currentlyPlayingBox);
       }
     }
   };
 
-  // Requirement 1: IntersectionObserver threshold 0.75 for active centered video
+  // Requirement 4: IntersectionObserver (threshold: 0.7)
   homeFeedObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       visibilityMap.set(entry.target, entry.isIntersecting ? entry.intersectionRatio : 0);
-      // Requirement 2: As soon as a video leaves the viewport or threshold drops, unmount & release buffer
-      if (!entry.isIntersecting || entry.intersectionRatio < 0.75) {
-        if (currentlyPlayingBox === entry.target) {
+      // Immediately mute and pause outgoing posts when dropping below 0.7
+      if (!entry.isIntersecting || entry.intersectionRatio < 0.7) {
+        const v = entry.target.querySelector("video");
+        if (v) {
+          v.pause();
+          v.muted = true;
+        }
+        if (currentlyPlayingBox === entry.target || entry.target.dataset.postId === activePlayingId) {
           unmountAndCleanupVideo(entry.target);
         }
       }
@@ -416,13 +489,27 @@ function setupHomeFeedObserver() {
     }
   }, {
     root: homeView,
-    threshold: [0, 0.25, 0.5, 0.75, 1.0]
+    threshold: [0, 0.35, 0.7, 1.0]
   });
 
   videoBoxes.forEach(box => homeFeedObserver.observe(box));
 
-  // Requirement 3: Debounced scroll handler to prevent infinite re-renders & layout thrashing
+  // Requirement 4: Scrolling up or down immediately mutes and pauses outgoing posts before starting audio for the next post
   const onHomeScroll = () => {
+    if (currentlyPlayingBox) {
+      const rect = currentlyPlayingBox.getBoundingClientRect();
+      const homeRect = homeView.getBoundingClientRect();
+      const overlap = Math.max(0, Math.min(rect.bottom, homeRect.bottom) - Math.max(rect.top, homeRect.top));
+      const ratio = rect.height > 0 ? (overlap / rect.height) : 0;
+      if (ratio < 0.65) {
+        const vid = currentlyPlayingBox.querySelector("video");
+        if (vid) {
+          vid.pause();
+          vid.muted = true;
+        }
+      }
+    }
+
     if (!isScrollScheduled) {
       isScrollScheduled = true;
       requestAnimationFrame(evaluateCenterVideo);
@@ -439,13 +526,15 @@ function setupHomeFeedObserver() {
 }
 
 function pauseAllHomeVideos() {
+  activePlayingId = null;
   if (currentlyPlayingBox) {
     unmountAndCleanupVideo(currentlyPlayingBox);
   }
-  // Remove any orphan video tags to ensure zero memory leakage
+  // Remove any orphan video tags and force muted=true & paused
   document.querySelectorAll(".home-video-player").forEach(v => {
     try {
       v.pause();
+      v.muted = true;
       v.removeAttribute("src");
       v.load();
       v.remove();
@@ -455,5 +544,6 @@ function pauseAllHomeVideos() {
   currentlyPlayingBox = null;
 }
 
-export { renderHomeFeed, setupHomeFeedObserver, pauseAllHomeVideos };
+export { renderHomeFeed, setupHomeFeedObserver, pauseAllHomeVideos, prependPostToHomeFeed };
+
 
