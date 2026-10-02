@@ -6,6 +6,8 @@ import { loadReels } from "./ReelsViewer.js";
 import { renderHomeFeed, pauseAllHomeVideos, prependPostToHomeFeed } from "./Feed.js";
 import { updateProfilePostsCount, renderProfileGrid } from "./Profile.js";
 import { switchTab } from "./navigation/BottomNavbar.js";
+import { uploadVideoToCloudinary, deriveCloudinaryThumbnailUrl, savePostToSupabase } from "../services/cloudinaryService.js";
+import { uploadUserAvatar } from "../services/avatarService.js";
 
 // --- Shared State Variables ---
 let currentEditingBio = null;
@@ -320,11 +322,27 @@ function executeCropAndSave() {
   ctx.drawImage(cropTargetImg, srcX, srcY, srcW, srcH, 0, 0, 500, 500);
   const croppedDataUrl = canvas.toDataURL("image/jpeg", 0.92);
 
+  // Instantly apply locally so user sees update with zero latency
   UserProfileStore.setState({
     avatar: croppedDataUrl
   });
 
   closeImageCropModal();
+  showInstagramToast("Saving avatar to Supabase... ☁️");
+
+  // Asynchronously upload permanently to Supabase Storage bucket ('avatars') under path: ${userId}/${Date.now()}.jpg
+  canvas.toBlob(async (blob) => {
+    if (blob) {
+      try {
+        const publicUrl = await uploadUserAvatar(blob);
+        if (publicUrl) {
+          showInstagramToast("Avatar permanently saved to Supabase! ✨");
+        }
+      } catch (err) {
+        console.warn("Avatar permanent upload error:", err);
+      }
+    }
+  }, "image/jpeg", 0.92);
 }
 
 function initCropGestures() {
@@ -1000,6 +1018,27 @@ function startRecordingSession() {
               if (typeof showInstagramToast === "function") {
                 showInstagramToast("Reel recorded and posted! 🎬");
               }
+
+              // Background Cloudinary Direct Upload & Supabase sync
+              uploadVideoToCloudinary(blob).then(async (cld) => {
+                if (cld && cld.secure_url) {
+                  const posterJpg = deriveCloudinaryThumbnailUrl(cld.secure_url);
+                  await savePostToSupabase({
+                    videoUrl: cld.secure_url,
+                    thumbnailUrl: posterJpg,
+                    caption: 'Recorded Reel! ✨ #lifestyle'
+                  });
+                  const postCard = document.querySelector(`.post-card[data-id="local_${newId}"]`);
+                  if (postCard) {
+                    postCard.dataset.videoUrl = cld.secure_url;
+                    const vidContainer = postCard.querySelector(".home-video-container");
+                    if (vidContainer) {
+                      vidContainer.dataset.videoUrl = cld.secure_url;
+                      vidContainer.dataset.posterUrl = posterJpg;
+                    }
+                  }
+                }
+              }).catch(e => console.warn("Cloudinary upload note:", e));
             };
           }
         } catch (err) {
@@ -1101,6 +1140,27 @@ function initMediaCreationAndCamera() {
               if (typeof showInstagramToast === "function") {
                 showInstagramToast("Video uploaded successfully! 🎬");
               }
+
+              // Background Cloudinary Direct Upload & Supabase sync
+              uploadVideoToCloudinary(file).then(async (cld) => {
+                if (cld && cld.secure_url) {
+                  const posterJpg = deriveCloudinaryThumbnailUrl(cld.secure_url);
+                  await savePostToSupabase({
+                    videoUrl: cld.secure_url,
+                    thumbnailUrl: posterJpg,
+                    caption: 'Uploaded Video Post! ✨ #lifestyle'
+                  });
+                  const postCard = document.querySelector(`.post-card[data-id="local_${newId}"]`);
+                  if (postCard) {
+                    postCard.dataset.videoUrl = cld.secure_url;
+                    const vidContainer = postCard.querySelector(".home-video-container");
+                    if (vidContainer) {
+                      vidContainer.dataset.videoUrl = cld.secure_url;
+                      vidContainer.dataset.posterUrl = posterJpg;
+                    }
+                  }
+                }
+              }).catch(e => console.warn("Cloudinary upload note:", e));
             };
           }
         } catch (err) {

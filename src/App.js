@@ -9,6 +9,7 @@ import { initStories } from "./components/Stories.js";
 import { initModals, requestInitialBrowserNotificationPermission } from "./components/Modals.js";
 import { isUserAuthenticated, openAuthOnboardingFlow, triggerGoogleOneTap } from "./services/supabaseAuth.js";
 import { initIncomingShareListener } from "./services/shareIntentHandler.js";
+import { initAvatarRealtimeSync } from "./services/avatarService.js";
 
 export const App = {
   async init() {
@@ -57,6 +58,9 @@ export const App = {
 
     // 7. Android Native & Web Share Intent Receiver
     initIncomingShareListener();
+
+    // 8. Live Real-Time Avatar Synchronization across App
+    initAvatarRealtimeSync();
   }
 };
 

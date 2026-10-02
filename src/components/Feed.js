@@ -7,6 +7,7 @@ import { openMyProfileTab, navigateToReel } from "./ReelsViewer.js";
 import { openReelsCommentsSheet, openReelsShareSheet, getStoredComments, openPostOptionsSheet } from "./reels/index.js";
 import { openProfile } from "./Profile.js";
 import { renderSuggestedReels } from "./SuggestedReels.js";
+import { deriveCloudinaryThumbnailUrl } from "../services/cloudinaryService.js";
 
 /* =======================================================
    ১. হোম ফিড এরর বাউন্ডারি (Error Boundary Fallback)
@@ -34,6 +35,12 @@ function renderFeedErrorBoundary(container, error) {
 function getPostThumbnail(post) {
   if (post.thumbnail_url && !post.thumbnail_url.includes(".mp4") && !post.thumbnail_url.includes(".webm") && !String(post.thumbnail_url).startsWith("blob:")) {
     return post.thumbnail_url;
+  }
+  if (post.video_url && post.video_url.includes("cloudinary.com")) {
+    return deriveCloudinaryThumbnailUrl(post.video_url);
+  }
+  if (post.url && post.url.includes("cloudinary.com")) {
+    return deriveCloudinaryThumbnailUrl(post.url);
   }
   if (post.thumbnail && !post.thumbnail.includes(".mp4") && !post.thumbnail.includes(".webm") && !String(post.thumbnail).startsWith("blob:")) {
     return post.thumbnail;

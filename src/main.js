@@ -22,6 +22,8 @@ import * as Modals from './components/Modals.js';
 import * as ReelsComponents from './components/reels/index.js';
 import * as ShareModal from './components/FlashgramShareModal.js';
 import * as ShareIntentHandler from './services/shareIntentHandler.js';
+import * as CloudinaryService from './services/cloudinaryService.js';
+import * as AvatarService from './services/avatarService.js';
 
 // App Controller
 import { App } from './App.js';
@@ -45,6 +47,8 @@ Object.assign(window, {
   ...ReelsComponents,
   ...ShareModal,
   ...ShareIntentHandler,
+  ...CloudinaryService,
+  ...AvatarService,
   supabase,
   App
 });

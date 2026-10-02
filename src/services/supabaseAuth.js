@@ -1,6 +1,7 @@
 // Supabase Auth & Google Identity Services One-Tap Controller
 import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
 import { supabase, supabaseUrl, supabaseAnonKey } from "../supabaseClient.js";
+import { initAvatarRealtimeSync } from "./avatarService.js";
 
     /* =======================================================
        ১.১ মাল্টি-স্টেপ ইউজার অনবোর্ডিং ও Supabase Auth কন্ট্রোলার
@@ -127,6 +128,9 @@ import { supabase, supabaseUrl, supabaseAnonKey } from "../supabaseClient.js";
 
       // Asynchronously upsert user data into Supabase
       saveUserToSupabase(user).catch(e => console.warn("Supabase async sync:", e));
+
+      // Subscribe to Realtime avatar and profile updates
+      initAvatarRealtimeSync(uid);
 
       // Close onboarding and redirect smoothly to main feed / home screen
       closeAuthOnboardingFlow();
@@ -953,20 +957,18 @@ import { supabase, supabaseUrl, supabaseAnonKey } from "../supabaseClient.js";
       if (!activeSb || !activeSb.storage) return null;
 
       try {
-        const fileExt = file.name ? file.name.split('.').pop() : 'jpg';
-        const fileName = `${userId}_${Date.now()}.${fileExt}`;
-        const filePath = `avatars/${fileName}`;
+        const filePath = `${userId}/${Date.now()}.jpg`;
 
         const { error } = await activeSb.storage
           .from('avatars')
           .upload(filePath, file, {
+            contentType: 'image/jpeg',
             cacheControl: '3600',
             upsert: true
           });
 
         if (error) {
           console.warn("Storage upload note:", error.message);
-          return null;
         }
 
         const { data: publicUrlData } = activeSb.storage
@@ -1099,6 +1101,9 @@ import { supabase, supabaseUrl, supabaseAnonKey } from "../supabaseClient.js";
             loggedInAt: Date.now()
           }));
         } catch (_) {}
+
+        // Subscribe to Realtime avatar and profile updates
+        initAvatarRealtimeSync(user.id);
 
         // 6. Clean up and redirect to home feed
         closeAuthOnboardingFlow();
