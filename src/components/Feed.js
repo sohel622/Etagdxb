@@ -222,6 +222,11 @@ async function renderHomeFeed() {
   if (!feedContainer) return;
 
   try {
+    // Wipe deprecated / stale local storage post entries
+    try {
+      localStorage.removeItem("cached_posts");
+    } catch (_) {}
+
     const livePosts = await fetchSupabasePosts();
     const formattedUserPosts = (livePosts || []).map(p => {
       const vidUrl = p.video_url || p.url || '';
@@ -230,11 +235,11 @@ async function renderHomeFeed() {
       const isMine = (p.user_id && p.user_id.includes(UserProfileStore.state.username)) || 
                      (p.user === UserProfileStore.state.username);
 
-      const authorUsername = profile.username || p.username || (isMine ? UserProfileStore.state.username : 'flashgram_creator');
+      const authorUsername = profile.display_name || profile.username || p.username || (isMine ? UserProfileStore.state.username : 'flashgram_creator');
       const authorAvatar = profile.avatar_url || p.avatar_url || (isMine ? UserProfileStore.state.avatar : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100');
 
       return {
-        id: 'sb_' + (p.id || Date.now()),
+        id: String(p.id),
         url: vidUrl,
         video_url: vidUrl,
         thumbnail: thumbUrl,
@@ -250,19 +255,28 @@ async function renderHomeFeed() {
       };
     });
 
-    const allPosts = formattedUserPosts.length > 0 ? [...formattedUserPosts, ...SAMPLE_VIDEOS] : SAMPLE_VIDEOS;
-    
     // Clean up any previously playing video decoder instances before clearing container
     pauseAllHomeVideos();
     feedContainer.innerHTML = "";
 
-    allPosts.forEach((post, index) => {
+    if (formattedUserPosts.length === 0) {
+      feedContainer.innerHTML = `
+        <div style="padding: 60px 24px; text-align: center; color: #8e8e8e;">
+          <div style="width: 68px; height: 68px; border-radius: 50%; border: 1.5px solid currentColor; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; opacity: 0.85;">
+            <i class="fa-solid fa-camera" style="font-size: 28px;"></i>
+          </div>
+          <div style="font-weight: 700; font-size: 17px; color: currentColor; margin-bottom: 6px;">No posts yet</div>
+          <div style="font-size: 13.5px; opacity: 0.75; max-width: 260px; margin: 0 auto; line-height: 1.4;">When you upload videos, they will appear here live from Supabase.</div>
+          <button onclick="openMediaCreationPrompt()" style="margin-top: 18px; background: #0095f6; color: white; padding: 9px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer;">Upload your first video</button>
+        </div>
+      `;
+      return;
+    }
+
+    formattedUserPosts.forEach((post, index) => {
       try {
         const card = createPostCardElement(post, index);
         feedContainer.appendChild(card);
-        if (index === 1) {
-          renderSuggestedReels(feedContainer);
-        }
       } catch (postErr) {
         console.warn("Error rendering individual post:", postErr);
       }

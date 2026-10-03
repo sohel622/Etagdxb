@@ -2,6 +2,7 @@
 import { db } from "../services/database.js";
 import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowShabnam } from "../utils/storage.js";
 import { openReelsShareSheet, openReelsCommentsSheet, disableReelsClearMode, setActiveClearModeReelId, openPostOptionsSheet } from "./reels/index.js";
+import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl } from "../services/cloudinaryService.js";
 
     /* =======================================================
        ৮. রিলস ভিডিও লোডিং
@@ -49,7 +50,7 @@ import { openReelsShareSheet, openReelsCommentsSheet, disableReelsClearMode, set
     }
     window.playShabnamReelVideo = playShabnamReelVideo;
 
-    function navigateToReel(videoId, videoUrl) {
+    async function navigateToReel(videoId, videoUrl) {
       setActiveClearModeReelId(null);
       if (typeof pauseAllHomeVideos === "function") {
         pauseAllHomeVideos();
@@ -68,27 +69,34 @@ import { openReelsShareSheet, openReelsCommentsSheet, disableReelsClearMode, set
         } catch (_) {}
       }
 
+      const container = document.getElementById("reelsFeedWrapper");
+      let items = Array.from(container ? container.querySelectorAll(".reel-item") : []);
+      if (items.length === 0) {
+        await loadReels();
+        items = Array.from(container ? container.querySelectorAll(".reel-item") : []);
+      }
+
       const focusTargetReel = () => {
-        const items = Array.from(document.querySelectorAll("#reelsFeedWrapper .reel-item"));
-        if (items.length === 0) return;
+        const currentItems = Array.from(document.querySelectorAll("#reelsFeedWrapper .reel-item"));
+        if (currentItems.length === 0) return;
 
         let target = null;
         if (videoId) {
-          target = items.find(it => it.dataset.id === String(videoId));
+          target = currentItems.find(it => it.dataset.id === String(videoId));
         }
         if (!target && videoUrl) {
-          target = items.find(it => {
+          target = currentItems.find(it => {
             const v = it.querySelector("video");
             return (it.dataset.url && it.dataset.url === videoUrl) ||
-                   (v && v.src && (v.src === videoUrl || v.src.endsWith(videoUrl)));
+                   (v && v.src && (v.src === videoUrl || v.src.endsWith(videoUrl) || videoUrl.endsWith(v.src)));
           });
         }
         if (!target) {
-          target = items[0];
+          target = currentItems[0];
         }
 
         if (target) {
-          target.scrollIntoView({ behavior: "auto", block: "start" });
+          target.scrollIntoView({ behavior: "instant", block: "start" });
           const targetVid = target.querySelector("video");
           if (targetVid) {
             pauseAllReels(targetVid);
@@ -111,48 +119,48 @@ import { openReelsShareSheet, openReelsCommentsSheet, disableReelsClearMode, set
 
     async function loadReels() {
       reelsFeedWrapper.innerHTML = "";
-      const localVideos = await getSavedVideos();
+      const livePosts = await fetchSupabasePosts();
 
-      if (localVideos.length === 0) {
+      if (!livePosts || livePosts.length === 0) {
         reelsFeedWrapper.innerHTML = `
-          <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#888;">
+          <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#888; padding: 24px; text-align: center;">
             <i class="fa-solid fa-film" style="font-size:48px; margin-bottom:12px; color:#555;"></i>
-            <p style="font-size:15px; font-weight:600; color:#eee;">কোনো রিলস ভিডিও নেই</p>
-            <p style="font-size:12px; margin-top:4px; color:#888;">উপরের ক্যামেরা বা হোম + বাটনে চাপ দিয়ে ভিডিও আপলোড করুন।</p>
+            <p style="font-size:16px; font-weight:600; color:#eee;">No Reels Posted Yet</p>
+            <p style="font-size:13px; margin-top:6px; color:#888; max-width: 260px;">Upload a video to Cloudinary & Supabase to watch it in fullscreen Reels!</p>
+            <button type="button" onclick="openMediaCreationPrompt()" style="margin-top: 16px; background: #0095f6; color: white; border: none; padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">Upload a Video</button>
           </div>
         `;
         return;
       }
 
-      localVideos.forEach((reel, index) => {
-        const isCurrentUserReel = reel.isCurrentUser || reel.user === 'my_profile' || reel.user === 'arya.gmr_' || reel.user === UserProfileStore.state.username || (reel.id && String(reel.id).startsWith('local_'));
-        const isShabnamReel = reel.user === 'shabnam_ai' || (reel.id && reel.id === 'shabnam_reel_1');
-        const displayUser = isCurrentUserReel ? UserProfileStore.state.username : reel.user;
-        const displayAvatar = isCurrentUserReel ? UserProfileStore.state.avatar : reel.avatar;
+      livePosts.forEach((reel, index) => {
+        const vidUrl = reel.video_url || reel.url || '';
+        const thumbUrl = reel.thumbnail_url || (vidUrl ? deriveCloudinaryThumbnailUrl(vidUrl) : '');
+        const profile = reel.profiles || {};
+        const isCurrentUserReel = (reel.user_id && reel.user_id.includes(UserProfileStore.state.username)) || 
+                                  reel.user === UserProfileStore.state.username;
+
+        const displayUser = profile.display_name || profile.username || reel.user || (isCurrentUserReel ? UserProfileStore.state.username : "flashgram_user");
+        const displayAvatar = profile.avatar_url || reel.avatar_url || (isCurrentUserReel ? UserProfileStore.state.avatar : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100");
         const avatarClass = isCurrentUserReel ? "reels-user-avatar current-user-avatar current-user-reel-avatar" : "reels-user-avatar";
         const usernameClass = isCurrentUserReel ? "reels-username current-user-username current-user-reel-username" : "reels-username";
 
         const item = document.createElement("div");
         item.className = "reel-item";
         item.dataset.index = index;
-        item.dataset.id = reel.id || ('sample_' + index);
-        item.dataset.url = reel.url || '';
+        item.dataset.id = String(reel.id || index);
+        item.dataset.url = vidUrl;
 
         let userClickAttr = "";
         if (isCurrentUserReel) {
           userClickAttr = 'onclick="openMyProfileTab()" style="cursor:pointer;" title="View Profile"';
-        } else if (isShabnamReel) {
-          userClickAttr = 'onclick="openProfile(\'shabnam_ai\')" style="cursor:pointer;" title="View Shabnam AI Profile"';
+        } else {
+          userClickAttr = 'onclick="openProfile(\'shabnam_ai\')" style="cursor:pointer;" title="View Profile"';
         }
 
         let followBtnHtml = "";
         if (!isCurrentUserReel) {
-          if (isShabnamReel) {
-            const isFoll = isFollowingShabnam();
-            followBtnHtml = `<button type="button" class="follow-btn ${isFoll ? 'following' : ''}" onclick="toggleFollowShabnam(); this.innerText = isFollowingShabnam() ? 'Following' : 'Follow';">${isFoll ? 'Following' : 'Follow'}</button>`;
-          } else {
-            followBtnHtml = '<button type="button" class="follow-btn" onclick="toggleReelFollowBtn(this)">Follow</button>';
-          }
+          followBtnHtml = '<button type="button" class="follow-btn" onclick="toggleReelFollowBtn(this)">Follow</button>';
         }
 
         item.innerHTML = `

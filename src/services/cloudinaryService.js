@@ -140,140 +140,128 @@ export async function getAuthenticatedUserId() {
 }
 
 /**
- * Fetch all live posts from Supabase joined with author profile (posts.user_id = profiles.id)
+ * Fetch all authentic live posts directly from Supabase database ordered by created_at desc
  */
 export async function fetchSupabasePosts() {
   if (!supabase) return [];
 
   try {
-    // 1. Relational join with profiles: posts.user_id = profiles.id
-    let { data, error } = await supabase
-      .from("posts")
-      .select("*, profiles:user_id(id, username, full_name, avatar_url)")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      // Try standard syntax without alias
-      const res = await supabase
-        .from("posts")
-        .select("*, profiles(id, username, full_name, avatar_url)")
-        .order("created_at", { ascending: false });
-      data = res.data;
-      error = res.error;
-    }
-
-    if (!error && Array.isArray(data) && data.length > 0) {
-      return data;
-    }
-
-    // Fallback: If foreign key is not formally defined in PostgREST schema cache,
-    // fetch posts then batch-query profiles and join manually on posts.user_id = profiles.id
-    const { data: rawPosts, error: rawError } = await supabase
+    // 1. Fetch live posts directly from Supabase ordered by created_at desc
+    const { data: posts, error: postsError } = await supabase
       .from("posts")
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (!rawError && Array.isArray(rawPosts) && rawPosts.length > 0) {
-      const userIds = [...new Set(rawPosts.map(p => p.user_id).filter(Boolean))];
-      if (userIds.length > 0) {
-        try {
-          const { data: profilesList } = await supabase
-            .from("profiles")
-            .select("id, username, full_name, avatar_url")
-            .in("id", userIds);
+    if (postsError) {
+      console.warn("Supabase posts query note:", postsError.message);
+      return [];
+    }
 
-          if (Array.isArray(profilesList)) {
-            const profilesMap = new Map(profilesList.map(pr => [pr.id, pr]));
-            return rawPosts.map(post => ({
-              ...post,
-              profiles: profilesMap.get(post.user_id) || null
-            }));
-          }
-        } catch (_) {}
+    if (!Array.isArray(posts) || posts.length === 0) {
+      return [];
+    }
+
+    // 2. Query author profiles for user attribution using existing columns (id, display_name, avatar_url)
+    const userIds = [...new Set(posts.map(p => p.user_id).filter(Boolean))];
+    const profilesMap = new Map();
+
+    if (userIds.length > 0) {
+      try {
+        const { data: profiles, error: profError } = await supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url")
+          .in("id", userIds);
+
+        if (!profError && Array.isArray(profiles)) {
+          profiles.forEach(pr => profilesMap.set(String(pr.id), pr));
+        }
+      } catch (prErr) {
+        console.warn("Notice querying profiles for author metadata:", prErr);
       }
-      return rawPosts;
     }
+
+    // 3. Attach author profile metadata to each post
+    return posts.map(post => {
+      const profile = profilesMap.get(String(post.user_id)) || null;
+      return {
+        ...post,
+        profiles: profile
+      };
+    });
   } catch (err) {
-    console.warn("Supabase posts query note:", err);
+    console.error("fetchSupabasePosts exception:", err);
+    return [];
   }
-
-  try {
-    const { data: reelsData, error: reelsError } = await supabase
-      .from("reels")
-      .select("*, profiles:user_id(id, username, full_name, avatar_url)")
-      .order("created_at", { ascending: false });
-
-    if (!reelsError && Array.isArray(reelsData) && reelsData.length > 0) {
-      return reelsData;
-    }
-  } catch (_) {}
-
-  return [];
 }
 
 /**
- * Insert new post row into Supabase 'posts' or 'reels' table
+ * Guarantee Supabase Database Insertion for newly uploaded Cloudinary video
  */
 export async function savePostToSupabase({ videoUrl, thumbnailUrl, caption, userId }) {
-  if (!supabase) return null;
-
-  try {
-    const activeUserId = userId || (await getAuthenticatedUserId());
-    const postPayload = {
-      video_url: videoUrl,
-      thumbnail_url: thumbnailUrl,
-      user_id: activeUserId || "anonymous_user",
-      caption: caption || "Uploaded Video Post! ✨ #lifestyle",
-      created_at: new Date().toISOString()
-    };
-
-    // Try 'posts' table first with select including profiles
-    let savedRecord = null;
-    const { data, error } = await supabase
-      .from("posts")
-      .insert([postPayload])
-      .select("*, profiles:user_id(id, username, full_name, avatar_url)");
-
-    if (!error && Array.isArray(data) && data[0]) {
-      savedRecord = data[0];
-    } else {
-      const res = await supabase.from("posts").insert([postPayload]).select();
-      if (!res.error && res.data && res.data[0]) {
-        savedRecord = res.data[0];
-      } else {
-        // Fallback try 'reels' table
-        const { data: reelsData, error: reelsError } = await supabase
-          .from("reels")
-          .insert([postPayload])
-          .select();
-
-        if (!reelsError && reelsData && reelsData[0]) {
-          savedRecord = reelsData[0];
-        }
-      }
-    }
-
-    if (savedRecord) {
-      if (!savedRecord.profiles && activeUserId) {
-        try {
-          const { data: prData } = await supabase
-            .from("profiles")
-            .select("id, username, full_name, avatar_url")
-            .eq("id", activeUserId)
-            .maybeSingle();
-          if (prData) {
-            savedRecord.profiles = prData;
-          }
-        } catch (_) {}
-      }
-      return savedRecord;
-    }
-
-    return { ...postPayload, id: "post_" + Date.now() };
-  } catch (err) {
-    console.warn("Exception saving post to Supabase:", err);
-    return null;
+  if (!supabase) {
+    throw new Error("Supabase client is not initialized");
   }
+
+  // Resolve authentic user ID
+  let user = null;
+  if (supabase.auth) {
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      user = authData?.user;
+    } catch (_) {}
+    if (!user) {
+      try {
+        const { data: sessData } = await supabase.auth.getSession();
+        user = sessData?.session?.user;
+      } catch (_) {}
+    }
+  }
+
+  const effectiveUserId = userId || user?.id || null;
+
+  const postPayload = {
+    video_url: videoUrl,
+    thumbnail_url: thumbnailUrl,
+    caption: caption || '',
+    created_at: new Date().toISOString()
+  };
+
+  if (effectiveUserId) {
+    postPayload.user_id = effectiveUserId;
+  }
+
+  console.log("Inserting post into Supabase 'posts' table:", postPayload);
+
+  // Perform exact insert into 'posts' table with .select()
+  const { data, error } = await supabase
+    .from('posts')
+    .insert([postPayload])
+    .select();
+
+  if (error) {
+    console.error("❌ Supabase Database Insertion Error:", error);
+    // If error is caused by invalid string in UUID column, retry without user_id
+    if (postPayload.user_id && (error.code === '22P02' || String(error.message).includes('uuid'))) {
+      const retryPayload = { ...postPayload };
+      delete retryPayload.user_id;
+      const { data: retryData, error: retryError } = await supabase
+        .from('posts')
+        .insert([retryPayload])
+        .select();
+      if (!retryError && retryData && retryData[0]) {
+        console.log("✅ Post saved to Supabase (retry without user_id):", retryData[0]);
+        return retryData[0];
+      }
+    }
+    throw error;
+  }
+
+  if (data && data[0]) {
+    console.log("✅ Post successfully inserted into Supabase:", data[0]);
+    return data[0];
+  }
+
+  return { ...postPayload, id: "post_" + Date.now() };
 }
 
 if (typeof window !== "undefined") {

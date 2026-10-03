@@ -1006,15 +1006,28 @@ function startRecordingSession() {
 
           const posterJpg = deriveCloudinaryThumbnailUrl(cldData.secure_url);
 
+          // Resolve authenticated user ID
+          let authUser = null;
+          try {
+            const { data: authData } = await supabase.auth.getUser();
+            authUser = authData?.user;
+          } catch (_) {}
+          if (!authUser) {
+            try {
+              const { data: sessData } = await supabase.auth.getSession();
+              authUser = sessData?.session?.user;
+            } catch (_) {}
+          }
+
           // Do NOT save the post to Supabase until Cloudinary returns HTTP 200 with the live secure_url
           const savedRecord = await savePostToSupabase({
             videoUrl: cldData.secure_url,
             thumbnailUrl: posterJpg,
             caption: 'Recorded Reel! ✨ #lifestyle',
-            userId: getCurrentUserId()
+            userId: authUser?.id
           });
 
-          const authorUsername = savedRecord?.profiles?.username || UserProfileStore.state.username;
+          const authorUsername = savedRecord?.profiles?.display_name || savedRecord?.profiles?.username || UserProfileStore.state.username;
           const authorAvatar = savedRecord?.profiles?.avatar_url || UserProfileStore.state.avatar;
 
           const newPost = {
@@ -1034,7 +1047,7 @@ function startRecordingSession() {
           };
 
           completeUploadProgressBanner(newPost);
-          loadReels();
+          await loadReels();
           updateProfilePostsCount();
           renderProfileGrid();
         } catch (err) {
@@ -1129,15 +1142,28 @@ function initMediaCreationAndCamera() {
 
           const posterJpg = deriveCloudinaryThumbnailUrl(cldData.secure_url);
 
+          // Resolve authenticated user ID
+          let authUser = null;
+          try {
+            const { data: authData } = await supabase.auth.getUser();
+            authUser = authData?.user;
+          } catch (_) {}
+          if (!authUser) {
+            try {
+              const { data: sessData } = await supabase.auth.getSession();
+              authUser = sessData?.session?.user;
+            } catch (_) {}
+          }
+
           // Do NOT save the post to Supabase until Cloudinary returns HTTP 200 with the live secure_url
           const savedRecord = await savePostToSupabase({
             videoUrl: cldData.secure_url,
             thumbnailUrl: posterJpg,
             caption: 'Uploaded Video Post! ✨ #lifestyle',
-            userId: getCurrentUserId()
+            userId: authUser?.id
           });
 
-          const authorUsername = savedRecord?.profiles?.username || UserProfileStore.state.username;
+          const authorUsername = savedRecord?.profiles?.display_name || savedRecord?.profiles?.username || UserProfileStore.state.username;
           const authorAvatar = savedRecord?.profiles?.avatar_url || UserProfileStore.state.avatar;
 
           const newPost = {
@@ -1157,7 +1183,7 @@ function initMediaCreationAndCamera() {
           };
 
           completeUploadProgressBanner(newPost);
-          loadReels();
+          await loadReels();
           updateProfilePostsCount();
           renderProfileGrid();
         } catch (err) {

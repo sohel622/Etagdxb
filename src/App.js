@@ -13,6 +13,13 @@ import { initAvatarRealtimeSync } from "./services/avatarService.js";
 
 export const App = {
   async init() {
+    // 0. Wipe old deprecated dummy/cached post entries
+    try {
+      localStorage.removeItem("cached_posts");
+      localStorage.removeItem("user_videos");
+      localStorage.removeItem("videos");
+    } catch (_) {}
+
     // 1. Restore persisted session user data if present
     try {
       const savedAuth = localStorage.getItem("flashgram_authenticated");
