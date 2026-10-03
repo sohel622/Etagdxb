@@ -138,11 +138,18 @@ import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl } from "../services/cl
         const thumbUrl = reel.thumbnail_url || (vidUrl ? deriveCloudinaryThumbnailUrl(vidUrl) : '');
         const profile = reel.profiles || {};
         const currentUserId = typeof getCurrentUserId === "function" ? getCurrentUserId() : null;
-        const authorUsername = profile.username || profile.display_name || reel.author_name || reel.user || UserProfileStore.state.username || "sohel_077";
-        const authorAvatar = profile.avatar_url || reel.avatar_url || reel.avatar || UserProfileStore.state.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
-        const isCurrentUserReel = (reel.user_id && currentUserId && String(reel.user_id) === String(currentUserId)) || 
-                                  authorUsername === UserProfileStore.state.username ||
-                                  reel.isCurrentUser;
+        const isShabnamReel = reel.user === 'shabnam_ai' || (reel.id && reel.id === 'shabnam_reel_1') || (profile.username === 'shabnam_ai');
+        const authorUsername = isShabnamReel
+          ? "shabnam_ai"
+          : (profile.username || profile.display_name || reel.author_name || reel.user || UserProfileStore.state.username || "sohel_077");
+        const authorAvatar = isShabnamReel
+          ? "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png"
+          : (profile.avatar_url || reel.avatar_url || reel.avatar || UserProfileStore.state.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100");
+        const isCurrentUserReel = !isShabnamReel && (
+          (reel.user_id && currentUserId && String(reel.user_id) === String(currentUserId)) || 
+          authorUsername === UserProfileStore.state.username ||
+          reel.isCurrentUser
+        );
 
         const displayUser = authorUsername;
         const displayAvatar = authorAvatar;
@@ -160,18 +167,29 @@ import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl } from "../services/cl
         let userClickAttr = "";
         if (isCurrentUserReel) {
           userClickAttr = 'onclick="openMyProfileTab()" style="cursor:pointer;" title="View Profile"';
+        } else if (isShabnamReel) {
+          userClickAttr = 'onclick="openProfile(\'shabnam_ai\')" style="cursor:pointer;" title="View Shabnam AI Profile"';
         } else {
-          userClickAttr = 'onclick="openProfile(\'shabnam_ai\')" style="cursor:pointer;" title="View Profile"';
+          userClickAttr = 'style="cursor:pointer;"';
         }
 
         let followBtnHtml = "";
         if (!isCurrentUserReel) {
-          followBtnHtml = '<button type="button" class="follow-btn" onclick="toggleReelFollowBtn(this)">Follow</button>';
+          if (isShabnamReel) {
+            const isFoll = isFollowingShabnam();
+            followBtnHtml = `<button type="button" class="follow-btn ${isFoll ? 'following' : ''}" onclick="toggleFollowShabnam(); this.innerText = isFollowingShabnam() ? 'Following' : 'Follow';">${isFoll ? 'Following' : 'Follow'}</button>`;
+          } else {
+            followBtnHtml = '<button type="button" class="follow-btn" onclick="toggleReelFollowBtn(this)">Follow</button>';
+          }
         }
+
+        const likesDisplay = reel.likes || (reel.likes_count ? String(reel.likes_count) : '1.2K');
+        const commentsDisplay = reel.comments || (reel.comments_count ? String(reel.comments_count) : '24');
+        const sharesDisplay = reel.shares || '18';
 
         item.innerHTML = `
           <div class="reel-video-wrapper">
-            <video class="reel-video" src="${reel.url}" loop playsinline preload="metadata"></video>
+            <video class="reel-video" src="${vidUrl}" loop playsinline preload="metadata"></video>
             
             <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
 
@@ -182,21 +200,21 @@ import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl } from "../services/cl
                 ${isShabnamReel ? '<span class="text-sky-400 text-[12px] ml-1" title="Verified"><i class="fa-solid fa-circle-check"></i></span>' : ''}
                 ${followBtnHtml}
               </div>
-              <div class="reels-caption">${reel.caption}</div>
+              <div class="reels-caption">${reel.caption || 'Flashgram Reel! ✨ #reels'}</div>
             </div>
 
             <div class="reels-sidebar">
               <div class="reel-action-btn like-btn">
                 <i class="fa-solid fa-heart"></i>
-                <span>${reel.likes}</span>
+                <span>${likesDisplay}</span>
               </div>
               <div class="reel-action-btn comment-btn" title="Comments">
                 <i class="fa-solid fa-comment-dots"></i>
-                <span>${reel.comments}</span>
+                <span>${commentsDisplay}</span>
               </div>
               <div class="reel-action-btn share-btn" title="Share">
                 <i class="fa-regular fa-paper-plane"></i>
-                <span>${reel.shares}</span>
+                <span>${sharesDisplay}</span>
               </div>
               <div class="reel-action-btn more-btn">
                 <i class="fa-solid fa-ellipsis"></i>
