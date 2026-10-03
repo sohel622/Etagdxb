@@ -137,11 +137,15 @@ import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl } from "../services/cl
         const vidUrl = reel.video_url || reel.url || '';
         const thumbUrl = reel.thumbnail_url || (vidUrl ? deriveCloudinaryThumbnailUrl(vidUrl) : '');
         const profile = reel.profiles || {};
-        const isCurrentUserReel = (reel.user_id && reel.user_id.includes(UserProfileStore.state.username)) || 
-                                  reel.user === UserProfileStore.state.username;
+        const currentUserId = typeof getCurrentUserId === "function" ? getCurrentUserId() : null;
+        const authorUsername = profile.username || profile.display_name || reel.author_name || reel.user || UserProfileStore.state.username || "sohel_077";
+        const authorAvatar = profile.avatar_url || reel.avatar_url || reel.avatar || UserProfileStore.state.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
+        const isCurrentUserReel = (reel.user_id && currentUserId && String(reel.user_id) === String(currentUserId)) || 
+                                  authorUsername === UserProfileStore.state.username ||
+                                  reel.isCurrentUser;
 
-        const displayUser = profile.display_name || profile.username || reel.user || (isCurrentUserReel ? UserProfileStore.state.username : "flashgram_user");
-        const displayAvatar = profile.avatar_url || reel.avatar_url || (isCurrentUserReel ? UserProfileStore.state.avatar : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100");
+        const displayUser = authorUsername;
+        const displayAvatar = authorAvatar;
         const avatarClass = isCurrentUserReel ? "reels-user-avatar current-user-avatar current-user-reel-avatar" : "reels-user-avatar";
         const usernameClass = isCurrentUserReel ? "reels-username current-user-username current-user-reel-username" : "reels-username";
 
@@ -149,7 +153,9 @@ import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl } from "../services/cl
         item.className = "reel-item";
         item.dataset.index = index;
         item.dataset.id = String(reel.id || index);
+        item.dataset.userId = reel.user_id || '';
         item.dataset.url = vidUrl;
+        if (isCurrentUserReel) item.dataset.isCurrentUser = "true";
 
         let userClickAttr = "";
         if (isCurrentUserReel) {

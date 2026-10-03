@@ -145,53 +145,104 @@ export async function getAuthenticatedUserId() {
 export async function fetchSupabasePosts() {
   if (!supabase) return [];
 
+  let posts = null;
+
   try {
-    // 1. Fetch live posts directly from Supabase ordered by created_at desc
-    const { data: posts, error: postsError } = await supabase
-      .from("posts")
-      .select("*")
-      .order("created_at", { ascending: false });
+    // 1. Relational join with profiles table as requested
+    const { data, error } = await supabase
+      .from('posts')
+      .select(`
+        id,
+        video_url,
+        thumbnail_url,
+        caption,
+        created_at,
+        user_id,
+        profiles (
+          username,
+          avatar_url
+        )
+      `)
+      .order('created_at', { ascending: false });
 
-    if (postsError) {
-      console.warn("Supabase posts query note:", postsError.message);
-      return [];
+    if (!error && Array.isArray(data) && data.length > 0) {
+      posts = data;
     }
+  } catch (_) {}
 
-    if (!Array.isArray(posts) || posts.length === 0) {
-      return [];
-    }
+  // 2. Fallback: Manual join if PostgREST schema cache does not have explicit foreign key constraint
+  if (!posts) {
+    try {
+      const { data: rawPosts, error: postsError } = await supabase
+        .from("posts")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-    // 2. Query author profiles for user attribution using existing columns (id, display_name, avatar_url)
-    const userIds = [...new Set(posts.map(p => p.user_id).filter(Boolean))];
-    const profilesMap = new Map();
-
-    if (userIds.length > 0) {
-      try {
-        const { data: profiles, error: profError } = await supabase
-          .from("profiles")
-          .select("id, display_name, avatar_url")
-          .in("id", userIds);
-
-        if (!profError && Array.isArray(profiles)) {
-          profiles.forEach(pr => profilesMap.set(String(pr.id), pr));
-        }
-      } catch (prErr) {
-        console.warn("Notice querying profiles for author metadata:", prErr);
+      if (postsError || !Array.isArray(rawPosts) || rawPosts.length === 0) {
+        return [];
       }
-    }
 
-    // 3. Attach author profile metadata to each post
-    return posts.map(post => {
-      const profile = profilesMap.get(String(post.user_id)) || null;
-      return {
-        ...post,
-        profiles: profile
-      };
-    });
-  } catch (err) {
-    console.error("fetchSupabasePosts exception:", err);
-    return [];
+      const userIds = [...new Set(rawPosts.map(p => p.user_id).filter(Boolean))];
+      const profilesMap = new Map();
+
+      if (userIds.length > 0) {
+        try {
+          const { data: profilesList, error: profError } = await supabase
+            .from("profiles")
+            .select("*")
+            .in("id", userIds);
+
+          if (!profError && Array.isArray(profilesList)) {
+            profilesList.forEach(pr => profilesMap.set(String(pr.id), pr));
+          }
+        } catch (prErr) {
+          console.warn("Notice querying profiles for author metadata:", prErr);
+        }
+      }
+
+      posts = rawPosts.map(post => {
+        const pr = profilesMap.get(String(post.user_id)) || {};
+        const usernameVal = pr.username || pr.display_name || pr.full_name || UserProfileStore.state.username || "sohel_077";
+        const avatarVal = pr.avatar_url || UserProfileStore.state.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
+        return {
+          ...post,
+          profiles: {
+            username: usernameVal,
+            avatar_url: avatarVal
+          },
+          author_name: usernameVal,
+          user: usernameVal,
+          avatar: avatarVal
+        };
+      });
+    } catch (err) {
+      console.error("fetchSupabasePosts fallback exception:", err);
+      return [];
+    }
   }
+
+  if (!Array.isArray(posts)) return [];
+
+  // Normalize each post so author_name and profiles are guaranteed
+  return posts.map(post => {
+    let pr = post.profiles;
+    if (Array.isArray(pr)) pr = pr[0];
+    if (!pr || typeof pr !== 'object') pr = {};
+
+    const usernameVal = pr.username || pr.display_name || post.author_name || (post.user && post.user !== 'flashgram_creator' ? post.user : UserProfileStore.state.username) || "sohel_077";
+    const avatarVal = pr.avatar_url || post.avatar || UserProfileStore.state.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
+
+    return {
+      ...post,
+      profiles: {
+        username: usernameVal,
+        avatar_url: avatarVal
+      },
+      author_name: usernameVal,
+      user: usernameVal,
+      avatar: avatarVal
+    };
+  });
 }
 
 /**

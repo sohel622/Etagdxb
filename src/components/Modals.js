@@ -7,7 +7,7 @@ import { renderHomeFeed, pauseAllHomeVideos, prependPostToHomeFeed } from "./Fee
 import { updateProfilePostsCount, renderProfileGrid } from "./Profile.js";
 import { switchTab } from "./navigation/BottomNavbar.js";
 import { uploadVideoToCloudinary, deriveCloudinaryThumbnailUrl, savePostToSupabase } from "../services/cloudinaryService.js";
-import { uploadUserAvatar, getCurrentUserId } from "../services/avatarService.js";
+import { uploadUserAvatar, getCurrentUserId, liveSyncUserProfile, syncProfileToSupabase } from "../services/avatarService.js";
 import { showUploadProgressBanner, updateUploadProgressBanner, completeUploadProgressBanner, failUploadProgressBanner } from "./UploadProgressBanner.js";
 
 // --- Shared State Variables ---
@@ -141,9 +141,13 @@ function saveEditProfile() {
   const newBio = inputEditBio ? inputEditBio.value : (currentEditingBio !== null ? currentEditingBio : (profileBioText ? profileBioText.textContent : ""));
   currentEditingBio = newBio;
 
+  const effectiveUsername = newUsername || UserProfileStore.state.username;
+  const effectiveName = newName || UserProfileStore.state.name;
+  const uid = getCurrentUserId();
+
   UserProfileStore.setState({
-    name: newName || UserProfileStore.state.name,
-    username: newUsername || UserProfileStore.state.username,
+    name: effectiveName,
+    username: effectiveUsername,
     pronouns: newPronouns,
     bio: newBio,
     link: currentLinkUrl
@@ -152,7 +156,21 @@ function saveEditProfile() {
   if (profileBioText) profileBioText.textContent = newBio;
   if (profileBioLinkText && currentLinkUrl) profileBioLinkText.textContent = currentLinkUrl;
 
+  // Live Sync across all post cards, reels, and views in the entire app
+  liveSyncUserProfile(uid, {
+    username: effectiveUsername,
+    name: effectiveName
+  });
+
+  // Persist updated profile to Supabase profiles table
+  syncProfileToSupabase({
+    id: uid,
+    username: effectiveUsername,
+    full_name: effectiveName
+  }).catch(e => console.warn("Supabase profile sync notice:", e));
+
   closeEditProfileScreen();
+  showInstagramToast("Profile updated! ✨");
 }
 
 // --- B. Dedicated Bio Editing Screen Navigation ---

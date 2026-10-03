@@ -62,10 +62,26 @@ function getPostThumbnail(post) {
    ২. পোস্ট কার্ড ক্রিয়েটর (Create Post Card Element)
 ======================================================= */
 function createPostCardElement(post, index = 0) {
-  const isCurrentUser = post.isCurrentUser || post.user === 'my_profile' || post.user === 'sohel_077' || post.user === 'arya.gmr_' || post.user === UserProfileStore.state.username || post.id === 'sample_1' || (post.id && String(post.id).startsWith('local_'));
+  const currentUserId = typeof getCurrentUserId === "function" ? getCurrentUserId() : null;
   const isShabnam = post.user === 'shabnam_ai' || post.id === 'shabnam_reel_1';
-  const displayUser = isCurrentUser ? UserProfileStore.state.username : (isShabnam ? "shabnam_ai" : post.user);
-  const displayAvatar = isCurrentUser ? UserProfileStore.state.avatar : (isShabnam ? SHABNAM_AI_PROFILE.avatar : post.avatar);
+
+  // Render author name directly from post.profiles?.username || post.author_name
+  const authorUsername = isShabnam 
+    ? "shabnam_ai" 
+    : (post.profiles?.username || post.author_name || post.user || UserProfileStore.state.username || "sohel_077");
+
+  const authorAvatar = isShabnam 
+    ? SHABNAM_AI_PROFILE.avatar 
+    : (post.profiles?.avatar_url || post.avatar || UserProfileStore.state.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100");
+
+  const isCurrentUser = !isShabnam && (
+    authorUsername === UserProfileStore.state.username ||
+    (post.user_id && currentUserId && String(post.user_id) === String(currentUserId)) ||
+    post.isCurrentUser
+  );
+
+  const displayUser = authorUsername;
+  const displayAvatar = authorAvatar;
   const avatarClass = isCurrentUser ? "current-user-avatar current-user-post-avatar" : "";
   const usernameClass = isCurrentUser ? "current-user-username current-user-post-username" : "";
   const posterImg = getPostThumbnail(post);
@@ -81,6 +97,7 @@ function createPostCardElement(post, index = 0) {
   card.className = "post-card";
   card.dataset.id = post.id;
   card.dataset.postId = post.id;
+  card.dataset.userId = post.user_id || '';
   if (isCurrentUser) card.dataset.currentUserPost = "true";
 
   const postComments = typeof getStoredComments === "function" ? getStoredComments(post.id) : [];
@@ -235,15 +252,21 @@ async function renderHomeFeed() {
       const isMine = (p.user_id && p.user_id.includes(UserProfileStore.state.username)) || 
                      (p.user === UserProfileStore.state.username);
 
-      const authorUsername = profile.display_name || profile.username || p.username || (isMine ? UserProfileStore.state.username : 'flashgram_creator');
-      const authorAvatar = profile.avatar_url || p.avatar_url || (isMine ? UserProfileStore.state.avatar : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100');
+      const authorUsername = profile.username || profile.display_name || p.author_name || p.username || (isMine ? UserProfileStore.state.username : UserProfileStore.state.username || 'sohel_077');
+      const authorAvatar = profile.avatar_url || p.avatar_url || (isMine ? UserProfileStore.state.avatar : UserProfileStore.state.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100');
 
       return {
         id: String(p.id),
+        user_id: p.user_id || '',
         url: vidUrl,
         video_url: vidUrl,
         thumbnail: thumbUrl,
         thumbnail_url: thumbUrl,
+        profiles: {
+          username: authorUsername,
+          avatar_url: authorAvatar
+        },
+        author_name: authorUsername,
         user: authorUsername,
         avatar: authorAvatar,
         isCurrentUser: isMine,
