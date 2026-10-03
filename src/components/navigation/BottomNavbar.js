@@ -1,6 +1,7 @@
 // BottomNavbar Component (Modular Bottom Navigation Bar, Active Pill, Tab Switcher & Gestures)
 import { DEFAULT_NAV } from "../../utils/mockData.js";
 import { UserProfileStore } from "../../utils/storage.js";
+import { setupProfileIconLongPress } from "../AccountSwitcher.js";
 
 let currentNav = [...DEFAULT_NAV];
 try {
@@ -190,6 +191,10 @@ function renderNavigation() {
         switchTab(item.id, btn);
       }
     };
+
+    if (item.id === "profile" || item.isProfile) {
+      setupProfileIconLongPress(btn);
+    }
 
     container.appendChild(btn);
   });

@@ -54,36 +54,4 @@ export const DEFAULT_CONVERSATIONS = [
   }
 ];
 
-export const SAMPLE_VIDEOS = [
-  {
-    id: "sample_1",
-    url: "https://assets.mixkit.co/videos/preview/mixkit-girl-in-neon-sign-1232-large.mp4",
-    thumbnail: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80",
-    user: "sohel_077",
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
-    location: "Tokyo, Shibuya",
-    caption: "Late night city lights and vibrant energy ✨ #tokyo #neon #vibes",
-    likes: "14.2K",
-    likesCount: 14200,
-    comments: "142",
-    commentsCount: 142,
-    shares: "210",
-    time: "3 HOURS AGO",
-    isCurrentUser: true
-  },
-  {
-    id: "shabnam_reel_1",
-    url: "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/0chichan077-20260921-0001.mp4",
-    thumbnail: "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png",
-    user: "shabnam_ai",
-    avatar: "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png",
-    location: "AI Studio",
-    caption: "Hi everyone! ✨ Meet Shabnam AI, your friendly AI assistant right on Flashgram! Ask me anything in DMs or share your photos!",
-    likes: "142K",
-    likesCount: 142000,
-    comments: "1.8K",
-    commentsCount: 1800,
-    shares: "5.4K",
-    time: "1 DAY AGO"
-  }
-];
+export const SAMPLE_VIDEOS = [];

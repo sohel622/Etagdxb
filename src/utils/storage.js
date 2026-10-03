@@ -455,59 +455,7 @@ import { db } from "../services/database.js";
 
 
     function getSavedVideos() {
-      return new Promise((resolve) => {
-        try {
-          const activeDb = db || (typeof window !== "undefined" && window.db);
-          if (!activeDb || typeof activeDb.transaction !== "function") {
-            return resolve(SAMPLE_VIDEOS);
-          }
-          const tx = activeDb.transaction("videos", "readonly");
-          const req = tx.objectStore("videos").getAll();
-          req.onsuccess = () => {
-            const list = (req.result || []).map(p => ({
-              id: 'local_' + p.id,
-              url: p.blob ? URL.createObjectURL(p.blob) : (p.url || ''),
-              user: UserProfileStore.state.username,
-              avatar: UserProfileStore.state.avatar,
-              isCurrentUser: true,
-              location: 'Original Audio',
-              caption: 'Uploaded Reel Video! ✨ #trending',
-              likes: '2.5K',
-              likesCount: 2500,
-              comments: '64',
-              commentsCount: 64,
-              shares: '120',
-              time: 'JUST NOW'
-            }));
-
-            const shabnamReelObj = SAMPLE_VIDEOS.find(v => v.id === "shabnam_reel_1") || {
-              id: "shabnam_reel_1",
-              url: "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/0chichan077-20260921-0001.mp4",
-              user: "shabnam_ai",
-              avatar: "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png",
-              location: "AI Studio",
-              caption: "Hi everyone! ✨ Meet Shabnam AI, your friendly AI assistant right on Flashgram! Ask me anything in DMs or share your photos!",
-              likes: "142K",
-              likesCount: 142000,
-              comments: "1.8K",
-              commentsCount: 1800,
-              shares: "5.4K",
-              time: "1 DAY AGO"
-            };
-
-            if (list.length > 0) {
-              // Include Shabnam's reel seamlessly in the feed alongside user uploaded videos
-              resolve([...list, shabnamReelObj, ...SAMPLE_VIDEOS.filter(v => v.id !== "shabnam_reel_1")]);
-            } else {
-              resolve(SAMPLE_VIDEOS);
-            }
-          };
-          req.onerror = () => resolve(SAMPLE_VIDEOS);
-        } catch (err) {
-          console.warn("getSavedVideos execution error:", err);
-          resolve(SAMPLE_VIDEOS);
-        }
-      });
+      return new Promise((resolve) => resolve([]));
     }
 
 // Follow Shabnam helpers

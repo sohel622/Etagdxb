@@ -10,6 +10,7 @@ import { initModals, requestInitialBrowserNotificationPermission } from "./compo
 import { isUserAuthenticated, openAuthOnboardingFlow, triggerGoogleOneTap } from "./services/supabaseAuth.js";
 import { initIncomingShareListener } from "./services/shareIntentHandler.js";
 import { initAvatarRealtimeSync } from "./services/avatarService.js";
+import { initAccountSwitcher } from "./components/AccountSwitcher.js";
 
 export const App = {
   async init() {
@@ -18,6 +19,8 @@ export const App = {
       localStorage.removeItem("cached_posts");
       localStorage.removeItem("user_videos");
       localStorage.removeItem("videos");
+      localStorage.removeItem("mock_videos");
+      localStorage.removeItem("flashgram_sample_posts");
     } catch (_) {}
 
     // 1. Restore persisted session user data if present
@@ -53,6 +56,7 @@ export const App = {
     updateProfilePostsCount();
     renderProfileGrid();
     initStories();
+    initAccountSwitcher();
 
     // 5. Browser notifications
     requestInitialBrowserNotificationPermission();

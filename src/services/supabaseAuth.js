@@ -2,6 +2,7 @@
 import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
 import { supabase, supabaseUrl, supabaseAnonKey } from "../supabaseClient.js";
 import { initAvatarRealtimeSync } from "./avatarService.js";
+import { addOrUpdateSavedAccount } from "../components/AccountSwitcher.js";
 
     /* =======================================================
        ১.১ মাল্টি-স্টেপ ইউজার অনবোর্ডিং ও Supabase Auth কন্ট্রোলার
@@ -121,9 +122,17 @@ import { initAvatarRealtimeSync } from "./avatarService.js";
           uid,
           email,
           displayName: fullName,
+          username: updatedUsername,
           photoURL: avatarUrl,
           loggedInAt: Date.now()
         }));
+        addOrUpdateSavedAccount({
+          id: uid,
+          username: updatedUsername,
+          name: fullName,
+          avatar: avatarUrl,
+          email: email
+        });
       } catch (_) {}
 
       // Asynchronously upsert user data into Supabase
@@ -1100,6 +1109,13 @@ import { initAvatarRealtimeSync } from "./avatarService.js";
             username: username,
             loggedInAt: Date.now()
           }));
+          addOrUpdateSavedAccount({
+            id: user.id,
+            username: username,
+            name: fullName,
+            avatar: finalAvatarUrl,
+            email: email
+          });
         } catch (_) {}
 
         // Subscribe to Realtime avatar and profile updates

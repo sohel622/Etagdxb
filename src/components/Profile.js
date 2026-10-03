@@ -7,6 +7,8 @@ import { openShabnamChat } from "./ShabnamAI.js";
 import { playShabnamReelVideo, navigateToReel } from "./ReelsViewer.js";
 import { openEditProfileScreen, openMediaCreationPrompt } from "./Modals.js";
 import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl } from "../services/cloudinaryService.js";
+import { supabase } from "../supabaseClient.js";
+import { getCurrentUserId } from "../services/avatarService.js";
 
 let viewingProfileUserId = null;
 let previousScreenBeforeProfile = "home";
@@ -162,7 +164,7 @@ window.addEventListener("popstate", (e) => {
     ======================================================= */
     let currentProfileTab = "grid";
 
-    function updateProfilePostsCount(count) {
+    async function updateProfilePostsCount(count) {
       const postsCountEl = document.getElementById("profilePostsCount");
       const postsInlineEl = document.getElementById("profilePostsInline");
       const followersInlineEl = document.getElementById("profileFollowersInline");
@@ -189,23 +191,19 @@ window.addEventListener("popstate", (e) => {
         applyCount(count);
         return;
       }
-      const activeDb = db || (typeof window !== "undefined" && window.db);
-      if (!activeDb || typeof activeDb.transaction !== "function") {
-        applyCount(0);
-        return;
-      }
       try {
-        const tx = activeDb.transaction("videos", "readonly");
-        const countReq = tx.objectStore("videos").count();
-        countReq.onsuccess = () => {
-          applyCount(countReq.result || 0);
-        };
-        countReq.onerror = () => {
-          applyCount(0);
-        };
+        const uid = getCurrentUserId();
+        if (uid && supabase) {
+          const { data, error } = await supabase.from('posts').select('id').eq('user_id', uid);
+          if (!error && Array.isArray(data)) {
+            applyCount(data.length);
+            return;
+          }
+        }
       } catch (e) {
-        applyCount(0);
+        console.warn("Error counting user posts:", e);
       }
+      applyCount(0);
     }
     window.updateProfilePostsCount = updateProfilePostsCount;
 
@@ -268,10 +266,24 @@ window.addEventListener("popstate", (e) => {
       }
 
       try {
-        const livePosts = await fetchSupabasePosts();
-        updateProfilePostsCount(livePosts.length);
-        renderProfileGridItems(livePosts);
+        // Strictly query posts belonging to current active user
+        const currentUserId = getCurrentUserId();
+        let userPosts = [];
+        if (supabase && currentUserId) {
+          const { data, error } = await supabase
+            .from('posts')
+            .select('*')
+            .eq('user_id', currentUserId)
+            .order('created_at', { ascending: false });
+
+          if (!error && Array.isArray(data)) {
+            userPosts = data;
+          }
+        }
+        updateProfilePostsCount(userPosts.length);
+        renderProfileGridItems(userPosts);
       } catch (e) {
+        console.warn("renderProfileGrid error:", e);
         updateProfilePostsCount(0);
         renderProfileGridItems([]);
       }
@@ -296,7 +308,7 @@ window.addEventListener("popstate", (e) => {
           likes: p.likes_count ? String(p.likes_count) : '0',
           views: '1'
         };
-      }).reverse();
+      });
 
       if (currentProfileTab === "grid") {
         if (userGridItems.length === 0) {
