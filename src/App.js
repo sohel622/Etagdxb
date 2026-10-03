@@ -12,7 +12,7 @@ import { initIncomingShareListener } from "./services/shareIntentHandler.js";
 import { initAvatarRealtimeSync } from "./services/avatarService.js";
 import { initAccountSwitcher } from "./components/AccountSwitcher.js";
 import { initRealtimeMessagesListener } from "./services/chatService.js";
-import { syncFollowingFromSupabase } from "./services/followService.js";
+import { preloadFollowStatus } from "./services/followService.js";
 
 export const App = {
   async init() {
@@ -77,7 +77,7 @@ export const App = {
 
     // 9. Realtime Direct Messaging & Follows Synchronization
     initRealtimeMessagesListener();
-    syncFollowingFromSupabase();
+    preloadFollowStatus();
   }
 };
 

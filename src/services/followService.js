@@ -89,22 +89,25 @@ export async function toggleFollowUser(targetUserId, targetUsername = "user") {
   if (supabase) {
     try {
       if (isNowFollowing) {
+        console.log(`[Follows] Inserting follow: follower ${currentUserId} -> following ${targetUserId}`);
         await supabase
           .from("follows")
           .insert({
             follower_id: currentUserId,
-            following_id: targetUserId,
-            created_at: new Date().toISOString()
+            following_id: targetUserId
           });
       } else {
+        console.log(`[Follows] Deleting follow: follower ${currentUserId} -> following ${targetUserId}`);
         await supabase
           .from("follows")
           .delete()
-          .eq("follower_id", currentUserId)
-          .eq("following_id", targetUserId);
+          .match({
+            follower_id: currentUserId,
+            following_id: targetUserId
+          });
       }
     } catch (sbErr) {
-      console.warn("Notice updating Supabase follows table:", sbErr);
+      console.warn("Notice updating Supabase follows table:", sbErr?.message || sbErr);
     }
   }
 
@@ -128,35 +131,58 @@ export function updateFollowButtonsInDOM(userId, isFollowing) {
     } else if (btn.classList.contains("profile-follow-btn")) {
       btn.textContent = isFollowing ? "Following" : "Follow";
       btn.className = isFollowing
-        ? "profile-follow-btn yt-full-pill-btn following"
-        : "profile-follow-btn yt-full-pill-btn yt-follow-btn";
+        ? "profile-follow-btn flex-1 py-2 px-4 rounded-xl font-semibold text-[14px] transition-all cursor-pointer bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-white"
+        : "profile-follow-btn flex-1 py-2 px-4 rounded-xl font-semibold text-[14px] transition-all cursor-pointer bg-[#0095f6] hover:bg-sky-600 text-white";
     }
   });
 }
 
 /**
- * Sync initial following list from Supabase
+ * Preload and sync follow status on mount across reloads
  */
-export async function syncFollowingFromSupabase() {
+export async function preloadFollowStatus() {
   const currentUserId = getCurrentUserId();
-  if (!currentUserId || !supabase) return;
+  if (!currentUserId) return;
 
-  try {
-    const { data, error } = await supabase
-      .from("follows")
-      .select("following_id")
-      .eq("follower_id", currentUserId);
+  // 1. Immediately read cached list for instant zero-flicker UI
+  let list = getFollowingList();
+  if (UserProfileStore && UserProfileStore.setFollowingCount) {
+    UserProfileStore.setFollowingCount(list.length);
+  }
 
-    if (!error && Array.isArray(data)) {
-      const ids = data.map(item => String(item.following_id));
-      localStorage.setItem(`${STORAGE_KEY_FOLLOWS}_${currentUserId}`, JSON.stringify(ids));
-      UserProfileStore.setFollowingCount(ids.length);
+  // 2. Query Supabase follows table
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from("follows")
+        .select("following_id")
+        .eq("follower_id", currentUserId);
+
+      if (!error && Array.isArray(data)) {
+        const remoteIds = data.map(item => String(item.following_id));
+        const merged = Array.from(new Set([...list, ...remoteIds]));
+        localStorage.setItem(`${STORAGE_KEY_FOLLOWS}_${currentUserId}`, JSON.stringify(merged));
+        list = merged;
+        if (UserProfileStore && UserProfileStore.setFollowingCount) {
+          UserProfileStore.setFollowingCount(merged.length);
+        }
+      }
+    } catch (err) {
+      console.warn("Notice preloading follows from Supabase:", err?.message || err);
     }
-  } catch (_) {}
+  }
+
+  // 3. Update all existing buttons in DOM
+  list.forEach(targetId => {
+    updateFollowButtonsInDOM(targetId, true);
+  });
 }
+
+export const syncFollowingFromSupabase = preloadFollowStatus;
 
 if (typeof window !== "undefined") {
   window.isFollowingUser = isFollowingUser;
   window.toggleFollowUser = toggleFollowUser;
   window.getFollowingList = getFollowingList;
+  window.preloadFollowStatus = preloadFollowStatus;
 }

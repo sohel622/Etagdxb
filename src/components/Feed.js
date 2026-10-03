@@ -10,6 +10,7 @@ import { renderSuggestedReels } from "./SuggestedReels.js";
 import { deriveCloudinaryThumbnailUrl, fetchSupabasePosts } from "../services/cloudinaryService.js";
 import { isFollowingUser, toggleFollowUser } from "../services/followService.js";
 import { getCurrentUserId } from "../services/avatarService.js";
+import { supabase } from "../supabaseClient.js";
 
 /* =======================================================
    ১. হোম ফিড এরর বাউন্ডারি (Error Boundary Fallback)
@@ -68,14 +69,16 @@ function createPostCardElement(post, index = 0) {
   const profile = post.profiles || {};
   const isShabnam = post.user === 'shabnam_ai' || post.id === 'shabnam_reel_1' || profile.username === 'shabnam_ai';
 
-  // Strictly render author from post.profiles, never overwrite with active session username
+  const defaultAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
+
+  // Strictly render author from post.profiles, never generate random creator strings
   const authorUsername = isShabnam 
     ? "shabnam_ai" 
-    : (profile.username || post.author_name || (post.user_id ? `creator_${String(post.user_id).slice(0, 6)}` : "creator"));
+    : (profile.username || post.author_name || 'user');
 
   const authorAvatar = isShabnam 
     ? SHABNAM_AI_PROFILE.avatar 
-    : (profile.avatar_url || post.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100");
+    : (profile.avatar_url || post.avatar || defaultAvatar);
 
   const isCurrentUser = !isShabnam && Boolean(
     post.user_id && currentUserId && String(post.user_id) === String(currentUserId)
@@ -92,7 +95,7 @@ function createPostCardElement(post, index = 0) {
   } else if (isShabnam) {
     userClickAttr = 'onclick="openProfile(\'shabnam_ai\')" style="cursor: pointer;" title="View Shabnam AI Profile"';
   } else if (targetUserId) {
-    userClickAttr = `onclick="openProfile('${targetUserId}')" style="cursor: pointer;" title="View ${displayUser}'s Profile"`;
+    userClickAttr = `onclick="openProfile('${targetUserId}', '${displayUser}', '${displayAvatar}')" style="cursor: pointer;" title="View ${displayUser}'s Profile"`;
   }
 
   // Follow button for other creators on post card
@@ -103,6 +106,7 @@ function createPostCardElement(post, index = 0) {
       <button 
         type="button" 
         data-follow-user-id="${targetUserId}"
+        data-is-following="${isFoll}"
         class="post-feed-follow-btn text-[12px] font-semibold ${isFoll ? 'text-neutral-400 hover:text-neutral-500' : 'text-sky-500 hover:text-sky-600'} ml-1.5 cursor-pointer"
         onclick="event.stopPropagation(); toggleFollowUser('${targetUserId}', '${displayUser}')"
       >
@@ -262,25 +266,74 @@ async function renderHomeFeed() {
       localStorage.removeItem("cached_posts");
     } catch (_) {}
 
-    const livePosts = await fetchSupabasePosts();
-    const formattedUserPosts = (livePosts || []).map(p => {
+    console.log("[Feed] Fetching all live posts from Supabase posts table...");
+    let livePosts = null;
+
+    if (supabase) {
+      try {
+        console.log("[Feed] Executing Supabase query: posts joined with author profiles...");
+        const { data: posts, error } = await supabase
+          .from('posts')
+          .select(`
+            id,
+            video_url,
+            thumbnail_url,
+            caption,
+            created_at,
+            user_id,
+            profiles (
+              id,
+              username,
+              avatar_url
+            )
+          `)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.warn("[Feed] Supabase posts join query note:", error.message || error);
+        } else if (Array.isArray(posts) && posts.length > 0) {
+          console.log(`[Feed] Successfully retrieved ${posts.length} live posts directly from Supabase join.`);
+          livePosts = posts;
+        }
+      } catch (qErr) {
+        console.warn("[Feed] Supabase posts query exception:", qErr);
+      }
+    }
+
+    if (!livePosts || livePosts.length === 0) {
+      console.log("[Feed] Using fetchSupabasePosts fallback controller...");
+      livePosts = await fetchSupabasePosts();
+    }
+
+    console.log(`[Feed] Total live posts ready to render: ${livePosts ? livePosts.length : 0}`);
+
+    const defaultAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
+    const currentUserId = typeof getCurrentUserId === "function" ? getCurrentUserId() : null;
+
+    const formattedUserPosts = (livePosts || []).map((p, idx) => {
       const vidUrl = p.video_url || p.url || '';
       const thumbUrl = p.thumbnail_url || (vidUrl ? deriveCloudinaryThumbnailUrl(vidUrl) : '');
-      const profile = p.profiles || {};
-      const isMine = (p.user_id && p.user_id.includes(UserProfileStore.state.username)) || 
-                     (p.user === UserProfileStore.state.username);
+      const profile = (Array.isArray(p.profiles) ? p.profiles[0] : p.profiles) || {};
+      
+      const isMine = Boolean(
+        (p.user_id && currentUserId && String(p.user_id) === String(currentUserId)) ||
+        (p.user_id && String(p.user_id).includes("5611f2e8")) ||
+        (p.user === UserProfileStore.state.username)
+      );
 
-      const authorUsername = profile.username || profile.display_name || p.author_name || p.username || (isMine ? UserProfileStore.state.username : UserProfileStore.state.username || 'sohel_077');
-      const authorAvatar = profile.avatar_url || p.avatar_url || (isMine ? UserProfileStore.state.avatar : UserProfileStore.state.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100');
+      const authorUsername = profile.username || profile.display_name || p.author_name || (isMine ? (UserProfileStore.state.username || 'sohelmommy_077') : 'user');
+      const authorAvatar = profile.avatar_url || p.avatar_url || (isMine ? UserProfileStore.state.avatar : defaultAvatar);
+      const stableId = p.id || `post_${p.created_at || idx}`;
 
       return {
-        id: String(p.id),
+        id: String(stableId),
         user_id: p.user_id || '',
         url: vidUrl,
         video_url: vidUrl,
         thumbnail: thumbUrl,
         thumbnail_url: thumbUrl,
         profiles: {
+          id: profile.id || p.user_id,
           username: authorUsername,
           avatar_url: authorAvatar
         },

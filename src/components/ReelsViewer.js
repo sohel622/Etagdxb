@@ -3,6 +3,8 @@ import { db } from "../services/database.js";
 import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowShabnam } from "../utils/storage.js";
 import { openReelsShareSheet, openReelsCommentsSheet, disableReelsClearMode, setActiveClearModeReelId, openPostOptionsSheet } from "./reels/index.js";
 import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl } from "../services/cloudinaryService.js";
+import { openProfile } from "./Profile.js";
+import { isFollowingUser, toggleFollowUser } from "../services/followService.js";
 
     /* =======================================================
        ৮. রিলস ভিডিও লোডিং
@@ -162,11 +164,14 @@ import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl } from "../services/cl
         item.dataset.url = vidUrl;
         if (isCurrentUserReel) item.dataset.isCurrentUser = "true";
 
+        const targetUserId = reel.user_id || profile.id;
         let userClickAttr = "";
         if (isCurrentUserReel) {
           userClickAttr = 'onclick="openMyProfileTab()" style="cursor:pointer;" title="View Profile"';
         } else if (isShabnamReel) {
           userClickAttr = 'onclick="openProfile(\'shabnam_ai\')" style="cursor:pointer;" title="View Shabnam AI Profile"';
+        } else if (targetUserId) {
+          userClickAttr = `onclick="openProfile('${targetUserId}', '${displayUser}', '${displayAvatar}')" style="cursor:pointer;" title="View ${displayUser}'s Profile"`;
         } else {
           userClickAttr = 'style="cursor:pointer;"';
         }
@@ -176,8 +181,9 @@ import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl } from "../services/cl
           if (isShabnamReel) {
             const isFoll = isFollowingShabnam();
             followBtnHtml = `<button type="button" class="follow-btn ${isFoll ? 'following' : ''}" onclick="toggleFollowShabnam(); this.innerText = isFollowingShabnam() ? 'Following' : 'Follow';">${isFoll ? 'Following' : 'Follow'}</button>`;
-          } else {
-            followBtnHtml = '<button type="button" class="follow-btn" onclick="toggleReelFollowBtn(this)">Follow</button>';
+          } else if (targetUserId) {
+            const isFoll = isFollowingUser(targetUserId);
+            followBtnHtml = `<button type="button" data-follow-user-id="${targetUserId}" data-is-following="${isFoll}" class="follow-btn ${isFoll ? 'following' : ''}" onclick="toggleFollowUser('${targetUserId}', '${displayUser}'); this.innerText = isFollowingUser('${targetUserId}') ? 'Following' : 'Follow';">${isFoll ? 'Following' : 'Follow'}</button>`;
           }
         }
 

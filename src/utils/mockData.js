@@ -1,11 +1,11 @@
 // Flashgram Mock Data and Defaults
 
 export const DEFAULT_USER_PROFILE = {
-  username: "sohel_077",
+  username: "sohelmommy_077",
   name: "Sohel ✨",
   pronouns: "he/him",
   bio: "🚀 Digital Creator & Explorer. Daily reels & updates!",
-  link: "flashgram.me/sohel",
+  link: "flashgram.me/sohelmommy",
   avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80"
 };
 

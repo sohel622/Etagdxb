@@ -453,7 +453,16 @@ function switchTab(tabId, btnElement) {
       if (rView) rView.classList.remove("active");
       if (pView) pView.classList.add("active");
       applyCurrentDynamicTheme();
-      if (typeof renderProfileGrid === "function") renderProfileGrid();
+
+      // Requirement 5: Reset any other profile view and strictly sync logged-in user's profile
+      if (typeof window.closeUserProfile === "function") {
+        window.closeUserProfile();
+      }
+      if (typeof window.syncCurrentLoggedInUserProfile === "function") {
+        window.syncCurrentLoggedInUserProfile();
+      } else if (typeof renderProfileGrid === "function") {
+        renderProfileGrid();
+      }
     } else if (tabId === "messages") {
       if (typeof pauseAllHomeVideos === "function") pauseAllHomeVideos();
       if (hView) hView.classList.remove("active");
