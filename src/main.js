@@ -24,6 +24,7 @@ import * as ShareModal from './components/FlashgramShareModal.js';
 import * as ShareIntentHandler from './services/shareIntentHandler.js';
 import * as CloudinaryService from './services/cloudinaryService.js';
 import * as AvatarService from './services/avatarService.js';
+import * as UploadProgressBanner from './components/UploadProgressBanner.js';
 
 // App Controller
 import { App } from './App.js';
@@ -49,6 +50,7 @@ Object.assign(window, {
   ...ShareIntentHandler,
   ...CloudinaryService,
   ...AvatarService,
+  ...UploadProgressBanner,
   supabase,
   App
 });

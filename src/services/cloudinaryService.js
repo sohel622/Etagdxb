@@ -105,18 +105,93 @@ export async function uploadVideoToCloudinary(file, onProgress) {
 }
 
 /**
- * Fetch all live posts directly from Supabase
+ * Retrieve authenticated user ID using supabase.auth.getUser()
+ */
+export async function getAuthenticatedUserId() {
+  if (supabase && supabase.auth) {
+    try {
+      if (typeof supabase.auth.getUser === "function") {
+        const { data, error } = await supabase.auth.getUser();
+        if (!error && data && data.user && data.user.id) {
+          return data.user.id;
+        }
+      }
+    } catch (_) {}
+    try {
+      if (typeof supabase.auth.user === "function") {
+        const user = supabase.auth.user();
+        if (user && user.id) return user.id;
+      }
+    } catch (_) {}
+  }
+
+  // Fallback to locally stored active session
+  try {
+    const sessionStr = localStorage.getItem("flashgram_user_session");
+    if (sessionStr) {
+      const parsed = JSON.parse(sessionStr);
+      if (parsed && (parsed.uid || parsed.id)) {
+        return parsed.uid || parsed.id;
+      }
+    }
+  } catch (_) {}
+
+  return null;
+}
+
+/**
+ * Fetch all live posts from Supabase joined with author profile (posts.user_id = profiles.id)
  */
 export async function fetchSupabasePosts() {
   if (!supabase) return [];
+
   try {
-    const { data, error } = await supabase
+    // 1. Relational join with profiles: posts.user_id = profiles.id
+    let { data, error } = await supabase
+      .from("posts")
+      .select("*, profiles:user_id(id, username, full_name, avatar_url)")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      // Try standard syntax without alias
+      const res = await supabase
+        .from("posts")
+        .select("*, profiles(id, username, full_name, avatar_url)")
+        .order("created_at", { ascending: false });
+      data = res.data;
+      error = res.error;
+    }
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return data;
+    }
+
+    // Fallback: If foreign key is not formally defined in PostgREST schema cache,
+    // fetch posts then batch-query profiles and join manually on posts.user_id = profiles.id
+    const { data: rawPosts, error: rawError } = await supabase
       .from("posts")
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (!error && Array.isArray(data) && data.length > 0) {
-      return data;
+    if (!rawError && Array.isArray(rawPosts) && rawPosts.length > 0) {
+      const userIds = [...new Set(rawPosts.map(p => p.user_id).filter(Boolean))];
+      if (userIds.length > 0) {
+        try {
+          const { data: profilesList } = await supabase
+            .from("profiles")
+            .select("id, username, full_name, avatar_url")
+            .in("id", userIds);
+
+          if (Array.isArray(profilesList)) {
+            const profilesMap = new Map(profilesList.map(pr => [pr.id, pr]));
+            return rawPosts.map(post => ({
+              ...post,
+              profiles: profilesMap.get(post.user_id) || null
+            }));
+          }
+        } catch (_) {}
+      }
+      return rawPosts;
     }
   } catch (err) {
     console.warn("Supabase posts query note:", err);
@@ -125,7 +200,7 @@ export async function fetchSupabasePosts() {
   try {
     const { data: reelsData, error: reelsError } = await supabase
       .from("reels")
-      .select("*")
+      .select("*, profiles:user_id(id, username, full_name, avatar_url)")
       .order("created_at", { ascending: false });
 
     if (!reelsError && Array.isArray(reelsData) && reelsData.length > 0) {
@@ -143,7 +218,7 @@ export async function savePostToSupabase({ videoUrl, thumbnailUrl, caption, user
   if (!supabase) return null;
 
   try {
-    const activeUserId = userId || (supabase.auth && supabase.auth.user ? supabase.auth.user()?.id : null);
+    const activeUserId = userId || (await getAuthenticatedUserId());
     const postPayload = {
       video_url: videoUrl,
       thumbnail_url: thumbnailUrl,
@@ -152,27 +227,49 @@ export async function savePostToSupabase({ videoUrl, thumbnailUrl, caption, user
       created_at: new Date().toISOString()
     };
 
-    // Try 'posts' table first
+    // Try 'posts' table first with select including profiles
+    let savedRecord = null;
     const { data, error } = await supabase
       .from("posts")
       .insert([postPayload])
-      .select();
+      .select("*, profiles:user_id(id, username, full_name, avatar_url)");
 
-    if (error) {
-      console.warn("Supabase 'posts' table insert note, trying 'reels':", error.message);
-      // Fallback try 'reels' table
-      const { data: reelsData, error: reelsError } = await supabase
-        .from("reels")
-        .insert([postPayload])
-        .select();
+    if (!error && Array.isArray(data) && data[0]) {
+      savedRecord = data[0];
+    } else {
+      const res = await supabase.from("posts").insert([postPayload]).select();
+      if (!res.error && res.data && res.data[0]) {
+        savedRecord = res.data[0];
+      } else {
+        // Fallback try 'reels' table
+        const { data: reelsData, error: reelsError } = await supabase
+          .from("reels")
+          .insert([postPayload])
+          .select();
 
-      if (reelsError) {
-        console.warn("Supabase 'reels' table insert note:", reelsError.message);
+        if (!reelsError && reelsData && reelsData[0]) {
+          savedRecord = reelsData[0];
+        }
       }
-      return reelsData;
     }
 
-    return data;
+    if (savedRecord) {
+      if (!savedRecord.profiles && activeUserId) {
+        try {
+          const { data: prData } = await supabase
+            .from("profiles")
+            .select("id, username, full_name, avatar_url")
+            .eq("id", activeUserId)
+            .maybeSingle();
+          if (prData) {
+            savedRecord.profiles = prData;
+          }
+        } catch (_) {}
+      }
+      return savedRecord;
+    }
+
+    return { ...postPayload, id: "post_" + Date.now() };
   } catch (err) {
     console.warn("Exception saving post to Supabase:", err);
     return null;
@@ -183,4 +280,6 @@ if (typeof window !== "undefined") {
   window.uploadVideoToCloudinary = uploadVideoToCloudinary;
   window.deriveCloudinaryThumbnailUrl = deriveCloudinaryThumbnailUrl;
   window.savePostToSupabase = savePostToSupabase;
+  window.fetchSupabasePosts = fetchSupabasePosts;
+  window.getAuthenticatedUserId = getAuthenticatedUserId;
 }

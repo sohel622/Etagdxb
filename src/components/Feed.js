@@ -226,15 +226,21 @@ async function renderHomeFeed() {
     const formattedUserPosts = (livePosts || []).map(p => {
       const vidUrl = p.video_url || p.url || '';
       const thumbUrl = p.thumbnail_url || (vidUrl ? deriveCloudinaryThumbnailUrl(vidUrl) : '');
-      const isMine = (p.user_id && p.user_id.includes(UserProfileStore.state.username)) || (p.user === UserProfileStore.state.username);
+      const profile = p.profiles || {};
+      const isMine = (p.user_id && p.user_id.includes(UserProfileStore.state.username)) || 
+                     (p.user === UserProfileStore.state.username);
+
+      const authorUsername = profile.username || p.username || (isMine ? UserProfileStore.state.username : 'flashgram_creator');
+      const authorAvatar = profile.avatar_url || p.avatar_url || (isMine ? UserProfileStore.state.avatar : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100');
+
       return {
         id: 'sb_' + (p.id || Date.now()),
         url: vidUrl,
         video_url: vidUrl,
         thumbnail: thumbUrl,
         thumbnail_url: thumbUrl,
-        user: isMine ? UserProfileStore.state.username : (p.username || p.user || 'flashgram_creator'),
-        avatar: isMine ? UserProfileStore.state.avatar : (p.avatar_url || p.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'),
+        user: authorUsername,
+        avatar: authorAvatar,
         isCurrentUser: isMine,
         location: p.location || 'Original Audio',
         caption: p.caption || 'Flashgram Video Post! ✨ #lifestyle',

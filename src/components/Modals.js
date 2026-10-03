@@ -8,6 +8,7 @@ import { updateProfilePostsCount, renderProfileGrid } from "./Profile.js";
 import { switchTab } from "./navigation/BottomNavbar.js";
 import { uploadVideoToCloudinary, deriveCloudinaryThumbnailUrl, savePostToSupabase } from "../services/cloudinaryService.js";
 import { uploadUserAvatar, getCurrentUserId } from "../services/avatarService.js";
+import { showUploadProgressBanner, updateUploadProgressBanner, completeUploadProgressBanner, failUploadProgressBanner } from "./UploadProgressBanner.js";
 
 // --- Shared State Variables ---
 let currentEditingBio = null;
@@ -969,11 +970,36 @@ function startRecordingSession() {
     recorder.onstop = async () => {
       if (recordedChunks.length > 0) {
         const blob = new Blob(recordedChunks, { type: recorder.mimeType || "video/webm" });
-        showInstagramToast("Uploading reel to Cloudinary... ☁️");
+
+        // Close recording session and switch to home view to show Instagram upload banner
+        stopRecordingSession(false);
+        closeMediaCreationPrompt();
+        if (typeof switchTab === "function") {
+          switchTab("home");
+        } else if (typeof window.switchTab === "function") {
+          window.switchTab("home");
+        }
+
+        // Generate instant preview thumbnail from blob for the banner
+        let previewThumb = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100";
+        try {
+          const tempUrl = URL.createObjectURL(blob);
+          previewThumb = await captureVideoFirstFrame(tempUrl);
+          URL.revokeObjectURL(tempUrl);
+        } catch (_) {}
+
+        // Mount the Instagram-style upload banner between stories and feed
+        showUploadProgressBanner({
+          thumbnailSrc: previewThumb,
+          title: "Keep Flashgram open to finish posting..."
+        });
 
         try {
           // Direct real HTTP POST upload to Cloudinary (no dummy local storage)
-          const cldData = await uploadVideoToCloudinary(blob);
+          const cldData = await uploadVideoToCloudinary(blob, (percent) => {
+            updateUploadProgressBanner(percent);
+          });
+
           if (!cldData || !cldData.secure_url) {
             throw new Error("No secure URL received from Cloudinary");
           }
@@ -988,16 +1014,17 @@ function startRecordingSession() {
             userId: getCurrentUserId()
           });
 
-          const postId = (savedRecord && savedRecord.id) ? String(savedRecord.id) : ('post_' + Date.now());
+          const authorUsername = savedRecord?.profiles?.username || UserProfileStore.state.username;
+          const authorAvatar = savedRecord?.profiles?.avatar_url || UserProfileStore.state.avatar;
 
           const newPost = {
-            id: postId,
+            id: String(savedRecord?.id || ('post_' + Date.now())),
             url: cldData.secure_url,
             video_url: cldData.secure_url,
             thumbnail: posterJpg,
             thumbnail_url: posterJpg,
-            user: UserProfileStore.state.username,
-            avatar: UserProfileStore.state.avatar,
+            user: authorUsername,
+            avatar: authorAvatar,
             isCurrentUser: true,
             location: 'Original Audio',
             caption: 'Recorded Reel! ✨ #lifestyle',
@@ -1006,25 +1033,13 @@ function startRecordingSession() {
             time: 'JUST NOW'
           };
 
-          prependPostToHomeFeed(newPost);
+          completeUploadProgressBanner(newPost);
           loadReels();
           updateProfilePostsCount();
           renderProfileGrid();
-
-          if (typeof switchTab === "function") {
-            switchTab("home");
-          } else if (typeof window.switchTab === "function") {
-            window.switchTab("home");
-          }
-
-          const homeView = document.getElementById("homeView");
-          if (homeView) {
-            homeView.scrollTo({ top: 0, behavior: "smooth" });
-          }
-
-          showInstagramToast("Reel published to Cloudinary & Supabase! 🚀");
         } catch (err) {
           console.error("Cloudinary / Supabase Reel upload error:", err);
+          failUploadProgressBanner(err.message || "Network error");
           showInstagramToast("Upload failed: " + (err.message || "Network error"));
         }
       }
@@ -1079,14 +1094,33 @@ function initMediaCreationAndCamera() {
       const file = e.target.files && e.target.files[0];
       if (file) {
         videoFileInput.value = "";
-        showInstagramToast("Uploading video to Cloudinary... ☁️");
+        closeMediaCreationPrompt();
+
+        // Switch to home view to show Instagram upload banner
+        if (typeof switchTab === "function") {
+          switchTab("home");
+        } else if (typeof window.switchTab === "function") {
+          window.switchTab("home");
+        }
+
+        // Generate instant preview thumbnail from file for the banner
+        let previewThumb = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100";
+        try {
+          const tempUrl = URL.createObjectURL(file);
+          previewThumb = await captureVideoFirstFrame(tempUrl);
+          URL.revokeObjectURL(tempUrl);
+        } catch (_) {}
+
+        // Mount the Instagram-style upload banner between stories and feed
+        showUploadProgressBanner({
+          thumbnailSrc: previewThumb,
+          title: "Keep Flashgram open to finish posting..."
+        });
 
         try {
           // Direct real HTTP POST upload to Cloudinary (no dummy local storage)
           const cldData = await uploadVideoToCloudinary(file, (percent) => {
-            if (percent % 25 === 0 || percent === 100) {
-              showInstagramToast(`Uploading to Cloudinary... ☁️ (${percent}%)`);
-            }
+            updateUploadProgressBanner(percent);
           });
 
           if (!cldData || !cldData.secure_url) {
@@ -1103,16 +1137,17 @@ function initMediaCreationAndCamera() {
             userId: getCurrentUserId()
           });
 
-          const postId = (savedRecord && savedRecord.id) ? String(savedRecord.id) : ('post_' + Date.now());
+          const authorUsername = savedRecord?.profiles?.username || UserProfileStore.state.username;
+          const authorAvatar = savedRecord?.profiles?.avatar_url || UserProfileStore.state.avatar;
 
           const newPost = {
-            id: postId,
+            id: String(savedRecord?.id || ('post_' + Date.now())),
             url: cldData.secure_url,
             video_url: cldData.secure_url,
             thumbnail: posterJpg,
             thumbnail_url: posterJpg,
-            user: UserProfileStore.state.username,
-            avatar: UserProfileStore.state.avatar,
+            user: authorUsername,
+            avatar: authorAvatar,
             isCurrentUser: true,
             location: 'Original Audio',
             caption: 'Uploaded Video Post! ✨ #lifestyle',
@@ -1121,25 +1156,13 @@ function initMediaCreationAndCamera() {
             time: 'JUST NOW'
           };
 
-          prependPostToHomeFeed(newPost);
+          completeUploadProgressBanner(newPost);
           loadReels();
           updateProfilePostsCount();
           renderProfileGrid();
-
-          if (typeof switchTab === "function") {
-            switchTab("home");
-          } else if (typeof window.switchTab === "function") {
-            window.switchTab("home");
-          }
-
-          const homeView = document.getElementById("homeView");
-          if (homeView) {
-            homeView.scrollTo({ top: 0, behavior: "smooth" });
-          }
-
-          showInstagramToast("Video published to Cloudinary & Supabase! 🚀");
         } catch (err) {
           console.error("Cloudinary / Supabase video upload error:", err);
+          failUploadProgressBanner(err.message || "Network error");
           showInstagramToast("Upload failed: " + (err.message || "Network error"));
         }
       }

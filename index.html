@@ -102,6 +102,34 @@
         </div>
       </section>
 
+      <!-- Instagram-Style Top Upload Progress Banner (Between Stories & Feed) -->
+      <div id="homeUploadProgressBanner" class="hidden transition-all duration-300 ease-out overflow-hidden mx-3 mb-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800 shadow-sm select-none">
+        <div class="flex items-center gap-3 px-3 py-2.5">
+          <div class="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700">
+            <img id="uploadBannerThumb" class="w-full h-full object-cover" src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100" alt="Video thumbnail" />
+            <div id="uploadBannerThumbOverlay" class="absolute inset-0 bg-black/20 flex items-center justify-center pointer-events-none">
+              <i class="fa-solid fa-play text-white/90 text-[10px]"></i>
+            </div>
+          </div>
+          <div class="flex-1 min-w-0 pr-1">
+            <div id="uploadBannerStatusTitle" class="text-[12.5px] font-semibold text-neutral-900 dark:text-neutral-100 truncate tracking-tight">
+              Keep Flashgram open to finish posting...
+            </div>
+            <div class="flex items-center gap-1.5 mt-0.5">
+              <span id="uploadBannerPercentText" class="text-[11.5px] font-semibold text-neutral-600 dark:text-neutral-300 font-mono">0%</span>
+              <span id="uploadBannerSubtext" class="text-[10.5px] text-neutral-400 dark:text-neutral-500">• Uploading to Cloudinary</span>
+            </div>
+          </div>
+          <div id="uploadBannerActionIcon" class="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 transition-colors duration-200">
+            <i id="uploadBannerStatusIcon" class="fa-solid fa-cloud-arrow-up text-xs animate-pulse text-pink-500"></i>
+          </div>
+        </div>
+        <!-- Thin Instagram Gradient Progress Bar -->
+        <div class="w-full h-[3px] bg-neutral-100 dark:bg-neutral-800/80 overflow-hidden">
+          <div id="uploadBannerProgressBar" class="h-full w-0 transition-all duration-200 ease-out" style="background: linear-gradient(90deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);"></div>
+        </div>
+      </div>
+
       <div id="feedContainer"></div>
     </div>
 
