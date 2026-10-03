@@ -148,7 +148,7 @@ export async function fetchSupabasePosts() {
   let posts = null;
 
   try {
-    // 1. Relational join with profiles table as requested
+    // 1. Relational join with profiles table as requested: profiles:user_id (id, username, avatar_url)
     const { data, error } = await supabase
       .from('posts')
       .select(`
@@ -158,7 +158,8 @@ export async function fetchSupabasePosts() {
         caption,
         created_at,
         user_id,
-        profiles (
+        profiles:user_id (
+          id,
           username,
           avatar_url
         )
@@ -182,31 +183,41 @@ export async function fetchSupabasePosts() {
         return [];
       }
 
-      const userIds = [...new Set(rawPosts.map(p => p.user_id).filter(Boolean))];
+      // Fetch profiles
       const profilesMap = new Map();
+      try {
+        const { data: profilesList } = await supabase
+          .from("profiles")
+          .select("*");
 
-      if (userIds.length > 0) {
-        try {
-          const { data: profilesList, error: profError } = await supabase
-            .from("profiles")
-            .select("*")
-            .in("id", userIds);
-
-          if (!profError && Array.isArray(profilesList)) {
-            profilesList.forEach(pr => profilesMap.set(String(pr.id), pr));
-          }
-        } catch (prErr) {
-          console.warn("Notice querying profiles for author metadata:", prErr);
+        if (Array.isArray(profilesList)) {
+          profilesList.forEach(pr => {
+            // Map by numeric/string ID
+            if (pr.id !== undefined) profilesMap.set(String(pr.id), pr);
+            // Map by email if present
+            if (pr.email) profilesMap.set(String(pr.email).toLowerCase(), pr);
+            // Check if avatar_url contains user_id UUID
+            if (pr.avatar_url && typeof pr.avatar_url === "string") {
+              const uuidMatch = pr.avatar_url.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+              if (uuidMatch) {
+                profilesMap.set(uuidMatch[0].toLowerCase(), pr);
+              }
+            }
+          });
         }
+      } catch (prErr) {
+        console.warn("Notice querying profiles for author metadata:", prErr);
       }
 
       posts = rawPosts.map(post => {
-        const pr = profilesMap.get(String(post.user_id)) || {};
-        const usernameVal = pr.username || pr.display_name || pr.full_name || UserProfileStore.state.username || "sohel_077";
-        const avatarVal = pr.avatar_url || UserProfileStore.state.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
+        const uidStr = String(post.user_id || "").toLowerCase();
+        const pr = profilesMap.get(uidStr) || profilesMap.get(String(post.user_id)) || {};
+        const usernameVal = pr.username || pr.display_name || pr.full_name || (post.user_id ? `creator_${String(post.user_id).slice(0, 6)}` : "creator");
+        const avatarVal = pr.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
         return {
           ...post,
           profiles: {
+            id: pr.id || post.user_id,
             username: usernameVal,
             avatar_url: avatarVal
           },
@@ -223,24 +234,25 @@ export async function fetchSupabasePosts() {
 
   if (!Array.isArray(posts)) return [];
 
-  // Normalize each post so author_name and profiles are guaranteed
+  // Normalize each post so author_name and profiles are guaranteed with genuine creator info
   return posts.map(post => {
     let pr = post.profiles;
     if (Array.isArray(pr)) pr = pr[0];
     if (!pr || typeof pr !== 'object') pr = {};
 
-    const usernameVal = pr.username || pr.display_name || post.author_name || (post.user && post.user !== 'flashgram_creator' ? post.user : UserProfileStore.state.username) || "sohel_077";
-    const avatarVal = pr.avatar_url || post.avatar || UserProfileStore.state.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
+    const genuineUsername = pr.username || pr.display_name || post.author_name || (post.user_id ? `creator_${String(post.user_id).slice(0, 6)}` : "creator");
+    const genuineAvatar = pr.avatar_url || post.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
 
     return {
       ...post,
       profiles: {
-        username: usernameVal,
-        avatar_url: avatarVal
+        id: pr.id || post.user_id,
+        username: genuineUsername,
+        avatar_url: genuineAvatar
       },
-      author_name: usernameVal,
-      user: usernameVal,
-      avatar: avatarVal
+      author_name: genuineUsername,
+      user: genuineUsername,
+      avatar: genuineAvatar
     };
   });
 }

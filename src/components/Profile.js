@@ -9,6 +9,8 @@ import { openEditProfileScreen, openMediaCreationPrompt } from "./Modals.js";
 import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl } from "../services/cloudinaryService.js";
 import { supabase } from "../supabaseClient.js";
 import { getCurrentUserId } from "../services/avatarService.js";
+import { isFollowingUser, toggleFollowUser } from "../services/followService.js";
+import { openDirectChatWithUser } from "./DirectChat.js";
 
 let viewingProfileUserId = null;
 let previousScreenBeforeProfile = "home";
@@ -17,6 +19,8 @@ if (typeof window !== "undefined") {
   window.viewingProfileUserId = viewingProfileUserId;
   window.previousScreenBeforeProfile = previousScreenBeforeProfile;
 }
+
+let viewingOtherUserObj = null;
 
 function handleProfilePrimaryPillAction() {
   if (viewingProfileUserId === "shabnam_ai") {
@@ -29,6 +33,8 @@ function handleProfilePrimaryPillAction() {
     } else {
       toggleFollowShabnam();
     }
+  } else if (viewingOtherUserObj) {
+    handleMessageOtherUser();
   } else {
     if (typeof openEditProfileScreen === "function") {
       openEditProfileScreen();
@@ -39,11 +45,101 @@ function handleProfilePrimaryPillAction() {
 }
 window.handleProfilePrimaryPillAction = handleProfilePrimaryPillAction;
 
+function handleMessageOtherUser() {
+  if (viewingOtherUserObj) {
+    if (typeof openDirectChatWithUser === "function") {
+      openDirectChatWithUser(viewingOtherUserObj);
+    }
+  }
+}
+window.handleMessageOtherUser = handleMessageOtherUser;
+
+async function handleToggleFollowOtherUser(userId, username) {
+  const isNowFoll = await toggleFollowUser(userId, username);
+  renderOtherUserPillActions(userId, username);
+}
+window.handleToggleFollowOtherUser = handleToggleFollowOtherUser;
+
+function renderOtherUserPillActions(userId, username) {
+  const container = document.getElementById("profilePillActionContainer");
+  if (!container) return;
+
+  const isFoll = isFollowingUser(userId);
+
+  container.innerHTML = `
+    <div class="flex items-center gap-2.5 w-full">
+      <button 
+        type="button" 
+        data-follow-user-id="${userId}"
+        class="profile-follow-btn flex-1 py-2 px-4 rounded-xl font-semibold text-[14px] transition-all cursor-pointer ${isFoll ? 'bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-white' : 'bg-[#0095f6] hover:bg-sky-600 text-white'}"
+        onclick="handleToggleFollowOtherUser('${userId}', '${username}')"
+      >
+        ${isFoll ? 'Following' : 'Follow'}
+      </button>
+
+      <button 
+        type="button" 
+        class="flex-1 py-2 px-4 rounded-xl font-semibold text-[14px] bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-900 dark:text-white transition-all cursor-pointer flex items-center justify-center gap-1.5"
+        onclick="handleMessageOtherUser()"
+      >
+        <i class="fa-regular fa-paper-plane text-[13px]"></i>
+        <span>Message</span>
+      </button>
+    </div>
+  `;
+}
+
+async function loadAndRenderOtherUserProfile(userId) {
+  let targetProfile = null;
+  if (supabase) {
+    try {
+      const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+      targetProfile = data;
+    } catch (_) {}
+  }
+
+  const username = targetProfile?.username || targetProfile?.display_name || `creator_${String(userId).slice(0, 6)}`;
+  const displayName = targetProfile?.display_name || targetProfile?.full_name || username;
+  const avatarUrl = targetProfile?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400";
+  const bio = targetProfile?.bio || "Digital Creator ✨ Daily reels & updates!";
+  const link = targetProfile?.link || `flashgram.me/${username}`;
+
+  viewingOtherUserObj = {
+    id: userId,
+    username,
+    name: displayName,
+    avatar: avatarUrl
+  };
+
+  const headerUsername = document.getElementById("profileHeaderUsername");
+  if (headerUsername) headerUsername.textContent = username;
+  const mainAvatar = document.getElementById("mainProfileAvatarImg");
+  if (mainAvatar) mainAvatar.src = avatarUrl;
+  const profileDisplay = document.getElementById("profileDisplayName");
+  if (profileDisplay) profileDisplay.textContent = displayName;
+  const verifiedBadge = document.getElementById("profileVerifiedBadge");
+  if (verifiedBadge) verifiedBadge.style.display = "none";
+  const profileHandle = document.getElementById("profileHandleText");
+  if (profileHandle) profileHandle.textContent = `@${username}`;
+  const profileCategory = document.getElementById("profileCategoryTag");
+  if (profileCategory) profileCategory.textContent = "Creator";
+  const profileBio = document.getElementById("profileBioText");
+  if (profileBio) profileBio.textContent = bio;
+  const profileLink = document.getElementById("profileBioLinkText");
+  if (profileLink) profileLink.textContent = link;
+
+  renderOtherUserPillActions(userId, username);
+  renderProfileGrid();
+}
+
 function openProfile(userId) {
+  const currentUserId = getCurrentUserId();
+  const currentNav = (typeof activeNavId !== "undefined" && activeNavId) || (typeof window !== "undefined" && window.activeNavId) || "home";
+
   if (userId === "shabnam_ai") {
-    const currentNav = (typeof activeNavId !== "undefined" && activeNavId) || (typeof window !== "undefined" && window.activeNavId) || "home";
     previousScreenBeforeProfile = currentNav;
     viewingProfileUserId = "shabnam_ai";
+    viewingOtherUserObj = null;
     if (typeof window !== "undefined") {
       window.viewingProfileUserId = viewingProfileUserId;
       window.previousScreenBeforeProfile = previousScreenBeforeProfile;
@@ -99,7 +195,29 @@ function openProfile(userId) {
     }
 
     renderProfileGrid();
+  } else if (userId && String(userId) !== String(currentUserId)) {
+    // Other Creator Profile View
+    previousScreenBeforeProfile = currentNav;
+    viewingProfileUserId = String(userId);
+    if (typeof window !== "undefined") {
+      window.viewingProfileUserId = viewingProfileUserId;
+      window.previousScreenBeforeProfile = previousScreenBeforeProfile;
+    }
+
+    if (typeof switchTab === "function") {
+      switchTab("profile");
+    }
+
+    const profileBackBtn = document.getElementById("profileBackBtn");
+    if (profileBackBtn) profileBackBtn.style.display = "inline-flex";
+    const profileHeaderChevron = document.getElementById("profileHeaderChevron");
+    if (profileHeaderChevron) profileHeaderChevron.style.display = "none";
+    const profileHeaderActions = document.getElementById("profileHeaderActions");
+    if (profileHeaderActions) profileHeaderActions.style.display = "none";
+
+    loadAndRenderOtherUserProfile(userId);
   } else {
+    // Current User's Own Profile
     closeUserProfile();
     if (typeof switchTab === "function") {
       switchTab("profile");
@@ -129,6 +247,7 @@ window.handleProfileBack = handleProfileBack;
 
 function closeUserProfile() {
   viewingProfileUserId = null;
+  viewingOtherUserObj = null;
   if (typeof window !== "undefined") {
     window.viewingProfileUserId = null;
   }
@@ -138,9 +257,21 @@ function closeUserProfile() {
   if (profileHeaderChevron) profileHeaderChevron.style.display = "inline-block";
   const profileHeaderActions = document.getElementById("profileHeaderActions");
   if (profileHeaderActions) profileHeaderActions.style.display = "flex";
+
+  const container = document.getElementById("profilePillActionContainer");
+  if (container) {
+    container.innerHTML = `
+      <button type="button" class="yt-full-pill-btn" id="profilePrimaryPillBtn" onclick="handleProfilePrimaryPillAction()">
+        Edit profile
+      </button>
+      <button type="button" id="editProfileBtn" style="display:none;" onclick="if (typeof openEditProfileScreen === 'function') openEditProfileScreen();"></button>
+    `;
+  }
+
   UserProfileStore.syncDOM();
   renderProfileGrid();
 }
+window.closeUserProfile = closeUserProfile;
 window.closeUserProfile = closeUserProfile;
 
 window.addEventListener("popstate", (e) => {
@@ -266,14 +397,14 @@ window.addEventListener("popstate", (e) => {
       }
 
       try {
-        // Strictly query posts belonging to current active user
-        const currentUserId = getCurrentUserId();
+        // Strictly query posts belonging to active profile user (or current logged-in user)
+        const targetUserId = viewingProfileUserId || getCurrentUserId();
         let userPosts = [];
-        if (supabase && currentUserId) {
+        if (supabase && targetUserId) {
           const { data, error } = await supabase
             .from('posts')
             .select('*')
-            .eq('user_id', currentUserId)
+            .eq('user_id', targetUserId)
             .order('created_at', { ascending: false });
 
           if (!error && Array.isArray(data)) {

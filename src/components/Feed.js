@@ -8,6 +8,8 @@ import { openReelsCommentsSheet, openReelsShareSheet, getStoredComments, openPos
 import { openProfile } from "./Profile.js";
 import { renderSuggestedReels } from "./SuggestedReels.js";
 import { deriveCloudinaryThumbnailUrl, fetchSupabasePosts } from "../services/cloudinaryService.js";
+import { isFollowingUser, toggleFollowUser } from "../services/followService.js";
+import { getCurrentUserId } from "../services/avatarService.js";
 
 /* =======================================================
    ১. হোম ফিড এরর বাউন্ডারি (Error Boundary Fallback)
@@ -63,34 +65,50 @@ function getPostThumbnail(post) {
 ======================================================= */
 function createPostCardElement(post, index = 0) {
   const currentUserId = typeof getCurrentUserId === "function" ? getCurrentUserId() : null;
-  const isShabnam = post.user === 'shabnam_ai' || post.id === 'shabnam_reel_1';
+  const profile = post.profiles || {};
+  const isShabnam = post.user === 'shabnam_ai' || post.id === 'shabnam_reel_1' || profile.username === 'shabnam_ai';
 
-  // Render author name directly from post.profiles?.username || post.author_name
+  // Strictly render author from post.profiles, never overwrite with active session username
   const authorUsername = isShabnam 
     ? "shabnam_ai" 
-    : (post.profiles?.username || post.author_name || post.user || UserProfileStore.state.username || "sohel_077");
+    : (profile.username || post.author_name || (post.user_id ? `creator_${String(post.user_id).slice(0, 6)}` : "creator"));
 
   const authorAvatar = isShabnam 
     ? SHABNAM_AI_PROFILE.avatar 
-    : (post.profiles?.avatar_url || post.avatar || UserProfileStore.state.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100");
+    : (profile.avatar_url || post.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100");
 
-  const isCurrentUser = !isShabnam && (
-    authorUsername === UserProfileStore.state.username ||
-    (post.user_id && currentUserId && String(post.user_id) === String(currentUserId)) ||
-    post.isCurrentUser
+  const isCurrentUser = !isShabnam && Boolean(
+    post.user_id && currentUserId && String(post.user_id) === String(currentUserId)
   );
 
   const displayUser = authorUsername;
   const displayAvatar = authorAvatar;
-  const avatarClass = isCurrentUser ? "current-user-avatar current-user-post-avatar" : "";
-  const usernameClass = isCurrentUser ? "current-user-username current-user-post-username" : "";
   const posterImg = getPostThumbnail(post);
+  const targetUserId = post.user_id || profile.id;
 
   let userClickAttr = "";
   if (isCurrentUser) {
-    userClickAttr = 'onclick="openMyProfileTab()" style="cursor: pointer;" title="View Profile"';
+    userClickAttr = 'onclick="openMyProfileTab()" style="cursor: pointer;" title="View My Profile"';
   } else if (isShabnam) {
     userClickAttr = 'onclick="openProfile(\'shabnam_ai\')" style="cursor: pointer;" title="View Shabnam AI Profile"';
+  } else if (targetUserId) {
+    userClickAttr = `onclick="openProfile('${targetUserId}')" style="cursor: pointer;" title="View ${displayUser}'s Profile"`;
+  }
+
+  // Follow button for other creators on post card
+  let followBtnHtml = "";
+  if (!isCurrentUser && !isShabnam && targetUserId) {
+    const isFoll = isFollowingUser(targetUserId);
+    followBtnHtml = `
+      <button 
+        type="button" 
+        data-follow-user-id="${targetUserId}"
+        class="post-feed-follow-btn text-[12px] font-semibold ${isFoll ? 'text-neutral-400 hover:text-neutral-500' : 'text-sky-500 hover:text-sky-600'} ml-1.5 cursor-pointer"
+        onclick="event.stopPropagation(); toggleFollowUser('${targetUserId}', '${displayUser}')"
+      >
+        ${isFoll ? '• Following' : '• Follow'}
+      </button>
+    `;
   }
 
   const card = document.createElement("div");
@@ -103,18 +121,18 @@ function createPostCardElement(post, index = 0) {
   const postComments = typeof getStoredComments === "function" ? getStoredComments(post.id) : [];
   const initialCommentsCount = (postComments && postComments.length) ? postComments.length : (post.commentsCount || 18);
 
-  // Requirement 1 & 2: Exact Instagram feed dimensions (4:5 / 16:9), skeleton shimmer & zero broken image
   card.innerHTML = `
     <div class="post-header">
       <div class="post-user" ${userClickAttr}>
         <div class="post-avatar">
-          ${displayAvatar ? `<img src="${displayAvatar}" class="${avatarClass}" alt="${displayUser}" crossorigin="anonymous" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : ''}
+          ${displayAvatar ? `<img src="${displayAvatar}" alt="${displayUser}" crossorigin="anonymous" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : ''}
           <i class="fa-solid fa-user" style="${displayAvatar ? 'display:none;' : ''}"></i>
         </div>
         <div class="post-user-meta">
           <div class="flex items-center gap-1">
-            <span class="post-username ${usernameClass}">${displayUser}</span>
+            <span class="post-username font-semibold text-[13.5px] text-neutral-900 dark:text-white">${displayUser}</span>
             ${isShabnam ? '<span class="text-sky-500 text-[11px]" title="Verified"><i class="fa-solid fa-circle-check"></i></span>' : ''}
+            ${followBtnHtml}
           </div>
           <span class="post-location">${post.location || 'Original Audio'}</span>
         </div>

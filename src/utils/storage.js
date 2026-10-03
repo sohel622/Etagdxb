@@ -94,8 +94,8 @@ import { db } from "../services/database.js";
           if (img.src !== avatar) img.src = avatar;
         });
 
-        // 2. All Current User Username Elements Across App (Feed Post headers, Post captions, Story bubbles)
-        document.querySelectorAll(".current-user-username, .current-user-post-username, .current-user-reel-username").forEach(el => {
+        // 2. All Current User Profile Username Elements
+        document.querySelectorAll(".current-user-profile-username, #chatsHeaderUsername").forEach(el => {
           if (el.id !== "profileHeaderUsername") {
             el.textContent = username;
           }

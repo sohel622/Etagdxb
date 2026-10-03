@@ -11,6 +11,8 @@ import { isUserAuthenticated, openAuthOnboardingFlow, triggerGoogleOneTap } from
 import { initIncomingShareListener } from "./services/shareIntentHandler.js";
 import { initAvatarRealtimeSync } from "./services/avatarService.js";
 import { initAccountSwitcher } from "./components/AccountSwitcher.js";
+import { initRealtimeMessagesListener } from "./services/chatService.js";
+import { syncFollowingFromSupabase } from "./services/followService.js";
 
 export const App = {
   async init() {
@@ -72,6 +74,10 @@ export const App = {
 
     // 8. Live Real-Time Avatar Synchronization across App
     initAvatarRealtimeSync();
+
+    // 9. Realtime Direct Messaging & Follows Synchronization
+    initRealtimeMessagesListener();
+    syncFollowingFromSupabase();
   }
 };
 

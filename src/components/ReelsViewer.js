@@ -141,20 +141,18 @@ import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl } from "../services/cl
         const isShabnamReel = reel.user === 'shabnam_ai' || (reel.id && reel.id === 'shabnam_reel_1') || (profile.username === 'shabnam_ai');
         const authorUsername = isShabnamReel
           ? "shabnam_ai"
-          : (profile.username || profile.display_name || reel.author_name || reel.user || UserProfileStore.state.username || "sohel_077");
+          : (profile.username || reel.author_name || (reel.user_id ? `creator_${String(reel.user_id).slice(0, 6)}` : "creator"));
         const authorAvatar = isShabnamReel
           ? "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png"
-          : (profile.avatar_url || reel.avatar_url || reel.avatar || UserProfileStore.state.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100");
-        const isCurrentUserReel = !isShabnamReel && (
-          (reel.user_id && currentUserId && String(reel.user_id) === String(currentUserId)) || 
-          authorUsername === UserProfileStore.state.username ||
-          reel.isCurrentUser
+          : (profile.avatar_url || reel.avatar_url || reel.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100");
+        const isCurrentUserReel = !isShabnamReel && Boolean(
+          reel.user_id && currentUserId && String(reel.user_id) === String(currentUserId)
         );
 
         const displayUser = authorUsername;
         const displayAvatar = authorAvatar;
-        const avatarClass = isCurrentUserReel ? "reels-user-avatar current-user-avatar current-user-reel-avatar" : "reels-user-avatar";
-        const usernameClass = isCurrentUserReel ? "reels-username current-user-username current-user-reel-username" : "reels-username";
+        const avatarClass = "reels-user-avatar";
+        const usernameClass = "reels-username";
 
         const item = document.createElement("div");
         item.className = "reel-item";

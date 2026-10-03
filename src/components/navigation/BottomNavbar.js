@@ -2,6 +2,7 @@
 import { DEFAULT_NAV } from "../../utils/mockData.js";
 import { UserProfileStore } from "../../utils/storage.js";
 import { setupProfileIconLongPress } from "../AccountSwitcher.js";
+import { updateChatNavUnreadBadge } from "../../services/chatService.js";
 
 let currentNav = [...DEFAULT_NAV];
 try {
@@ -135,13 +136,16 @@ function renderNavBtnContent(item, isActive) {
   }
 
   if (item.id === "messages") {
-    // Icon 4 (Chat): Crisp messaging speech bubble icon (24px x 24px)
+    // Icon 4 (Chat): Crisp messaging speech bubble icon with unread badge
     return `
-      <svg class="nav-icon messages-icon w-[24px] h-[24px] shrink-0" viewBox="0 0 24 24" fill="none">
-        <path d="M4.5 4.5h15a2.5 2.5 0 0 1 2.5 2.5v7.5a2.5 2.5 0 0 1-2.5 2.5H8.2l-3.8 3.5c-.5.4-1.2.1-1.2-.6v-2.9h-.2A2.5 2.5 0 0 1 2 14.5V7a2.5 2.5 0 0 1 2.5-2.5z" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-        <line x1="7.2" y1="8.8" x2="16.8" y2="8.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        <line x1="7.2" y1="12.6" x2="16.8" y2="12.6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      </svg>
+      <div class="relative flex items-center justify-center">
+        <svg class="nav-icon messages-icon w-[24px] h-[24px] shrink-0" viewBox="0 0 24 24" fill="none">
+          <path d="M4.5 4.5h15a2.5 2.5 0 0 1 2.5 2.5v7.5a2.5 2.5 0 0 1-2.5 2.5H8.2l-3.8 3.5c-.5.4-1.2.1-1.2-.6v-2.9h-.2A2.5 2.5 0 0 1 2 14.5V7a2.5 2.5 0 0 1 2.5-2.5z" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="7.2" y1="8.8" x2="16.8" y2="8.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="7.2" y1="12.6" x2="16.8" y2="12.6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span id="chatNavUnreadBadge" class="absolute -top-1.5 -right-2 min-w-[17px] h-[17px] px-1 bg-[#ff3040] text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none shadow-xs border-[1.5px] border-white dark:border-black pointer-events-none transition-transform" style="display: none;">0</span>
+      </div>
     `;
   }
 
@@ -202,6 +206,7 @@ function renderNavigation() {
   requestAnimationFrame(() => {
     const activeBtn = document.querySelector('.nav-btn.active') || document.querySelector('.nav-btn');
     if (activeBtn) updateActivePillPosition(activeBtn);
+    if (typeof updateChatNavUnreadBadge === "function") updateChatNavUnreadBadge();
   });
 }
 

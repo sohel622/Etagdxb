@@ -4,6 +4,8 @@ import { UserProfileStore, showInstagramToast, getPinnedConversations, setPinned
 import { generateSmartInAppAIResponse, fetchLiveGeminiAI, generateVideoContextAIResponse } from "../services/aiService.js";
 import { navigateToReel } from "./ReelsViewer.js";
 import { openChatReelsViewer } from "./reels/index.js";
+import { getSavedConversations } from "../services/chatService.js";
+import { openDirectChatWithUser } from "./DirectChat.js";
 
 let chatSearchQuery = "";
 let chatAttachedImageBase64 = null;
@@ -339,8 +341,20 @@ let justTriggeredChatSheet = false;
         isAi: true
       };
 
+      const savedDirectConvs = typeof getSavedConversations === "function" ? getSavedConversations() : [];
+      const userConvs = savedDirectConvs.map(c => ({
+        id: c.id,
+        user_id: c.user_id,
+        name: c.name || c.username,
+        username: c.username,
+        avatar: c.avatar,
+        lastMessage: c.lastMessage || "Active now",
+        time: c.time || "Now",
+        isAi: false
+      }));
+
       const sampleList = DEFAULT_CONVERSATIONS.filter(c => !deletedList.includes(c.id));
-      const all = [shabnamEntry, ...sampleList];
+      const all = [shabnamEntry, ...userConvs, ...sampleList.filter(s => !userConvs.some(u => u.username === s.username))];
 
       // Sort: pinned conversations to top
       all.sort((a, b) => {
@@ -373,8 +387,20 @@ let justTriggeredChatSheet = false;
           if (item.isAi) {
             openShabnamChat();
           } else {
-            if (typeof showInstagramToast === "function") {
-              showInstagramToast(`Conversation with @${item.username}`);
+            if (typeof openDirectChatWithUser === "function") {
+              openDirectChatWithUser({
+                id: item.user_id || item.id,
+                username: item.username,
+                name: item.name,
+                avatar: item.avatar
+              });
+            } else if (typeof window !== "undefined" && typeof window.openDirectChatWithUser === "function") {
+              window.openDirectChatWithUser({
+                id: item.user_id || item.id,
+                username: item.username,
+                name: item.name,
+                avatar: item.avatar
+              });
             }
           }
         };
