@@ -86,6 +86,7 @@ function createPostCardElement(post, index = 0) {
 
   const displayUser = authorUsername;
   const displayAvatar = authorAvatar;
+  const usernameClass = "font-semibold";
   const posterImg = getPostThumbnail(post);
   const targetUserId = post.user_id || profile.id;
 
@@ -274,19 +275,7 @@ async function renderHomeFeed() {
         console.log("[Feed] Executing Supabase query: posts joined with author profiles...");
         const { data: posts, error } = await supabase
           .from('posts')
-          .select(`
-            id,
-            video_url,
-            thumbnail_url,
-            caption,
-            created_at,
-            user_id,
-            profiles (
-              id,
-              username,
-              avatar_url
-            )
-          `)
+          .select('id, video_url, thumbnail_url, caption, created_at, user_id, profiles(id, username, avatar_url)')
           .order('created_at', { ascending: false });
 
         if (error) {

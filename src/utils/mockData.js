@@ -2,11 +2,11 @@
 
 export const DEFAULT_USER_PROFILE = {
   username: "sohelmommy_077",
-  name: "Sohel ✨",
+  name: "সোহেলমোম্বর",
   pronouns: "he/him",
   bio: "🚀 Digital Creator & Explorer. Daily reels & updates!",
   link: "flashgram.me/sohelmommy",
-  avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80"
+  avatar: "https://oppwfervzdiogunonbot.supabase.co/storage/v1/object/public/avatars/5611f2e8-0005-482f-9929-69d2efab41df/1788541590088_8943.png"
 };
 
 export const SHABNAM_AI_PROFILE = {

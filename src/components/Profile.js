@@ -296,6 +296,10 @@ export async function syncCurrentLoggedInUserProfile() {
   UserProfileStore.syncDOM();
   const headerUsername = document.getElementById("profileHeaderUsername");
   if (headerUsername) headerUsername.textContent = UserProfileStore.state.username || "sohelmommy_077";
+  const profileDisplay = document.getElementById("profileDisplayName");
+  if (profileDisplay) profileDisplay.textContent = UserProfileStore.state.name || "সোহেলমোম্বর";
+  const verifiedBadge = document.getElementById("profileVerifiedBadge");
+  if (verifiedBadge) verifiedBadge.style.display = "inline-flex";
   const profileHandle = document.getElementById("profileHandleText");
   if (profileHandle) profileHandle.textContent = `@${UserProfileStore.state.username || "sohelmommy_077"}`;
   const profileAvatar = document.getElementById("mainProfileAvatarImg");
@@ -345,10 +349,20 @@ function closeUserProfile() {
     `;
   }
 
+  const verifiedBadge = document.getElementById("profileVerifiedBadge");
+  if (verifiedBadge) verifiedBadge.style.display = "inline-flex";
+  const profileDisplay = document.getElementById("profileDisplayName");
+  if (profileDisplay) profileDisplay.textContent = UserProfileStore.state.name || "সোহেলমোম্বর";
+  const headerUsername = document.getElementById("profileHeaderUsername");
+  if (headerUsername) headerUsername.textContent = UserProfileStore.state.username || "sohelmommy_077";
+  const profileHandle = document.getElementById("profileHandleText");
+  if (profileHandle) profileHandle.textContent = `@${UserProfileStore.state.username || "sohelmommy_077"}`;
+  const profileAvatar = document.getElementById("mainProfileAvatarImg");
+  if (profileAvatar && UserProfileStore.state.avatar) profileAvatar.src = UserProfileStore.state.avatar;
+
   UserProfileStore.syncDOM();
   renderProfileGrid();
 }
-window.closeUserProfile = closeUserProfile;
 window.closeUserProfile = closeUserProfile;
 
 window.addEventListener("popstate", (e) => {

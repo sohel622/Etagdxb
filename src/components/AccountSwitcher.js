@@ -9,53 +9,72 @@ const STORAGE_KEY_SAVED_ACCOUNTS = "flashgram_saved_accounts";
 const STORAGE_KEY_ACTIVE_ACCOUNT = "flashgram_active_account_id";
 
 /**
- * Get all saved accounts from localStorage, seeded with active user if empty
+ * Get all saved accounts from localStorage, strictly deduplicated by unique user.id
+ * and enforced to maximum 3 accounts per device.
  */
 export function getSavedAccounts() {
-  let accounts = [];
+  let rawList = [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY_SAVED_ACCOUNTS);
     if (raw) {
-      accounts = JSON.parse(raw);
+      rawList = JSON.parse(raw);
     }
+    if (!Array.isArray(rawList)) rawList = [];
   } catch (_) {
-    accounts = [];
+    rawList = [];
   }
 
-  const currentUid = getCurrentUserId();
-  const currentUsername = UserProfileStore.state.username || "sohel_077";
-  const currentName = UserProfileStore.state.name || "Sohel ✨";
-  const currentAvatar = UserProfileStore.state.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400";
-  const currentEmail = UserProfileStore.state.email || "";
+  const currentUid = getCurrentUserId() || "5611f2e8-0005-482f-9929-69d2efab41df";
+  const currentUsername = UserProfileStore.state.username || "sohelmommy_077";
+  const currentName = UserProfileStore.state.name || "সোহেলমোম্বর";
+  const currentAvatar = UserProfileStore.state.avatar || "https://oppwfervzdiogunonbot.supabase.co/storage/v1/object/public/avatars/5611f2e8-0005-482f-9929-69d2efab41df/1788541590088_8943.png";
+  const currentEmail = UserProfileStore.state.email || "sohelmommy@gmail.com";
 
-  // Ensure current user is in saved accounts list
-  const existingIdx = accounts.findIndex(a => a.id === currentUid || a.username === currentUsername);
-  if (existingIdx === -1) {
-    accounts.unshift({
-      id: currentUid,
-      username: currentUsername,
-      name: currentName,
-      avatar: currentAvatar,
-      email: currentEmail,
-      lastActive: Date.now()
+  // Strict deduplication by unique user.id
+  const seenIds = new Set();
+  const seenUsernames = new Set();
+  let accounts = [];
+
+  // Ensure current active user is always first
+  accounts.push({
+    id: currentUid,
+    username: currentUsername,
+    name: currentName,
+    avatar: currentAvatar,
+    email: currentEmail,
+    lastActive: Date.now()
+  });
+  seenIds.add(String(currentUid));
+  seenUsernames.add(currentUsername.toLowerCase());
+
+  rawList.forEach(item => {
+    if (!item) return;
+    const uidStr = String(item.id || "").trim();
+    const uName = String(item.username || "").toLowerCase().trim();
+    if (!uidStr || seenIds.has(uidStr)) return;
+    if (uName && seenUsernames.has(uName)) return;
+
+    seenIds.add(uidStr);
+    if (uName) seenUsernames.add(uName);
+
+    accounts.push({
+      id: uidStr,
+      username: item.username || "user",
+      name: item.name || item.displayName || item.username || "User",
+      avatar: item.avatar || item.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
+      email: item.email || "",
+      lastActive: item.lastActive || Date.now()
     });
-    try {
-      localStorage.setItem(STORAGE_KEY_SAVED_ACCOUNTS, JSON.stringify(accounts));
-    } catch (_) {}
-  } else {
-    // Keep current account details up to date
-    accounts[existingIdx] = {
-      ...accounts[existingIdx],
-      username: currentUsername,
-      name: currentName,
-      avatar: currentAvatar,
-      email: currentEmail || accounts[existingIdx].email,
-      lastActive: Date.now()
-    };
-    try {
-      localStorage.setItem(STORAGE_KEY_SAVED_ACCOUNTS, JSON.stringify(accounts));
-    } catch (_) {}
+  });
+
+  // Enforce 3-account limit per device
+  if (accounts.length > 3) {
+    accounts = accounts.slice(0, 3);
   }
+
+  try {
+    localStorage.setItem(STORAGE_KEY_SAVED_ACCOUNTS, JSON.stringify(accounts));
+  } catch (_) {}
 
   return accounts;
 }
@@ -66,8 +85,8 @@ export function getSavedAccounts() {
 export function addOrUpdateSavedAccount(account) {
   if (!account || (!account.id && !account.username)) return;
   const accounts = getSavedAccounts();
-  const uid = account.id || ("user_" + account.username);
-  const idx = accounts.findIndex(a => a.id === uid || a.username === account.username);
+  const uid = String(account.id || ("user_" + account.username));
+  const idx = accounts.findIndex(a => String(a.id) === uid || a.username.toLowerCase() === (account.username || "").toLowerCase());
 
   const accObj = {
     id: uid,
@@ -81,7 +100,12 @@ export function addOrUpdateSavedAccount(account) {
   if (idx >= 0) {
     accounts[idx] = { ...accounts[idx], ...accObj };
   } else {
-    accounts.push(accObj);
+    // Enforce 3-account limit
+    if (accounts.length < 3) {
+      accounts.push(accObj);
+    } else {
+      accounts[2] = accObj;
+    }
   }
 
   try {
@@ -97,7 +121,7 @@ export function addOrUpdateSavedAccount(account) {
  */
 export async function switchActiveAccount(targetAccountId) {
   const accounts = getSavedAccounts();
-  const target = accounts.find(a => a.id === targetAccountId || a.username === targetAccountId);
+  const target = accounts.find(a => String(a.id) === String(targetAccountId));
   if (!target) return;
 
   // 1. Update localStorage active user & session
@@ -135,7 +159,10 @@ export async function switchActiveAccount(targetAccountId) {
   if (storyAvatar) storyAvatar.src = target.avatar;
 
   const profileMainAvatar = document.getElementById("mainProfileAvatarImg");
-  if (profileMainAvatar) profileMainAvatar.src = target.avatar;
+  if (profileMainAvatar) {
+    profileMainAvatar.alt = "";
+    profileMainAvatar.src = target.avatar;
+  }
 
   const profileHeaderUser = document.getElementById("profileHeaderUsername");
   if (profileHeaderUser) profileHeaderUser.textContent = target.username;
@@ -146,7 +173,7 @@ export async function switchActiveAccount(targetAccountId) {
   const profileHandle = document.getElementById("profileHandleText");
   if (profileHandle) profileHandle.textContent = `@${target.username}`;
 
-  // 4. Close the bottom sheet
+  // 4. Close the bottom sheet smoothly
   closeMultiAccountBottomSheet();
 
   // 5. Refresh profile grid & posts count strictly for new active user
@@ -208,6 +235,12 @@ export function closeMultiAccountBottomSheet() {
  * Preserves current session and opens onboarding Sign-Up / Register modal
  */
 export function openAddAccountFlow() {
+  const accounts = getSavedAccounts();
+  if (accounts.length >= 3) {
+    showInstagramToast("Maximum 3 accounts allowed on this device. Please log out of an account first.");
+    return;
+  }
+
   closeMultiAccountBottomSheet();
 
   // Flag that an account is being added so existing credentials aren't wiped
@@ -234,10 +267,17 @@ function renderAccountsListInBottomSheet() {
 
   const accounts = getSavedAccounts();
   const currentUid = getCurrentUserId();
-  const currentUsername = UserProfileStore.state.username || "sohel_077";
+  const activeAccountId = localStorage.getItem(STORAGE_KEY_ACTIVE_ACCOUNT) || currentUid;
 
-  container.innerHTML = accounts.map(account => {
-    const isActive = account.id === currentUid || account.username === currentUsername;
+  // Resolve exactly ONE active index to prevent multiple checkmarks
+  let activeIndex = accounts.findIndex(a => String(a.id) === String(activeAccountId));
+  if (activeIndex === -1) {
+    activeIndex = accounts.findIndex(a => a.username && a.username.toLowerCase() === (UserProfileStore.state.username || "").toLowerCase());
+  }
+  const resolvedActiveIdx = activeIndex >= 0 ? activeIndex : 0;
+
+  container.innerHTML = accounts.map((account, idx) => {
+    const isActive = idx === resolvedActiveIdx;
     return `
       <div 
         class="multi-account-item flex items-center justify-between py-3 px-3 rounded-xl hover:bg-neutral-800/60 active:bg-neutral-800 transition-colors cursor-pointer select-none"
@@ -254,7 +294,7 @@ function renderAccountsListInBottomSheet() {
             />
           </div>
           <div class="min-w-0 text-left">
-            <div class="font-semibold text-[15px] text-white truncate">${account.username}</div>
+            <div class="font-semibold text-[15px] text-white truncate">@${account.username}</div>
             <div class="text-[12px] text-neutral-400 truncate">${account.name || account.email || 'Flashgram Account'}</div>
           </div>
         </div>
