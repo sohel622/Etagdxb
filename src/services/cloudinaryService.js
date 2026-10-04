@@ -149,7 +149,7 @@ export async function fetchSupabasePosts() {
   let posts = null;
 
   try {
-    // 1. Relational join with profiles table as requested: profiles (id, username, avatar_url)
+    // 1. Relational join with profiles table as requested: profiles:user_id (id, username, avatar_url)
     const { data, error } = await supabase
       .from('posts')
       .select(`
@@ -159,7 +159,7 @@ export async function fetchSupabasePosts() {
         caption,
         created_at,
         user_id,
-        profiles (
+        profiles:user_id (
           id,
           username,
           avatar_url
@@ -168,9 +168,28 @@ export async function fetchSupabasePosts() {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.warn("[Feed] Join query note:", error.message || error);
+      console.warn("[Feed] profiles:user_id join note, trying standard profiles join:", error.message || error);
+      const fallbackRes = await supabase
+        .from('posts')
+        .select(`
+          id,
+          video_url,
+          thumbnail_url,
+          caption,
+          created_at,
+          user_id,
+          profiles (
+            id,
+            username,
+            avatar_url
+          )
+        `)
+        .order('created_at', { ascending: false });
+      if (!fallbackRes.error && Array.isArray(fallbackRes.data) && fallbackRes.data.length > 0) {
+        posts = fallbackRes.data;
+      }
     } else if (Array.isArray(data) && data.length > 0) {
-      console.log(`[Feed] Successfully retrieved ${data.length} posts with relation join.`);
+      console.log(`[Feed] Successfully retrieved ${data.length} posts with profiles:user_id join.`);
       posts = data;
     }
   } catch (err) {
@@ -239,8 +258,8 @@ export async function fetchSupabasePosts() {
           } else if (uidStr.includes("9c5db14c")) {
             usernameVal = "syyyyyy";
           } else {
-            // Strictly render 'user', NO random generator string!
-            usernameVal = "user";
+            // Strictly render 'creator', NO random generator string or generic 'user'!
+            usernameVal = "creator";
           }
         }
 
@@ -276,7 +295,7 @@ export async function fetchSupabasePosts() {
     if (Array.isArray(pr)) pr = pr[0];
     if (!pr || typeof pr !== 'object') pr = {};
 
-    const genuineUsername = pr.username || pr.display_name || post.author_name || 'user';
+    const genuineUsername = pr.username || pr.display_name || post.author_name || 'creator';
     const genuineAvatar = pr.avatar_url || post.avatar || defaultAvatar;
     const stableId = post.id || `post_${post.created_at || idx}`;
 
@@ -303,12 +322,12 @@ export async function savePostToSupabase({ videoUrl, thumbnailUrl, caption, user
     throw new Error("Supabase client is not initialized");
   }
 
-  // Resolve authentic user ID
+  // Obtain current authenticated user: const { data: { user } } = await supabase.auth.getUser();
   let user = null;
   if (supabase.auth) {
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      user = authData?.user;
+      const { data } = await supabase.auth.getUser();
+      user = data?.user;
     } catch (_) {}
     if (!user) {
       try {
@@ -318,7 +337,7 @@ export async function savePostToSupabase({ videoUrl, thumbnailUrl, caption, user
     }
   }
 
-  const effectiveUserId = userId || user?.id || null;
+  const effectiveUserId = userId || user?.id || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null);
 
   const postPayload = {
     video_url: videoUrl,
@@ -331,7 +350,7 @@ export async function savePostToSupabase({ videoUrl, thumbnailUrl, caption, user
     postPayload.user_id = effectiveUserId;
   }
 
-  console.log("Inserting post into Supabase 'posts' table:", postPayload);
+  console.log("Inserting post into Supabase 'posts' table strictly with user_id:", effectiveUserId, postPayload);
 
   // Perform exact insert into 'posts' table with .select()
   const { data, error } = await supabase

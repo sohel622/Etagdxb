@@ -1045,15 +1045,23 @@ function startRecordingSession() {
             userId: authUser?.id
           });
 
-          const authorUsername = savedRecord?.profiles?.display_name || savedRecord?.profiles?.username || UserProfileStore.state.username;
+          const effectiveUid = authUser?.id || savedRecord?.user_id || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null);
+          const authorUsername = savedRecord?.profiles?.username || savedRecord?.profiles?.display_name || UserProfileStore.state.username || 'creator';
           const authorAvatar = savedRecord?.profiles?.avatar_url || UserProfileStore.state.avatar;
 
           const newPost = {
             id: String(savedRecord?.id || ('post_' + Date.now())),
+            user_id: effectiveUid,
             url: cldData.secure_url,
             video_url: cldData.secure_url,
             thumbnail: posterJpg,
             thumbnail_url: posterJpg,
+            profiles: {
+              id: effectiveUid,
+              username: authorUsername,
+              avatar_url: authorAvatar
+            },
+            author_name: authorUsername,
             user: authorUsername,
             avatar: authorAvatar,
             isCurrentUser: true,
@@ -1181,15 +1189,23 @@ function initMediaCreationAndCamera() {
             userId: authUser?.id
           });
 
-          const authorUsername = savedRecord?.profiles?.display_name || savedRecord?.profiles?.username || UserProfileStore.state.username;
+          const effectiveUid = authUser?.id || savedRecord?.user_id || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null);
+          const authorUsername = savedRecord?.profiles?.username || savedRecord?.profiles?.display_name || UserProfileStore.state.username || 'creator';
           const authorAvatar = savedRecord?.profiles?.avatar_url || UserProfileStore.state.avatar;
 
           const newPost = {
             id: String(savedRecord?.id || ('post_' + Date.now())),
+            user_id: effectiveUid,
             url: cldData.secure_url,
             video_url: cldData.secure_url,
             thumbnail: posterJpg,
             thumbnail_url: posterJpg,
+            profiles: {
+              id: effectiveUid,
+              username: authorUsername,
+              avatar_url: authorAvatar
+            },
+            author_name: authorUsername,
             user: authorUsername,
             avatar: authorAvatar,
             isCurrentUser: true,

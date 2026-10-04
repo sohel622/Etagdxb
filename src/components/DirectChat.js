@@ -51,8 +51,8 @@ export function openDirectChatWithUser(user) {
   const userEl = document.getElementById("directChatHeaderUsername");
 
   if (avatarImg) avatarImg.src = user.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
-  if (nameEl) nameEl.textContent = user.name || user.username || "Flashgram User";
-  if (userEl) userEl.textContent = user.username || "user";
+  if (nameEl) nameEl.textContent = user.name || user.username || "Flashgram Creator";
+  if (userEl) userEl.textContent = user.username || "creator";
 
   // 4. Render messages
   renderActiveDirectChatMessages();

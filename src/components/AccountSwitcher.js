@@ -1,9 +1,10 @@
 // AccountSwitcher Component (Instagram Multi-Account Bottom Sheet & Switcher)
 import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
 import { getCurrentUserId } from "../services/avatarService.js";
-import { renderProfileGrid, updateProfilePostsCount } from "./Profile.js";
+import { renderProfileGrid, updateProfilePostsCount, syncCurrentLoggedInUserProfile } from "./Profile.js";
 import { renderHomeFeed } from "./Feed.js";
 import { loadReels } from "./ReelsViewer.js";
+import { supabase } from "../supabaseClient.js";
 
 const STORAGE_KEY_SAVED_ACCOUNTS = "flashgram_saved_accounts";
 const STORAGE_KEY_ACTIVE_ACCOUNT = "flashgram_active_account_id";
@@ -24,11 +25,14 @@ export function getSavedAccounts() {
     rawList = [];
   }
 
-  const currentUid = getCurrentUserId() || "5611f2e8-0005-482f-9929-69d2efab41df";
-  const currentUsername = UserProfileStore.state.username || "sohelmommy_077";
-  const currentName = UserProfileStore.state.name || "সোহেলমোম্বর";
-  const currentAvatar = UserProfileStore.state.avatar || "https://oppwfervzdiogunonbot.supabase.co/storage/v1/object/public/avatars/5611f2e8-0005-482f-9929-69d2efab41df/1788541590088_8943.png";
-  const currentEmail = UserProfileStore.state.email || "sohelmommy@gmail.com";
+  const activeId = localStorage.getItem(STORAGE_KEY_ACTIVE_ACCOUNT) || getCurrentUserId();
+  const existingActive = rawList.find(a => String(a.id) === String(activeId));
+
+  const currentUid = activeId || (existingActive && existingActive.id) || "5611f2e8-0005-482f-9929-69d2efab41df";
+  const currentUsername = (existingActive && existingActive.username) || UserProfileStore.state.username || "sohelmommy_077";
+  const currentName = (existingActive && (existingActive.name || existingActive.displayName)) || UserProfileStore.state.name || "সোহেলমোম্বর";
+  const currentAvatar = (existingActive && (existingActive.avatar || existingActive.photoURL)) || UserProfileStore.state.avatar || "https://oppwfervzdiogunonbot.supabase.co/storage/v1/object/public/avatars/5611f2e8-0005-482f-9929-69d2efab41df/1788541590088_8943.png";
+  const currentEmail = (existingActive && existingActive.email) || UserProfileStore.state.email || "sohelmommy@gmail.com";
 
   // Strict deduplication by unique user.id
   const seenIds = new Set();
@@ -59,7 +63,7 @@ export function getSavedAccounts() {
 
     accounts.push({
       id: uidStr,
-      username: item.username || "user",
+      username: item.username || "creator",
       name: item.name || item.displayName || item.username || "User",
       avatar: item.avatar || item.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
       email: item.email || "",
@@ -90,7 +94,7 @@ export function addOrUpdateSavedAccount(account) {
 
   const accObj = {
     id: uid,
-    username: account.username || UserProfileStore.state.username || "user",
+    username: account.username || UserProfileStore.state.username || "creator",
     name: account.name || account.displayName || UserProfileStore.state.name || "User",
     avatar: account.avatar || account.photoURL || UserProfileStore.state.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
     email: account.email || "",
@@ -140,18 +144,39 @@ export async function switchActiveAccount(targetAccountId) {
     localStorage.setItem("user_custom_avatar_data", target.avatar);
   } catch (_) {}
 
-  // 2. Update UserProfileStore
+  // 2. Fetch fresh profile row from Supabase if available
+  if (supabase) {
+    try {
+      const { data: profRow } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', target.id)
+        .maybeSingle();
+
+      if (profRow) {
+        target.username = profRow.username || profRow.display_name || target.username;
+        target.name = profRow.display_name || profRow.full_name || target.name;
+        target.avatar = profRow.avatar_url || target.avatar;
+        target.bio = profRow.bio || target.bio;
+        target.website = profRow.website || profRow.link || target.website;
+      }
+    } catch (_) {}
+  }
+
+  // 3. Update UserProfileStore
   UserProfileStore.setState({
     username: target.username,
     name: target.name,
     avatar: target.avatar,
-    email: target.email || ""
+    email: target.email || "",
+    bio: target.bio || "",
+    website: target.website || ""
   });
   if (UserProfileStore.syncDOM) {
     UserProfileStore.syncDOM();
   }
 
-  // 3. Update DOM avatars & text
+  // 4. Update DOM avatars & text
   const navAvatar = document.querySelector(".nav-btn[data-id='profile'] img");
   if (navAvatar) navAvatar.src = target.avatar;
 
@@ -173,14 +198,18 @@ export async function switchActiveAccount(targetAccountId) {
   const profileHandle = document.getElementById("profileHandleText");
   if (profileHandle) profileHandle.textContent = `@${target.username}`;
 
-  // 4. Close the bottom sheet smoothly
+  // 5. Close the bottom sheet smoothly
   closeMultiAccountBottomSheet();
 
-  // 5. Refresh profile grid & posts count strictly for new active user
-  await renderProfileGrid();
-  await updateProfilePostsCount();
+  // 6. Refresh profile grid & sync current user profile strictly for new active user
+  if (typeof syncCurrentLoggedInUserProfile === "function") {
+    await syncCurrentLoggedInUserProfile();
+  } else {
+    await renderProfileGrid();
+    await updateProfilePostsCount();
+  }
 
-  // 6. Refresh home feed & reels
+  // 7. Refresh home feed & reels
   await renderHomeFeed();
   await loadReels();
 

@@ -66,15 +66,15 @@ function getPostThumbnail(post) {
 ======================================================= */
 function createPostCardElement(post, index = 0) {
   const currentUserId = typeof getCurrentUserId === "function" ? getCurrentUserId() : null;
-  const profile = post.profiles || {};
+  const profile = (Array.isArray(post.profiles) ? post.profiles[0] : post.profiles) || {};
   const isShabnam = post.user === 'shabnam_ai' || post.id === 'shabnam_reel_1' || profile.username === 'shabnam_ai';
 
   const defaultAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
 
-  // Strictly render author from post.profiles, never generate random creator strings
+  // Strictly render author from post.profiles, never fall back to static 'user'
   const authorUsername = isShabnam 
     ? "shabnam_ai" 
-    : (profile.username || post.author_name || 'user');
+    : (profile.username || post.author_name || 'creator');
 
   const authorAvatar = isShabnam 
     ? SHABNAM_AI_PROFILE.avatar 
@@ -273,10 +273,46 @@ async function renderHomeFeed() {
     if (supabase) {
       try {
         console.log("[Feed] Executing Supabase query: posts joined with author profiles...");
-        const { data: posts, error } = await supabase
+        let { data: posts, error } = await supabase
           .from('posts')
-          .select('id, video_url, thumbnail_url, caption, created_at, user_id, profiles(id, username, avatar_url)')
+          .select(`
+            id,
+            video_url,
+            thumbnail_url,
+            caption,
+            created_at,
+            user_id,
+            profiles:user_id (
+              id,
+              username,
+              avatar_url
+            )
+          `)
           .order('created_at', { ascending: false });
+
+        if (error) {
+          console.warn("[Feed] profiles:user_id join note, trying standard profiles join:", error.message || error);
+          const fallbackRes = await supabase
+            .from('posts')
+            .select(`
+              id,
+              video_url,
+              thumbnail_url,
+              caption,
+              created_at,
+              user_id,
+              profiles (
+                id,
+                username,
+                avatar_url
+              )
+            `)
+            .order('created_at', { ascending: false });
+          if (!fallbackRes.error && Array.isArray(fallbackRes.data) && fallbackRes.data.length > 0) {
+            posts = fallbackRes.data;
+            error = null;
+          }
+        }
 
         if (error) {
           console.warn("[Feed] Supabase posts join query note:", error.message || error);
@@ -305,12 +341,10 @@ async function renderHomeFeed() {
       const profile = (Array.isArray(p.profiles) ? p.profiles[0] : p.profiles) || {};
       
       const isMine = Boolean(
-        (p.user_id && currentUserId && String(p.user_id) === String(currentUserId)) ||
-        (p.user_id && String(p.user_id).includes("5611f2e8")) ||
-        (p.user === UserProfileStore.state.username)
+        p.user_id && currentUserId && String(p.user_id) === String(currentUserId)
       );
 
-      const authorUsername = profile.username || profile.display_name || p.author_name || (isMine ? (UserProfileStore.state.username || 'sohelmommy_077') : 'user');
+      const authorUsername = profile.username || profile.display_name || p.author_name || (isMine ? UserProfileStore.state.username : 'creator');
       const authorAvatar = profile.avatar_url || p.avatar_url || (isMine ? UserProfileStore.state.avatar : defaultAvatar);
       const stableId = p.id || `post_${p.created_at || idx}`;
 

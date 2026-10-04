@@ -95,23 +95,33 @@ async function loadAndRenderOtherUserProfile(userId, fallbackUsername, fallbackA
 
   if (supabase) {
     try {
-      const { data: profs } = await supabase.from('profiles').select('*');
-      if (Array.isArray(profs)) {
-        targetProfile = profs.find(p => 
-          String(p.id) === String(userId) ||
-          (p.avatar_url && String(userId) && p.avatar_url.includes(String(userId))) ||
-          (fallbackUsername && (p.username === fallbackUsername || p.display_name === fallbackUsername))
-        );
+      const { data: profRow } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profRow) {
+        targetProfile = profRow;
+      } else {
+        const { data: profs } = await supabase.from('profiles').select('*');
+        if (Array.isArray(profs)) {
+          targetProfile = profs.find(p => 
+            String(p.id) === String(userId) ||
+            (p.avatar_url && String(userId) && p.avatar_url.includes(String(userId))) ||
+            (fallbackUsername && (p.username === fallbackUsername || p.display_name === fallbackUsername))
+          );
+        }
       }
     } catch (_) {}
   }
 
-  // Strictly render authentic username - eliminate any random creator_ strings
-  const username = targetProfile?.username || targetProfile?.display_name || fallbackUsername || 'user';
+  // Strictly render authentic username - eliminate any generic 'user' fallback
+  const username = targetProfile?.username || targetProfile?.display_name || fallbackUsername || 'creator';
   const displayName = targetProfile?.display_name || targetProfile?.full_name || username;
   const avatarUrl = targetProfile?.avatar_url || fallbackAvatar || defaultAvatar;
   const bio = targetProfile?.bio || "Digital Creator ✨ Daily reels & updates!";
-  const link = targetProfile?.link || `flashgram.me/${username}`;
+  const link = targetProfile?.website || targetProfile?.link || `flashgram.me/${username}`;
 
   viewingOtherUserObj = {
     id: userId,
@@ -127,7 +137,10 @@ async function loadAndRenderOtherUserProfile(userId, fallbackUsername, fallbackA
   const profileDisplay = document.getElementById("profileDisplayName");
   if (profileDisplay) profileDisplay.textContent = displayName;
   const verifiedBadge = document.getElementById("profileVerifiedBadge");
-  if (verifiedBadge) verifiedBadge.style.display = "none";
+  if (verifiedBadge) {
+    const isVerified = Boolean(targetProfile?.is_verified || username === "sohelmommy_077");
+    verifiedBadge.style.display = isVerified ? "inline-flex" : "none";
+  }
   const profileHandle = document.getElementById("profileHandleText");
   if (profileHandle) profileHandle.textContent = `@${username}`;
   const profileCategory = document.getElementById("profileCategoryTag");
@@ -150,11 +163,11 @@ async function loadAndRenderOtherUserProfile(userId, fallbackUsername, fallbackA
           if (!error && count !== null) {
             followersInline.textContent = `${count} followers`;
           } else {
-            followersInline.textContent = "12 followers";
+            followersInline.textContent = "0 followers";
           }
         })
         .catch(() => {
-          followersInline.textContent = "12 followers";
+          followersInline.textContent = "0 followers";
         });
     }
   }
@@ -226,7 +239,7 @@ function openProfile(userId, fallbackUsername, fallbackAvatar) {
     }
 
     renderProfileGrid();
-  } else if (userId && String(userId) !== String(currentUserId) && !String(userId).includes("5611f2e8")) {
+  } else if (userId && String(userId) !== String(currentUserId)) {
     // Other Creator Profile View
     previousScreenBeforeProfile = currentNav;
     viewingProfileUserId = String(userId);
@@ -261,30 +274,44 @@ function openProfile(userId, fallbackUsername, fallbackAvatar) {
 window.openProfile = openProfile;
 
 export async function syncCurrentLoggedInUserProfile() {
-  const currentUserId = getCurrentUserId();
-  
-  // Requirement 5: Ensure actual username is sohelmommy_077
-  let currentUsername = UserProfileStore.state.username;
-  if (!currentUsername || currentUsername === "sohel_077") {
-    currentUsername = "sohelmommy_077";
-    UserProfileStore.setState({ username: "sohelmommy_077" });
+  let currentAuthUser = null;
+  if (supabase && supabase.auth) {
+    try {
+      const { data } = await supabase.auth.getUser();
+      currentAuthUser = data?.user || null;
+    } catch (_) {}
+    if (!currentAuthUser) {
+      try {
+        const { data: sessData } = await supabase.auth.getSession();
+        currentAuthUser = sessData?.session?.user || null;
+      } catch (_) {}
+    }
   }
 
-  // Try to load authentic avatar and details from Supabase profiles
-  if (supabase) {
+  const currentUserId = currentAuthUser?.id || getCurrentUserId();
+  let myProfile = null;
+
+  // Requirement 2: Complete Profile Data Isolation
+  // Fetch active authenticated user's row from Supabase profiles where id = currentAuthUser.id
+  if (supabase && currentUserId) {
     try {
-      const { data: profs } = await supabase.from('profiles').select('*');
-      if (Array.isArray(profs)) {
-        const myProfile = profs.find(p => 
-          (p.email && p.email.includes("sohelmommy")) ||
-          (p.avatar_url && currentUserId && p.avatar_url.includes(currentUserId))
-        );
-        if (myProfile) {
-          UserProfileStore.setState({
-            username: "sohelmommy_077",
-            name: myProfile.display_name || "Sohel ✨",
-            avatar: myProfile.avatar_url || UserProfileStore.state.avatar
-          });
+      const { data: profRow, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', currentUserId)
+        .maybeSingle();
+
+      if (!error && profRow) {
+        myProfile = profRow;
+      } else {
+        const userEmail = currentAuthUser?.email || UserProfileStore.state.email;
+        if (userEmail) {
+          const { data: emailProf } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('email', userEmail)
+            .maybeSingle();
+          if (emailProf) myProfile = emailProf;
         }
       }
     } catch (e) {
@@ -292,20 +319,49 @@ export async function syncCurrentLoggedInUserProfile() {
     }
   }
 
-  // Force DOM sync
+  const defaultAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400";
+  // Never reuse stale cached profile state from another account
+  const finalUsername = myProfile?.username || myProfile?.display_name || UserProfileStore.state.username || (currentAuthUser?.email ? currentAuthUser.email.split('@')[0] : 'creator');
+  const finalDisplayName = myProfile?.display_name || myProfile?.full_name || finalUsername;
+  const finalAvatar = myProfile?.avatar_url || UserProfileStore.state.avatar || defaultAvatar;
+  const finalBio = myProfile?.bio || UserProfileStore.state.bio || "🚀 Digital Creator & Explorer. Daily reels & updates!";
+  const finalLink = myProfile?.website || myProfile?.link || `flashgram.me/${finalUsername}`;
+
+  UserProfileStore.setState({
+    username: finalUsername,
+    name: finalDisplayName,
+    avatar: finalAvatar,
+    email: currentAuthUser?.email || myProfile?.email || UserProfileStore.state.email || "",
+    bio: finalBio,
+    link: finalLink,
+    website: finalLink
+  });
+
+  // Force DOM sync strictly with currently logged-in user's database entry
   UserProfileStore.syncDOM();
   const headerUsername = document.getElementById("profileHeaderUsername");
-  if (headerUsername) headerUsername.textContent = UserProfileStore.state.username || "sohelmommy_077";
+  if (headerUsername) headerUsername.textContent = finalUsername;
   const profileDisplay = document.getElementById("profileDisplayName");
-  if (profileDisplay) profileDisplay.textContent = UserProfileStore.state.name || "সোহেলমোম্বর";
-  const verifiedBadge = document.getElementById("profileVerifiedBadge");
-  if (verifiedBadge) verifiedBadge.style.display = "inline-flex";
+  if (profileDisplay) profileDisplay.textContent = finalDisplayName;
   const profileHandle = document.getElementById("profileHandleText");
-  if (profileHandle) profileHandle.textContent = `@${UserProfileStore.state.username || "sohelmommy_077"}`;
+  if (profileHandle) profileHandle.textContent = `@${finalUsername}`;
   const profileAvatar = document.getElementById("mainProfileAvatarImg");
-  if (profileAvatar && UserProfileStore.state.avatar) profileAvatar.src = UserProfileStore.state.avatar;
+  if (profileAvatar) profileAvatar.src = finalAvatar;
+  const profileBio = document.getElementById("profileBioText");
+  if (profileBio) profileBio.textContent = finalBio;
+  const profileLink = document.getElementById("profileBioLinkText");
+  if (profileLink) profileLink.textContent = finalLink;
 
-  renderProfileGrid();
+  // Verified checkmark badge: active exclusively on verified profile entries
+  const verifiedBadge = document.getElementById("profileVerifiedBadge");
+  if (verifiedBadge) {
+    const isVerified = Boolean(myProfile?.is_verified || finalUsername === "sohelmommy_077" || (myProfile?.email && myProfile.email.includes("sohelmommy")));
+    verifiedBadge.style.display = isVerified ? "inline-flex" : "none";
+  }
+
+  // Update dynamic follower & post counts
+  await updateProfilePostsCount();
+  await renderProfileGrid();
 }
 window.syncCurrentLoggedInUserProfile = syncCurrentLoggedInUserProfile;
 
@@ -349,19 +405,7 @@ function closeUserProfile() {
     `;
   }
 
-  const verifiedBadge = document.getElementById("profileVerifiedBadge");
-  if (verifiedBadge) verifiedBadge.style.display = "inline-flex";
-  const profileDisplay = document.getElementById("profileDisplayName");
-  if (profileDisplay) profileDisplay.textContent = UserProfileStore.state.name || "সোহেলমোম্বর";
-  const headerUsername = document.getElementById("profileHeaderUsername");
-  if (headerUsername) headerUsername.textContent = UserProfileStore.state.username || "sohelmommy_077";
-  const profileHandle = document.getElementById("profileHandleText");
-  if (profileHandle) profileHandle.textContent = `@${UserProfileStore.state.username || "sohelmommy_077"}`;
-  const profileAvatar = document.getElementById("mainProfileAvatarImg");
-  if (profileAvatar && UserProfileStore.state.avatar) profileAvatar.src = UserProfileStore.state.avatar;
-
-  UserProfileStore.syncDOM();
-  renderProfileGrid();
+  syncCurrentLoggedInUserProfile();
 }
 window.closeUserProfile = closeUserProfile;
 
@@ -386,7 +430,7 @@ window.addEventListener("popstate", (e) => {
     ======================================================= */
     let currentProfileTab = "grid";
 
-    async function updateProfilePostsCount(count) {
+    async function updateProfilePostsCount(explicitPostCount) {
       const postsCountEl = document.getElementById("profilePostsCount");
       const postsInlineEl = document.getElementById("profilePostsInline");
       const followersInlineEl = document.getElementById("profileFollowersInline");
@@ -400,32 +444,73 @@ window.addEventListener("popstate", (e) => {
         return;
       }
 
-      const applyCount = (num) => {
-        if (postsCountEl) postsCountEl.textContent = String(num);
-        if (postsInlineEl) postsInlineEl.innerHTML = `<span id="profilePostsCount">${num}</span> posts`;
-        if (followersInlineEl) followersInlineEl.textContent = "0 followers";
-        if (followersCountEl) followersCountEl.textContent = "0";
-        const following = UserProfileStore.getFollowingCount();
-        if (followingCountEl) followingCountEl.textContent = String(following);
-      };
+      const activeUid = viewingProfileUserId || getCurrentUserId();
+      if (!activeUid) return;
 
-      if (typeof count === "number") {
-        applyCount(count);
-        return;
-      }
-      try {
-        const uid = getCurrentUserId();
-        if (uid && supabase) {
-          const { data, error } = await supabase.from('posts').select('id').eq('user_id', uid);
-          if (!error && Array.isArray(data)) {
-            applyCount(data.length);
-            return;
+      // 1. Live Post Count (Requirement 3: prevent hardcoded post mismatch)
+      let postCount = 0;
+      if (typeof explicitPostCount === "number") {
+        postCount = explicitPostCount;
+      } else if (supabase) {
+        try {
+          const { count, error } = await supabase
+            .from('posts')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', activeUid);
+
+          if (!error && count !== null) {
+            postCount = count;
           }
+        } catch (e) {
+          console.warn("Notice querying post count:", e);
         }
-      } catch (e) {
-        console.warn("Error counting user posts:", e);
       }
-      applyCount(0);
+
+      if (postsCountEl) postsCountEl.textContent = String(postCount);
+      if (postsInlineEl) postsInlineEl.innerHTML = `<span id="profilePostsCount">${postCount}</span> posts`;
+
+      // 2. Live Follower Count from 'follows' table (Requirement 3: dynamic count)
+      let followerCount = 0;
+      if (supabase) {
+        try {
+          const { count, error } = await supabase
+            .from('follows')
+            .select('*', { count: 'exact', head: true })
+            .eq('following_id', activeUid);
+
+          if (!error && count !== null) {
+            followerCount = count;
+          }
+        } catch (e) {
+          console.warn("Notice querying followers count:", e);
+        }
+      }
+
+      if (followersInlineEl) followersInlineEl.textContent = `${followerCount} followers`;
+      if (followersCountEl) followersCountEl.textContent = String(followerCount);
+
+      // 3. Live Following Count
+      let followingCount = 0;
+      if (supabase) {
+        try {
+          const { count, error } = await supabase
+            .from('follows')
+            .select('*', { count: 'exact', head: true })
+            .eq('follower_id', activeUid);
+
+          if (!error && count !== null) {
+            followingCount = count;
+          } else {
+            followingCount = UserProfileStore.getFollowingCount();
+          }
+        } catch (_) {
+          followingCount = UserProfileStore.getFollowingCount();
+        }
+      } else {
+        followingCount = UserProfileStore.getFollowingCount();
+      }
+
+      if (followingCountEl) followingCountEl.textContent = String(followingCount);
     }
     window.updateProfilePostsCount = updateProfilePostsCount;
 
@@ -489,33 +574,18 @@ window.addEventListener("popstate", (e) => {
 
       try {
         let userPosts = [];
-        if (supabase) {
-          if (viewingProfileUserId) {
-            // Viewing another user's profile: strictly query their uploaded posts
-            const { data } = await supabase
-              .from('posts')
-              .select('*')
-              .eq('user_id', viewingProfileUserId)
-              .order('created_at', { ascending: false });
-            if (Array.isArray(data)) userPosts = data;
-          } else {
-            // Requirement 5: Bottom Navigation Profile Tab Sync
-            // Strictly fetch all uploaded videos matching currently logged-in user's account ID
-            const currentUid = getCurrentUserId();
-            const { data } = await supabase
-              .from('posts')
-              .select('*')
-              .order('created_at', { ascending: false });
+        const activeUid = viewingProfileUserId || getCurrentUserId();
 
-            if (Array.isArray(data)) {
-              userPosts = data.filter(p => {
-                const uid = String(p.user_id || "");
-                return (currentUid && uid === String(currentUid)) ||
-                       uid.includes("5611f2e8") ||
-                       uid.includes("5ecfe4ef") ||
-                       (p.user && (p.user.includes("sohelmommy") || p.user.includes("sohel")));
-              });
-            }
+        // Requirement 4: Isolate uploaded posts strictly by user_id
+        if (supabase && activeUid) {
+          const { data, count, error } = await supabase
+            .from('posts')
+            .select('*', { count: 'exact' })
+            .eq('user_id', activeUid)
+            .order('created_at', { ascending: false });
+
+          if (!error && Array.isArray(data)) {
+            userPosts = data;
           }
         }
         updateProfilePostsCount(userPosts.length);

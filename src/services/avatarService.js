@@ -9,12 +9,8 @@ let realtimeAvatarChannel = null;
  */
 export function getCurrentUserId() {
   try {
-    if (supabase && supabase.auth) {
-      if (typeof supabase.auth.getUser === "function") {
-        const sessionUser = supabase.auth.user ? supabase.auth.user() : null;
-        if (sessionUser && sessionUser.id) return sessionUser.id;
-      }
-    }
+    const activeAccId = localStorage.getItem("flashgram_active_account_id");
+    if (activeAccId && activeAccId.trim()) return activeAccId.trim();
   } catch (_) {}
 
   try {
@@ -27,13 +23,27 @@ export function getCurrentUserId() {
     }
   } catch (_) {}
 
-  return "user_" + (UserProfileStore.state.username || "sohel_077");
+  try {
+    if (supabase && supabase.auth) {
+      if (typeof supabase.auth.user === "function") {
+        const sessionUser = supabase.auth.user();
+        if (sessionUser && sessionUser.id) return sessionUser.id;
+      }
+    }
+  } catch (_) {}
+
+  return UserProfileStore.state.username ? "user_" + UserProfileStore.state.username : "5611f2e8-0005-482f-9929-69d2efab41df";
 }
 
 /**
  * Resolve authentic user UUID from Supabase Auth
  */
 export async function resolveCurrentUserId() {
+  try {
+    const activeAccId = localStorage.getItem("flashgram_active_account_id");
+    if (activeAccId && activeAccId.trim()) return activeAccId.trim();
+  } catch (_) {}
+
   if (supabase && supabase.auth) {
     try {
       const { data } = await supabase.auth.getUser();

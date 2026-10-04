@@ -172,8 +172,8 @@ export async function sendDirectMessage(recipient, text) {
   const convObj = {
     id: convId,
     user_id: recipient.id,
-    name: recipient.name || recipient.username || "User",
-    username: recipient.username || "user",
+    name: recipient.name || recipient.username || "Creator",
+    username: recipient.username || "creator",
     avatar: recipient.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100",
     lastMessage: text.trim(),
     time: "Just now",

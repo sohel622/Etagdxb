@@ -138,12 +138,12 @@ import { isFollowingUser, toggleFollowUser } from "../services/followService.js"
       livePosts.forEach((reel, index) => {
         const vidUrl = reel.video_url || reel.url || '';
         const thumbUrl = reel.thumbnail_url || (vidUrl ? deriveCloudinaryThumbnailUrl(vidUrl) : '');
-        const profile = reel.profiles || {};
+        const profile = (Array.isArray(reel.profiles) ? reel.profiles[0] : reel.profiles) || {};
         const currentUserId = typeof getCurrentUserId === "function" ? getCurrentUserId() : null;
         const isShabnamReel = reel.user === 'shabnam_ai' || (reel.id && reel.id === 'shabnam_reel_1') || (profile.username === 'shabnam_ai');
         const authorUsername = isShabnamReel
           ? "shabnam_ai"
-          : (profile.username || reel.author_name || (reel.user_id ? `creator_${String(reel.user_id).slice(0, 6)}` : "creator"));
+          : (profile.username || reel.author_name || "creator");
         const authorAvatar = isShabnamReel
           ? "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png"
           : (profile.avatar_url || reel.avatar_url || reel.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100");
