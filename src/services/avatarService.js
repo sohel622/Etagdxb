@@ -195,17 +195,21 @@ export function liveSyncUserProfile(userId, { username, avatarUrl, name } = {}) 
   const storyAvatar = document.getElementById("myStoryAvatarImg");
   if (storyAvatar && newAvatar) storyAvatar.src = newAvatar;
 
-  const profileAvatar = document.getElementById("profileMainAvatarImg");
+  const profileAvatar = document.getElementById("profileMainAvatarImg") || document.getElementById("mainProfileAvatarImg");
   if (profileAvatar && newAvatar) profileAvatar.src = newAvatar;
 
-  const profileTopUsername = document.getElementById("profileTopBarUsername");
+  const profileTopUsername = document.getElementById("profileTopBarUsername") || document.getElementById("profileHeaderUsername");
   if (profileTopUsername && newUsername) profileTopUsername.textContent = newUsername;
 
-  const profileFullName = document.getElementById("profileFullNameText");
+  const profileFullName = document.getElementById("profileFullNameText") || document.getElementById("profileDisplayName");
   if (profileFullName && newName) profileFullName.textContent = newName;
 
   const navUserAvatar = document.querySelector(".nav-btn[data-id='profile'] img");
   if (navUserAvatar && newAvatar) navUserAvatar.src = newAvatar;
+
+  document.querySelectorAll(".profile-nav-circle img").forEach(img => {
+    if (newAvatar) img.src = newAvatar;
+  });
 
   // 6. Broadcast custom event
   if (typeof window !== "undefined") {
@@ -216,43 +220,60 @@ export function liveSyncUserProfile(userId, { username, avatarUrl, name } = {}) 
 }
 
 /**
- * Upload profile photo to Supabase Storage bucket ('avatars') or directly update 'profiles'
+ * Upload profile photo to Supabase Storage bucket ('avatars') under filename ${currentUser.id}/avatar_${Date.now()}.png
+ * and immediately update the 'profiles' table.
  */
 export async function uploadUserAvatar(fileOrBlob, customUserId = null) {
   if (!fileOrBlob || !supabase) return null;
 
-  const userId = customUserId || (await resolveCurrentUserId());
-  const filePath = `${userId}/avatar_${Date.now()}.jpg`;
+  let currentAuthUser = null;
+  if (supabase.auth) {
+    try {
+      const { data } = await supabase.auth.getUser();
+      currentAuthUser = data?.user;
+    } catch (_) {}
+    if (!currentAuthUser) {
+      try {
+        const { data: sessData } = await supabase.auth.getSession();
+        currentAuthUser = sessData?.session?.user;
+      } catch (_) {}
+    }
+  }
+
+  const userId = customUserId || currentAuthUser?.id || (await resolveCurrentUserId());
+  const fileName = `${userId}/avatar_${Date.now()}.png`;
 
   let publicUrl = null;
 
-  // 1. Attempt upload to Supabase Storage 'avatars' bucket
+  // 1. Upload image to Supabase Storage bucket 'avatars' under filename ${currentUser.id}/avatar_${Date.now()}.png
   try {
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from("avatars")
-      .upload(filePath, fileOrBlob, {
-        contentType: "image/jpeg",
+      .upload(fileName, fileOrBlob, {
+        contentType: "image/png",
         cacheControl: "3600",
         upsert: true
       });
 
     if (!uploadError && uploadData) {
+      // 2. Retrieve the public URL via supabase.storage.from('avatars').getPublicUrl(fileName)
       const { data: publicUrlData } = supabase.storage
         .from("avatars")
-        .getPublicUrl(filePath);
+        .getPublicUrl(fileName);
       publicUrl = publicUrlData?.publicUrl;
+      console.log("✅ Avatar uploaded to Supabase Storage:", publicUrl);
     } else if (uploadError) {
-      console.warn("Supabase Storage bucket upload note:", uploadError.message);
+      console.warn("Supabase Storage bucket upload error:", uploadError.message);
     }
   } catch (storageErr) {
-    console.warn("Supabase Storage note:", storageErr);
+    console.warn("Supabase Storage exception:", storageErr);
   }
 
-  // 2. If storage upload encountered an RLS policy issue, fall back to Cloudinary upload or direct image URL
+  // Fallback to Cloudinary or base64 data URL if storage upload failed
   if (!publicUrl) {
     try {
       const formData = new FormData();
-      formData.append("file", fileOrBlob, "avatar.jpg");
+      formData.append("file", fileOrBlob, "avatar.png");
       formData.append("upload_preset", "flashgram_videos");
       formData.append("resource_type", "image");
 
@@ -271,7 +292,6 @@ export async function uploadUserAvatar(fileOrBlob, customUserId = null) {
       console.warn("Cloudinary avatar fallback note:", cldErr);
     }
 
-    // Direct data URL fallback if remote storage network fails
     if (!publicUrl && fileOrBlob instanceof Blob) {
       publicUrl = await new Promise((resolve) => {
         const reader = new FileReader();
@@ -285,21 +305,82 @@ export async function uploadUserAvatar(fileOrBlob, customUserId = null) {
     throw new Error("Could not process avatar image");
   }
 
-  // 3. Upsert profile data into Supabase 'profiles' table
-  const userUsername = UserProfileStore.state.username || "sohel_077";
-  const userFullName = UserProfileStore.state.name || "Sohel";
-  await syncProfileToSupabase({
-    id: userId,
-    username: userUsername,
-    full_name: userFullName,
-    avatar_url: publicUrl
-  });
+  // 3. Immediately update the profiles table:
+  // await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', currentUser.id);
+  try {
+    const { error: updateError, data: updatedRows } = await supabase
+      .from('profiles')
+      .update({ 
+        avatar_url: publicUrl,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId)
+      .select();
 
-  // 4. Live sync across all views immediately
+    if (updateError || !updatedRows || updatedRows.length === 0) {
+      await supabase
+        .from('profiles')
+        .upsert({
+          id: userId,
+          avatar_url: publicUrl,
+          username: UserProfileStore.state.username || "creator",
+          display_name: UserProfileStore.state.name || "User",
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+    }
+  } catch (dbErr) {
+    console.warn("Notice updating profiles table with avatar_url:", dbErr);
+  }
+
+  // 4. Update active auth/profile state across the app so the new avatar renders immediately
+  // in the profile tab, bottom navigation icon, and Home/Reels feeds without reverting on page reload
+  localStorage.setItem("user_custom_avatar_data", publicUrl);
+  try {
+    const sessionStr = localStorage.getItem("flashgram_user_session");
+    if (sessionStr) {
+      const parsed = JSON.parse(sessionStr);
+      parsed.photoURL = publicUrl;
+      parsed.avatar = publicUrl;
+      localStorage.setItem("flashgram_user_session", JSON.stringify(parsed));
+    }
+  } catch (_) {}
+
+  try {
+    const saved = localStorage.getItem("flashgram_saved_accounts");
+    if (saved) {
+      const accounts = JSON.parse(saved);
+      if (Array.isArray(accounts)) {
+        const acc = accounts.find(a => String(a.id) === String(userId));
+        if (acc) {
+          acc.avatar = publicUrl;
+          localStorage.setItem("flashgram_saved_accounts", JSON.stringify(accounts));
+        }
+      }
+    }
+  } catch (_) {}
+
+  UserProfileStore.setState({ avatar: publicUrl });
+  if (UserProfileStore.syncDOM) {
+    UserProfileStore.syncDOM();
+  }
+
+  const mainAvatar = document.getElementById("mainProfileAvatarImg");
+  if (mainAvatar) mainAvatar.src = publicUrl;
+
+  const previewAvatar = document.getElementById("editProfileAvatarPreview");
+  if (previewAvatar) previewAvatar.src = publicUrl;
+
+  const navAvatar = document.querySelector(".nav-btn[data-id='profile'] img");
+  if (navAvatar) navAvatar.src = publicUrl;
+
+  const profileCircleImg = document.querySelector(".profile-nav-circle img");
+  if (profileCircleImg) profileCircleImg.src = publicUrl;
+
+  const storyAvatar = document.getElementById("myStoryAvatarImg");
+  if (storyAvatar) storyAvatar.src = publicUrl;
+
   liveSyncUserProfile(userId, {
-    avatarUrl: publicUrl,
-    username: userUsername,
-    name: userFullName
+    avatarUrl: publicUrl
   });
 
   return publicUrl;

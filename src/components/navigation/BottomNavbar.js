@@ -371,13 +371,17 @@ function switchTab(tabId, btnElement) {
     updateActivePillPosition(btnElement);
   }
 
-  // Hide Bottom Navigation Bar entirely when the user is inside the Conversations/Chat view
-  if (tabId === "messages") {
+  const isViewingOtherUserProfile = tabId === "profile" && Boolean(
+    (typeof window !== "undefined" && window.viewingProfileUserId)
+  );
+
+  // Hide Bottom Navigation Bar entirely when inside Conversations/Chat view or viewing another user's public profile
+  if (tabId === "messages" || isViewingOtherUserProfile) {
     if (navBar) {
       navBar.style.display = "none";
       navBar.classList.add("nav-hidden", "translate-y-full", "opacity-0");
     }
-    if (appC) {
+    if (appC && tabId === "messages") {
       appC.classList.add("in-chats-view");
     }
   } else {

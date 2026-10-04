@@ -176,6 +176,22 @@ async function loadAndRenderOtherUserProfile(userId, fallbackUsername, fallbackA
   renderProfileGrid();
 }
 
+function setBottomNavVisible(visible) {
+  const bottomNav = document.getElementById("bottomNavBar");
+  if (bottomNav) {
+    if (visible) {
+      bottomNav.style.display = "";
+      bottomNav.classList.remove("nav-hidden", "translate-y-full", "opacity-0");
+      bottomNav.classList.add("translate-y-0");
+    } else {
+      bottomNav.style.display = "none";
+      bottomNav.classList.add("nav-hidden", "translate-y-full", "opacity-0");
+      bottomNav.classList.remove("translate-y-0");
+    }
+  }
+}
+window.setBottomNavVisible = setBottomNavVisible;
+
 function openProfile(userId, fallbackUsername, fallbackAvatar) {
   const currentUserId = getCurrentUserId();
   const currentNav = (typeof activeNavId !== "undefined" && activeNavId) || (typeof window !== "undefined" && window.activeNavId) || "home";
@@ -197,6 +213,9 @@ function openProfile(userId, fallbackUsername, fallbackAvatar) {
     } else if (typeof window !== "undefined" && typeof window.switchTab === "function") {
       window.switchTab("profile");
     }
+
+    // Completely HIDE the bottom navigation bar for other user profile view
+    setBottomNavVisible(false);
     
     const profileBackBtn = document.getElementById("profileBackBtn");
     if (profileBackBtn) profileBackBtn.style.display = "inline-flex";
@@ -240,7 +259,7 @@ function openProfile(userId, fallbackUsername, fallbackAvatar) {
 
     renderProfileGrid();
   } else if (userId && String(userId) !== String(currentUserId)) {
-    // Other Creator Profile View
+    // Other Creator Profile View: Hide bottom navbar and show back button
     previousScreenBeforeProfile = currentNav;
     viewingProfileUserId = String(userId);
     if (typeof window !== "undefined") {
@@ -252,6 +271,9 @@ function openProfile(userId, fallbackUsername, fallbackAvatar) {
       switchTab("profile");
     }
 
+    // Completely HIDE the bottom navigation bar for other user profile view
+    setBottomNavVisible(false);
+
     const profileBackBtn = document.getElementById("profileBackBtn");
     if (profileBackBtn) profileBackBtn.style.display = "inline-flex";
     const profileHeaderChevron = document.getElementById("profileHeaderChevron");
@@ -261,8 +283,9 @@ function openProfile(userId, fallbackUsername, fallbackAvatar) {
 
     loadAndRenderOtherUserProfile(userId, fallbackUsername, fallbackAvatar);
   } else {
-    // Current User's Own Profile
+    // Current User's Own Profile: Keep bottom navigation bar visible
     closeUserProfile();
+    setBottomNavVisible(true);
     syncCurrentLoggedInUserProfile();
     if (typeof switchTab === "function") {
       switchTab("profile");
@@ -368,6 +391,7 @@ window.syncCurrentLoggedInUserProfile = syncCurrentLoggedInUserProfile;
 function handleProfileBack() {
   const prev = previousScreenBeforeProfile;
   closeUserProfile();
+  setBottomNavVisible(true);
   const target = (prev && prev !== "profile") ? prev : "home";
   if (typeof switchTab === "function") {
     switchTab(target);
@@ -388,6 +412,7 @@ function closeUserProfile() {
   if (typeof window !== "undefined") {
     window.viewingProfileUserId = null;
   }
+  setBottomNavVisible(true);
   const profileBackBtn = document.getElementById("profileBackBtn");
   if (profileBackBtn) profileBackBtn.style.display = "none";
   const profileHeaderChevron = document.getElementById("profileHeaderChevron");
@@ -1131,4 +1156,4 @@ window.addEventListener("popstate", (e) => {
       }
     }
 
-export { viewingProfileUserId, openProfile, handleProfileBack, closeUserProfile, handleProfilePrimaryPillAction, updateProfilePostsCount, switchProfileTab, renderProfileGrid, renderProfileGridItems, initProfileInteractions };
+export { viewingProfileUserId, setBottomNavVisible, openProfile, handleProfileBack, closeUserProfile, handleProfilePrimaryPillAction, updateProfilePostsCount, switchProfileTab, renderProfileGrid, renderProfileGridItems, initProfileInteractions };

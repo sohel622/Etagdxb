@@ -343,7 +343,7 @@ function executeCropAndSave() {
   closeImageCropModal();
   showInstagramToast("Uploading avatar to Supabase Storage... ☁️");
 
-  // Asynchronously upload permanently to Supabase Storage bucket ('avatars') under path: ${userId}/avatar_${Date.now()}.jpg
+  // Asynchronously upload permanently to Supabase Storage bucket ('avatars') under path: ${userId}/avatar_${Date.now()}.png
   canvas.toBlob(async (blob) => {
     if (blob) {
       try {
@@ -356,7 +356,7 @@ function executeCropAndSave() {
         showInstagramToast("Avatar upload failed: " + (err.message || "Storage error"));
       }
     }
-  }, "image/jpeg", 0.9);
+  }, "image/png");
 }
 
 function initCropGestures() {

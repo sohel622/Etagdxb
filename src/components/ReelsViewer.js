@@ -5,6 +5,8 @@ import { openReelsShareSheet, openReelsCommentsSheet, disableReelsClearMode, set
 import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl } from "../services/cloudinaryService.js";
 import { openProfile } from "./Profile.js";
 import { isFollowingUser, toggleFollowUser } from "../services/followService.js";
+import { getCurrentUserId } from "../services/avatarService.js";
+import { supabase } from "../supabaseClient.js";
 
     /* =======================================================
        ৮. রিলস ভিডিও লোডিং
@@ -12,7 +14,15 @@ import { isFollowingUser, toggleFollowUser } from "../services/followService.js"
     const reelsFeedWrapper = document.getElementById("reelsFeedWrapper");
 
     function openMyProfileTab() {
+      if (typeof window.closeUserProfile === "function") {
+        window.closeUserProfile();
+      } else {
+        window.viewingProfileUserId = null;
+      }
       switchTab('profile');
+      if (typeof window.syncCurrentLoggedInUserProfile === "function") {
+        window.syncCurrentLoggedInUserProfile();
+      }
     }
     window.openMyProfileTab = openMyProfileTab;
 
@@ -121,7 +131,24 @@ import { isFollowingUser, toggleFollowUser } from "../services/followService.js"
 
     async function loadReels() {
       reelsFeedWrapper.innerHTML = "";
-      const livePosts = await fetchSupabasePosts();
+      let livePosts = null;
+
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('posts')
+            .select('*, profiles(id, username, avatar_url)')
+            .order('created_at', { ascending: false });
+
+          if (!error && Array.isArray(data) && data.length > 0) {
+            livePosts = data;
+          }
+        } catch (_) {}
+      }
+
+      if (!livePosts || livePosts.length === 0) {
+        livePosts = await fetchSupabasePosts();
+      }
 
       if (!livePosts || livePosts.length === 0) {
         reelsFeedWrapper.innerHTML = `
@@ -135,6 +162,8 @@ import { isFollowingUser, toggleFollowUser } from "../services/followService.js"
         return;
       }
 
+      const defaultAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
+
       livePosts.forEach((reel, index) => {
         const vidUrl = reel.video_url || reel.url || '';
         const thumbUrl = reel.thumbnail_url || (vidUrl ? deriveCloudinaryThumbnailUrl(vidUrl) : '');
@@ -143,10 +172,10 @@ import { isFollowingUser, toggleFollowUser } from "../services/followService.js"
         const isShabnamReel = reel.user === 'shabnam_ai' || (reel.id && reel.id === 'shabnam_reel_1') || (profile.username === 'shabnam_ai');
         const authorUsername = isShabnamReel
           ? "shabnam_ai"
-          : (profile.username || reel.author_name || "creator");
+          : (reel.profiles?.username || profile.username || reel.author_name || "user");
         const authorAvatar = isShabnamReel
           ? "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png"
-          : (profile.avatar_url || reel.avatar_url || reel.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100");
+          : (reel.profiles?.avatar_url || profile.avatar_url || reel.avatar_url || reel.avatar || defaultAvatar);
         const isCurrentUserReel = !isShabnamReel && Boolean(
           reel.user_id && currentUserId && String(reel.user_id) === String(currentUserId)
         );
@@ -199,7 +228,7 @@ import { isFollowingUser, toggleFollowUser } from "../services/followService.js"
 
             <div class="reels-bottom-info">
               <div class="reels-user-row">
-                <img src="${displayAvatar}" class="${avatarClass}" ${userClickAttr} />
+                <img src="${displayAvatar}" class="${avatarClass}" ${userClickAttr} alt="${displayUser}" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100';" />
                 <span class="${usernameClass}" ${userClickAttr}>${displayUser}</span>
                 ${isShabnamReel ? '<span class="text-sky-400 text-[12px] ml-1" title="Verified"><i class="fa-solid fa-circle-check"></i></span>' : ''}
                 ${followBtnHtml}
