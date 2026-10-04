@@ -434,6 +434,17 @@ import { addOrUpdateSavedAccount } from "../components/AccountSwitcher.js";
     }
     window.initGoogleIdentityServices = initGoogleIdentityServices;
 
+    // Automatically check and initialize GIS when window.google is available
+    if (typeof window !== "undefined") {
+      if (document.readyState === "complete" || document.readyState === "interactive") {
+        setTimeout(initGoogleIdentityServices, 100);
+      } else {
+        window.addEventListener("DOMContentLoaded", () => {
+          setTimeout(initGoogleIdentityServices, 100);
+        });
+      }
+    }
+
     // 4. Auto-trigger google.accounts.id.prompt() when the user reaches the login view
     function triggerGoogleOneTap() {
       if (isUserAuthenticated()) return;
