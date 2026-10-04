@@ -4,7 +4,7 @@ import { UserProfileStore } from "./utils/storage.js";
 import { initTopNavbar, renderNavigation, renderDragBox } from "./components/navigation/index.js";
 import { renderHomeFeed } from "./components/Feed.js";
 import { loadReels } from "./components/ReelsViewer.js";
-import { initProfileInteractions, updateProfilePostsCount, renderProfileGrid } from "./components/Profile.js";
+import { initProfileInteractions, updateProfilePostsCount, renderProfileGrid, syncCurrentLoggedInUserProfile } from "./components/Profile.js";
 import { initStories } from "./components/Stories.js";
 import { initModals, requestInitialBrowserNotificationPermission } from "./components/Modals.js";
 import { isUserAuthenticated, openAuthOnboardingFlow, triggerGoogleOneTap } from "./services/supabaseAuth.js";
@@ -55,6 +55,7 @@ export const App = {
     await loadReels();
     initProfileInteractions();
     initModals();
+    await syncCurrentLoggedInUserProfile();
     updateProfilePostsCount();
     renderProfileGrid();
     initStories();

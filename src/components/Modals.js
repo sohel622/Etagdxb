@@ -1,4 +1,5 @@
 // Modals Component (Edit Profile, Bio, Links, Crop, Settings, Media Recorder)
+import { supabase } from "../supabaseClient.js";
 import { db } from "../services/database.js";
 import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
 import { renderDragBox, updateActivePillPosition, showStandardNavBar } from "./BottomNavigation.js";
@@ -11,6 +12,7 @@ import { uploadUserAvatar, getCurrentUserId, liveSyncUserProfile, syncProfileToS
 import { showUploadProgressBanner, updateUploadProgressBanner, completeUploadProgressBanner, failUploadProgressBanner } from "./UploadProgressBanner.js";
 
 // --- Shared State Variables ---
+let selectedAvatarFile = null;
 let currentEditingBio = null;
 let currentLinkUrl = "linktr.ee/arya_official";
 let cropScale = 1.0;
@@ -86,9 +88,9 @@ function openEditProfileScreen() {
   const editBioPreviewSnippet = document.getElementById("editBioPreviewSnippet");
   const editLinksPreviewSnippet = document.getElementById("editLinksPreviewSnippet");
 
-  const currentName = profileDisplayName ? profileDisplayName.textContent.trim() : "Arya Sharma ✨";
-  const currentUsername = profileHeaderUsername ? profileHeaderUsername.textContent.trim() : "arya.gmr_";
-  const currentBio = profileBioText ? profileBioText.textContent : "";
+  const currentName = UserProfileStore.state.name || (profileDisplayName ? profileDisplayName.textContent.trim() : "");
+  const currentUsername = UserProfileStore.state.username || (profileHeaderUsername ? profileHeaderUsername.textContent.trim() : "");
+  const currentBio = UserProfileStore.state.bio || (profileBioText ? profileBioText.textContent : "");
 
   if (inputEditName) inputEditName.value = currentName;
   const { first, last } = splitFullName(currentName);
@@ -99,8 +101,9 @@ function openEditProfileScreen() {
     inputEditBio.value = currentBio;
     updateInlineBioCharCount();
   }
-  if (mainProfileAvatarImg && editProfileAvatarPreview) {
-    editProfileAvatarPreview.src = mainProfileAvatarImg.src;
+  if (editProfileAvatarPreview) {
+    const avatarSrc = UserProfileStore.state.avatar || (mainProfileAvatarImg ? mainProfileAvatarImg.src : "");
+    if (avatarSrc) editProfileAvatarPreview.src = avatarSrc;
   }
   if (editBioPreviewSnippet) {
     editBioPreviewSnippet.textContent = currentBio.replace(/\n/g, " ").trim() || "Add a bio...";
@@ -120,7 +123,7 @@ function closeEditProfileScreen() {
   editProfileScreen.setAttribute("aria-hidden", "true");
 }
 
-function saveEditProfile() {
+async function saveEditProfile() {
   const inputEditFirstName = document.getElementById("inputEditFirstName");
   const inputEditLastName = document.getElementById("inputEditLastName");
   const inputEditName = document.getElementById("inputEditName");
@@ -130,45 +133,123 @@ function saveEditProfile() {
   const profileBioText = document.getElementById("profileBioText");
   const profileBioLinkText = document.getElementById("profileBioLinkText");
 
+  // 1. Retrieve the active authenticated user ID:
+  let user = null;
+  if (supabase && supabase.auth) {
+    try {
+      const { data } = await supabase.auth.getUser();
+      user = data?.user;
+    } catch (_) {}
+    if (!user) {
+      try {
+        const { data: sessData } = await supabase.auth.getSession();
+        user = sessData?.session?.user;
+      } catch (_) {}
+    }
+  }
+
+  if (!user) {
+    const fallbackId = typeof getCurrentUserId === "function" ? getCurrentUserId() : null;
+    if (fallbackId) user = { id: fallbackId };
+  }
+
+  if (!user) return;
+
+  // 2. If an avatar image file is selected:
+  let uploadedAvatarUrl = null;
+  if (selectedAvatarFile) {
+    try {
+      const filePath = `${user.id}/avatar.jpg`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, selectedAvatarFile, {
+          contentType: selectedAvatarFile.type || 'image/jpeg',
+          upsert: true
+        });
+
+      if (!uploadError && uploadData) {
+        const { data: publicUrlData } = supabase.storage
+          .from('avatars')
+          .getPublicUrl(filePath);
+        if (publicUrlData && publicUrlData.publicUrl) {
+          uploadedAvatarUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`;
+        }
+      } else if (uploadError) {
+        console.error("Failed to upload avatar to Supabase Storage:", uploadError.message);
+      }
+    } catch (storageErr) {
+      console.error("Avatar storage exception:", storageErr);
+    }
+  }
+
+  // 3. Update or upsert the profiles table directly:
   const first = inputEditFirstName ? inputEditFirstName.value.trim() : "";
   const last = inputEditLastName ? inputEditLastName.value.trim() : "";
   const combinedName = [first, last].filter(Boolean).join(" ");
-  const newName = combinedName || (inputEditName ? inputEditName.value.trim() : "");
-  if (inputEditName) inputEditName.value = newName;
+  const enteredFullName = (inputEditName ? inputEditName.value.trim() : "") || combinedName || UserProfileStore.state.name || '';
+  const enteredUsername = (inputEditUsername ? inputEditUsername.value.trim() : "") || UserProfileStore.state.username || '';
+  const enteredBio = (inputEditBio ? inputEditBio.value : (currentEditingBio !== null ? currentEditingBio : (profileBioText ? profileBioText.textContent : ""))) || '';
 
-  const newUsername = inputEditUsername ? inputEditUsername.value.trim() : "";
-  const newPronouns = inputEditPronouns ? inputEditPronouns.value.trim() : "";
-  const newBio = inputEditBio ? inputEditBio.value : (currentEditingBio !== null ? currentEditingBio : (profileBioText ? profileBioText.textContent : ""));
-  currentEditingBio = newBio;
+  const mainProfileAvatarImg = document.getElementById("mainProfileAvatarImg");
+  const existingAvatarUrl = UserProfileStore.state.avatar || (mainProfileAvatarImg ? mainProfileAvatarImg.src : '') || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400';
 
-  const effectiveUsername = newUsername || UserProfileStore.state.username;
-  const effectiveName = newName || UserProfileStore.state.name;
-  const uid = getCurrentUserId();
+  const updates = {
+    id: user.id,
+    username: enteredUsername.trim(),
+    full_name: enteredFullName.trim(),
+    avatar_url: uploadedAvatarUrl || existingAvatarUrl,
+    bio: enteredBio || '',
+    updated_at: new Date().toISOString()
+  };
 
+  const { error } = await supabase
+    .from('profiles')
+    .upsert(updates, { onConflict: 'id' });
+
+  if (error) {
+    console.error("Failed to update profile:", error.message);
+    if (typeof alert === "function") {
+      alert("Profile update failed: " + error.message);
+    }
+    return;
+  }
+
+  // Global Realtime State Sync
   UserProfileStore.setState({
-    name: effectiveName,
-    username: effectiveUsername,
-    pronouns: newPronouns,
-    bio: newBio,
+    name: updates.full_name,
+    username: updates.username,
+    avatar: updates.avatar_url,
+    bio: updates.bio,
     link: currentLinkUrl
   });
 
-  if (profileBioText) profileBioText.textContent = newBio;
+  if (profileBioText) profileBioText.textContent = updates.bio;
   if (profileBioLinkText && currentLinkUrl) profileBioLinkText.textContent = currentLinkUrl;
 
-  // Live Sync across all post cards, reels, and views in the entire app
-  liveSyncUserProfile(uid, {
-    username: effectiveUsername,
-    name: effectiveName
+  liveSyncUserProfile(user.id, {
+    username: updates.username,
+    avatarUrl: updates.avatar_url,
+    name: updates.full_name
   });
 
-  // Persist updated profile to Supabase profiles table
-  syncProfileToSupabase({
-    id: uid,
-    username: effectiveUsername,
-    full_name: effectiveName
-  }).catch(e => console.warn("Supabase profile sync notice:", e));
+  const profileDisplay = document.getElementById("profileDisplayName");
+  if (profileDisplay) profileDisplay.textContent = updates.full_name;
+  const profileHeader = document.getElementById("profileHeaderUsername");
+  if (profileHeader) profileHeader.textContent = updates.username;
+  const profileHandle = document.getElementById("profileHandleText");
+  if (profileHandle) profileHandle.textContent = `@${updates.username}`;
+  if (mainProfileAvatarImg) mainProfileAvatarImg.src = updates.avatar_url;
 
+  const navUserAvatar = document.querySelector(".nav-btn[data-id='profile'] img");
+  if (navUserAvatar) navUserAvatar.src = updates.avatar_url;
+  document.querySelectorAll(".profile-nav-circle img").forEach(img => {
+    img.src = updates.avatar_url;
+  });
+
+  if (typeof renderProfileGrid === "function") renderProfileGrid();
+  if (typeof renderHomeFeed === "function") renderHomeFeed();
+
+  selectedAvatarFile = null;
   closeEditProfileScreen();
   showInstagramToast("Profile updated! ✨");
 }
@@ -343,9 +424,15 @@ function executeCropAndSave() {
   closeImageCropModal();
   showInstagramToast("Uploading avatar to Supabase Storage... ☁️");
 
-  // Asynchronously upload permanently to Supabase Storage bucket ('avatars') under path: ${userId}/avatar_${Date.now()}.png
   canvas.toBlob(async (blob) => {
     if (blob) {
+      selectedAvatarFile = blob;
+      const previewUrl = URL.createObjectURL(blob);
+      const editProfileAvatarPreview = document.getElementById("editProfileAvatarPreview");
+      if (editProfileAvatarPreview) editProfileAvatarPreview.src = previewUrl;
+      const mainProfileAvatarImg = document.getElementById("mainProfileAvatarImg");
+      if (mainProfileAvatarImg) mainProfileAvatarImg.src = previewUrl;
+
       try {
         const publicUrl = await uploadUserAvatar(blob);
         if (publicUrl) {
@@ -356,7 +443,7 @@ function executeCropAndSave() {
         showInstagramToast("Avatar upload failed: " + (err.message || "Storage error"));
       }
     }
-  }, "image/png");
+  }, "image/jpeg", 0.9);
 }
 
 function initCropGestures() {
@@ -1320,6 +1407,7 @@ export function initModals() {
     profileAvatarFileInput.onchange = (e) => {
       const file = e.target.files && e.target.files[0];
       if (file) {
+        selectedAvatarFile = file;
         const reader = new FileReader();
         reader.onload = (ev) => {
           openImageCropModal(ev.target.result);

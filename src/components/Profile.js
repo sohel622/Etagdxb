@@ -311,50 +311,55 @@ export async function syncCurrentLoggedInUserProfile() {
     }
   }
 
-  const currentUserId = currentAuthUser?.id || getCurrentUserId();
-  let myProfile = null;
+  const currentUserId = currentAuthUser?.id || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null);
+  if (!currentUserId || !supabase) return;
 
-  // Requirement 2: Complete Profile Data Isolation
-  // Fetch active authenticated user's row from Supabase profiles where id = currentAuthUser.id
-  if (supabase && currentUserId) {
-    try {
-      const { data: profRow, error } = await supabase
+  // Requirement 2: Load Authoritative Profile from Supabase on Mount (Fix Refresh Wipeout)
+  let profileData = null;
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', currentUserId)
+      .single();
+
+    if (!error && data) {
+      profileData = data;
+    } else {
+      const { data: maybeData } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', currentUserId)
         .maybeSingle();
-
-      if (!error && profRow) {
-        myProfile = profRow;
-      } else {
-        const userEmail = currentAuthUser?.email || UserProfileStore.state.email;
-        if (userEmail) {
-          const { data: emailProf } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('email', userEmail)
-            .maybeSingle();
-          if (emailProf) myProfile = emailProf;
-        }
+      if (maybeData) {
+        profileData = maybeData;
+      } else if (currentAuthUser?.email) {
+        const { data: emailData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', currentAuthUser.email)
+          .maybeSingle();
+        if (emailData) profileData = emailData;
       }
-    } catch (e) {
-      console.warn("Notice syncing current user profile:", e);
     }
+  } catch (e) {
+    console.warn("Notice querying profileData from Supabase on mount:", e);
   }
 
-  const defaultAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400";
-  // Never reuse stale cached profile state from another account
-  const finalUsername = myProfile?.username || myProfile?.display_name || UserProfileStore.state.username || (currentAuthUser?.email ? currentAuthUser.email.split('@')[0] : 'creator');
-  const finalDisplayName = myProfile?.display_name || myProfile?.full_name || finalUsername;
-  const finalAvatar = myProfile?.avatar_url || UserProfileStore.state.avatar || defaultAvatar;
-  const finalBio = myProfile?.bio || UserProfileStore.state.bio || "🚀 Digital Creator & Explorer. Daily reels & updates!";
-  const finalLink = myProfile?.website || myProfile?.link || `flashgram.me/${finalUsername}`;
+  const cleanAvatarFallback = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400";
+
+  // Bind state directly to profileData.username, profileData.full_name, and profileData.avatar_url
+  const finalUsername = profileData?.username || profileData?.display_name || UserProfileStore.state.username || (currentAuthUser?.email ? currentAuthUser.email.split('@')[0] : 'creator');
+  const finalFullName = profileData?.full_name || profileData?.display_name || finalUsername;
+  const finalAvatarUrl = (profileData?.avatar_url && profileData.avatar_url.trim()) ? profileData.avatar_url : cleanAvatarFallback;
+  const finalBio = profileData?.bio !== undefined ? profileData.bio : (UserProfileStore.state.bio || "");
+  const finalLink = profileData?.website || profileData?.link || `flashgram.me/${finalUsername}`;
 
   UserProfileStore.setState({
     username: finalUsername,
-    name: finalDisplayName,
-    avatar: finalAvatar,
-    email: currentAuthUser?.email || myProfile?.email || UserProfileStore.state.email || "",
+    name: finalFullName,
+    avatar: finalAvatarUrl,
+    email: currentAuthUser?.email || profileData?.email || UserProfileStore.state.email || "",
     bio: finalBio,
     link: finalLink,
     website: finalLink
@@ -362,23 +367,36 @@ export async function syncCurrentLoggedInUserProfile() {
 
   // Force DOM sync strictly with currently logged-in user's database entry
   UserProfileStore.syncDOM();
+
   const headerUsername = document.getElementById("profileHeaderUsername");
   if (headerUsername) headerUsername.textContent = finalUsername;
+
   const profileDisplay = document.getElementById("profileDisplayName");
-  if (profileDisplay) profileDisplay.textContent = finalDisplayName;
+  if (profileDisplay) profileDisplay.textContent = finalFullName;
+
   const profileHandle = document.getElementById("profileHandleText");
   if (profileHandle) profileHandle.textContent = `@${finalUsername}`;
+
+  // Set the avatar <img> source to profileData.avatar_url with an onError fallback to a clean avatar icon if the image URL is empty
   const profileAvatar = document.getElementById("mainProfileAvatarImg");
-  if (profileAvatar) profileAvatar.src = finalAvatar;
+  if (profileAvatar) {
+    profileAvatar.onerror = function() {
+      this.onerror = null;
+      this.src = cleanAvatarFallback;
+    };
+    profileAvatar.src = finalAvatarUrl;
+  }
+
   const profileBio = document.getElementById("profileBioText");
   if (profileBio) profileBio.textContent = finalBio;
+
   const profileLink = document.getElementById("profileBioLinkText");
   if (profileLink) profileLink.textContent = finalLink;
 
   // Verified checkmark badge: active exclusively on verified profile entries
   const verifiedBadge = document.getElementById("profileVerifiedBadge");
   if (verifiedBadge) {
-    const isVerified = Boolean(myProfile?.is_verified || finalUsername === "sohelmommy_077" || (myProfile?.email && myProfile.email.includes("sohelmommy")));
+    const isVerified = Boolean(profileData?.is_verified || finalUsername === "sohelmommy_077" || (profileData?.email && profileData.email.includes("sohelmommy")));
     verifiedBadge.style.display = isVerified ? "inline-flex" : "none";
   }
 
@@ -850,51 +868,13 @@ window.addEventListener("popstate", (e) => {
       const profileBioText = document.getElementById("profileBioText");
 
       let currentEditingBio = null;
-      let currentLinkUrl = "linktr.ee/arya_official";
+      let currentLinkUrl = UserProfileStore.state.link || "flashgram.me";
 
-      // ১. লোড পার্সিস্টেড প্রোফাইল ডেটা (যদি থাকে)
-      try {
-        const savedAvatar = localStorage.getItem("user_custom_avatar_data");
-        if (savedAvatar) {
-          if (mainProfileAvatarImg) mainProfileAvatarImg.src = savedAvatar;
-          if (avatarViewerImg) avatarViewerImg.src = savedAvatar;
-          if (editProfileAvatarPreview) editProfileAvatarPreview.src = savedAvatar;
-          document.querySelectorAll(".profile-nav-circle img").forEach(img => {
-            img.src = savedAvatar;
-          });
-        }
-
-        const savedInfo = localStorage.getItem("user_profile_info");
-        if (savedInfo) {
-          const info = JSON.parse(savedInfo);
-          if (info.name) {
-            if (profileDisplayName) profileDisplayName.textContent = info.name;
-            if (viewerUsername) viewerUsername.textContent = info.name;
-            if (inputEditName) inputEditName.value = info.name;
-            const { first, last } = splitFullName(info.name);
-            if (inputEditFirstName) inputEditFirstName.value = first;
-            if (inputEditLastName) inputEditLastName.value = last;
-          }
-          if (info.username && profileHeaderUsername) profileHeaderUsername.textContent = info.username;
-          if (info.username && inputEditUsername) inputEditUsername.value = info.username;
-          if (info.pronouns && inputEditPronouns) inputEditPronouns.value = info.pronouns;
-          if (info.bio) {
-            if (profileBioText) profileBioText.textContent = info.bio;
-            if (inputEditBio) {
-              inputEditBio.value = info.bio;
-              updateInlineBioCharCount();
-            }
-            if (editBioPreviewSnippet) editBioPreviewSnippet.textContent = info.bio.replace(/\n/g, " ").trim() || "Add a bio...";
-          }
-          if (info.link) {
-            currentLinkUrl = info.link;
-            if (profileBioLinkText) profileBioLinkText.textContent = info.link;
-            if (editLinksPreviewSnippet) editLinksPreviewSnippet.textContent = "1 link";
-          }
-        }
-      } catch (err) {
-        console.error("Failed to load profile data from storage:", err);
-      }
+      // Requirement 2: Load Authoritative Profile from Supabase on Mount (Fix Refresh Wipeout)
+      // Never load static mock state or overwrite with placeholders
+      syncCurrentLoggedInUserProfile().catch(err => {
+        console.warn("Initial syncCurrentLoggedInUserProfile notice:", err);
+      });
 
       if (!profileAvatarDrag) return;
 
