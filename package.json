@@ -9,6 +9,9 @@
     "lint": "node -e \"console.log('No lint issues found')\""
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
     "@google/genai": "^2.23.0",
     "@supabase/supabase-js": "^2.117.1",
     "express": "^4.21.2"

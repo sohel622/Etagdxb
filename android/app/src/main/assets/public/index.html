@@ -1,0 +1,1511 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Flashgram</title>
+  <meta name="description" content="Instagram clone featuring home feed, stories, video reels, YouTube-style profile header, dedicated Shabnam AI profile and interactive AI chat with TTS audio" />
+  <meta property="og:title" content="Flashgram" />
+  <meta property="og:description" content="Instagram clone featuring home feed, stories, video reels, YouTube-style profile header, dedicated Shabnam AI profile and interactive AI chat with TTS audio" />
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Grand+Hotel&family=Cookie&family=Satisfy&family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,400&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Early Interceptor for GIS FedCM iframe permission notices -->
+  <script>
+    (function() {
+      var isFedCmWarning = function(args) {
+        try {
+          var str = args.map(function(a) {
+            return typeof a === 'object' ? (a && a.message ? a.message : JSON.stringify(a)) : String(a);
+          }).join(' ');
+          return str.includes('identity-credentials-get') || str.includes('[GSI_LOGGER]') || str.includes('FedCM');
+        } catch (_) { return false; }
+      };
+      var origErr = console.error;
+      console.error = function() {
+        if (isFedCmWarning(Array.prototype.slice.call(arguments))) return;
+        return origErr.apply(console, arguments);
+      };
+      var origWarn = console.warn;
+      console.warn = function() {
+        if (isFedCmWarning(Array.prototype.slice.call(arguments))) return;
+        return origWarn.apply(console, arguments);
+      };
+      window.addEventListener('unhandledrejection', function(e) {
+        var reason = e && (e.reason ? (e.reason.message || String(e.reason)) : '');
+        if (reason && (reason.includes('identity-credentials-get') || reason.includes('FedCM') || reason.includes('GSI_LOGGER'))) {
+          if (typeof e.preventDefault === 'function') e.preventDefault();
+        }
+      });
+      // Pre-declare global GIS callback so it's always a valid function when GIS library initializes from HTML
+      window.handleGoogleCredentialResponse = function(response) {
+        if (typeof window.__handleGoogleCredentialResponseImpl === 'function') {
+          return window.__handleGoogleCredentialResponseImpl(response);
+        }
+        window.__pendingGoogleCredentialResponse = response;
+      };
+      window.handleGoogleOneTapResponse = window.handleGoogleCredentialResponse;
+    })();
+  </script>
+  <!-- Google Identity Services Script -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class'
+    };
+  </script>
+
+  <script type="module" crossorigin src="/assets/index-DvufNdna.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index--Ajw8CGn.css">
+</head>
+<body>
+
+  <svg width="0" height="0" style="position:absolute;">
+    <defs>
+      <linearGradient id="instaHeartGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#ff1361" />
+        <stop offset="50%" stop-color="#ff0055" />
+        <stop offset="100%" stop-color="#d6004c" />
+      </linearGradient>
+    </defs>
+  </svg>
+
+  <div class="app-container" id="appContainer">
+    <input type="file" id="videoFileInput" accept="video/*" style="display:none;" />
+
+    <div class="view-section active bg-white dark:bg-black text-neutral-900 dark:text-white transition-colors duration-200" id="homeView">
+      <header class="top-bar bg-white dark:bg-black text-neutral-900 dark:text-white transition-colors duration-200" id="topNavbarHeader">
+        <div class="logo" id="topNavLogo" onclick="handleLogoClick()" title="Instagram" role="button" tabindex="0">Instagram</div>
+        <div class="top-bar-actions">
+          <button type="button" class="icon-btn top-nav-btn" id="topNavNotificationsBtn" onclick="handleNotificationsClick()" title="Notifications" aria-label="Notifications">
+            <i class="fa-regular fa-heart"></i>
+          </button>
+        </div>
+      </header>
+
+      <section class="stories-container">
+        <div class="story-item" onclick="openMediaCreationPrompt()" title="Add to your story">
+          <div class="story-avatar-wrapper my-story" id="myStoryAvatarWrapper">
+            <img id="myStoryAvatarImg" class="current-user-avatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" alt="Your story" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;" onerror="this.style.display='none'; document.getElementById('myStoryUserIcon').style.display='block';" />
+            <i class="fa-solid fa-user user-icon" id="myStoryUserIcon" style="display: none;"></i>
+            <div class="add-badge"><i class="fa-solid fa-plus"></i></div>
+          </div>
+          <span class="story-name">Your story</span>
+        </div>
+        <div class="story-item" onclick="openProfile('shabnam_ai')" title="Shabnam AI">
+          <div class="story-avatar-wrapper active-ring" style="background: linear-gradient(45deg, #00c6ff, #0072ff, #a855f7);">
+            <img src="https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png" alt="shabnam_ai" />
+          </div>
+          <span class="story-name">shabnam_ai ✨</span>
+        </div>
+      </section>
+
+      <!-- Instagram-Style Top Upload Progress Banner (Between Stories & Feed) -->
+      <div id="homeUploadProgressBanner" class="hidden transition-all duration-300 ease-out overflow-hidden mx-3 mb-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800 shadow-sm select-none">
+        <div class="flex items-center gap-3 px-3 py-2.5">
+          <div class="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700">
+            <img id="uploadBannerThumb" class="w-full h-full object-cover" src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100" alt="Video thumbnail" />
+            <div id="uploadBannerThumbOverlay" class="absolute inset-0 bg-black/20 flex items-center justify-center pointer-events-none">
+              <i class="fa-solid fa-play text-white/90 text-[10px]"></i>
+            </div>
+          </div>
+          <div class="flex-1 min-w-0 pr-1">
+            <div id="uploadBannerStatusTitle" class="text-[12.5px] font-semibold text-neutral-900 dark:text-neutral-100 truncate tracking-tight">
+              Keep Flashgram open to finish posting...
+            </div>
+            <div class="flex items-center gap-1.5 mt-0.5">
+              <span id="uploadBannerPercentText" class="text-[11.5px] font-semibold text-neutral-600 dark:text-neutral-300 font-mono">0%</span>
+              <span id="uploadBannerSubtext" class="text-[10.5px] text-neutral-400 dark:text-neutral-500">• Uploading to Cloudinary</span>
+            </div>
+          </div>
+          <div id="uploadBannerActionIcon" class="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 transition-colors duration-200">
+            <i id="uploadBannerStatusIcon" class="fa-solid fa-cloud-arrow-up text-xs animate-pulse text-pink-500"></i>
+          </div>
+        </div>
+        <!-- Thin Instagram Gradient Progress Bar -->
+        <div class="w-full h-[3px] bg-neutral-100 dark:bg-neutral-800/80 overflow-hidden">
+          <div id="uploadBannerProgressBar" class="h-full w-0 transition-all duration-200 ease-out" style="background: linear-gradient(90deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);"></div>
+        </div>
+      </div>
+
+      <div id="feedContainer"></div>
+    </div>
+
+    <div class="view-section" id="reelsView">
+      <div class="reels-top-header">
+        <div class="title">Reels</div>
+        <button type="button" class="reels-cam-btn bg-transparent border-0 text-white p-1 cursor-pointer flex items-center justify-center active:scale-95 transition-transform" id="reelsCameraBtn" title="Open Camera & Microphone" onclick="openCameraMicrophoneSession()">
+          <i class="fa-solid fa-camera" style="font-size: 20px;"></i>
+        </button>
+      </div>
+
+      <div id="reelsFeedWrapper" style="height: 100%;"></div>
+    </div>
+
+    <!-- ২. প্রোফাইল পেজ (YouTube Style Header Layout) -->
+    <div class="view-section bg-white dark:bg-black text-neutral-900 dark:text-white transition-colors duration-200" id="profileView">
+      <!-- Profile Top Header -->
+      <header class="profile-top-bar bg-white dark:bg-black text-neutral-900 dark:text-white border-b border-neutral-100 dark:border-neutral-800 transition-colors duration-200">
+        <div class="flex items-center gap-2">
+          <button type="button" class="icon-btn" id="profileBackBtn" onclick="handleProfileBack()" style="display:none;" title="Back">
+            <i class="fa-solid fa-arrow-left text-[17px]"></i>
+          </button>
+          <div class="profile-header-user">
+            <span class="profile-header-username" id="profileHeaderUsername">sohelmommy_077</span>
+            <i class="fa-solid fa-chevron-down" id="profileHeaderChevron" style="font-size: 11px;"></i>
+          </div>
+        </div>
+        <div class="profile-header-actions" id="profileHeaderActions">
+          <button type="button" class="icon-btn" id="profileCreatePostBtn" title="Create" aria-label="Create new post" onclick="if (typeof openMediaCreationPrompt === 'function') openMediaCreationPrompt();">
+            <i class="fa-solid fa-plus" style="font-size: 20px;"></i>
+          </button>
+          <button type="button" class="icon-btn" id="profileMenuBtn" title="Settings & Options" aria-label="Settings & Options" onclick="if (typeof openSettingsModal === 'function') { openSettingsModal(); } else if (typeof showInstagramToast === 'function') { showInstagramToast('Profile options'); }">
+            <i class="fa-solid fa-gear" style="font-size: 20px;"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- Profile Content Scrollable -->
+      <div class="profile-scroll-content">
+        <!-- 1. YouTube Style Channel Profile Header -->
+        <div class="yt-channel-profile-header px-4 pt-4 pb-2" id="ytChannelHeader">
+          <div class="flex items-center gap-3.5">
+            <!-- Left-aligned circular avatar with elastic spring physics & tap to view -->
+            <div class="yt-avatar-wrapper shrink-0 cursor-pointer" id="avatarInteractiveContainer">
+              <div class="avatar-drag-element w-[74px] h-[74px] rounded-full overflow-hidden border border-neutral-200/80 dark:border-neutral-700/80 shadow-sm relative bg-neutral-800" id="profileAvatarDrag" title="Tap to expand • Drag for physics">
+                <img id="mainProfileAvatarImg" class="w-full h-full object-cover current-user-avatar" src="https://oppwfervzdiogunonbot.supabase.co/storage/v1/object/public/avatars/5611f2e8-0005-482f-9929-69d2efab41df/1788541590088_8943.png" alt="" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400';" draggable="false" />
+              </div>
+            </div>
+
+            <!-- Details beside avatar -->
+            <div class="flex-1 min-w-0">
+              <!-- Full Name on top (with verified badge checkmark) -->
+              <div class="flex items-center gap-1.5 leading-tight">
+                <h1 class="text-[17.5px] font-bold text-neutral-900 dark:text-white truncate" id="profileDisplayName">সোহেলমোম্বর</h1>
+                <span class="text-sky-500 shrink-0 inline-flex items-center" id="profileVerifiedBadge" title="Verified">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"></path>
+                  </svg>
+                </span>
+              </div>
+
+              <!-- Handle below it: @username -->
+              <div class="text-[13px] text-neutral-500 dark:text-neutral-400 font-medium truncate mt-0.5" id="profileHandleText">@sohelmommy_077</div>
+
+              <!-- Stats row inline underneath: "0 followers • X posts" -->
+              <div class="text-[12.5px] text-neutral-500 dark:text-neutral-400 font-normal mt-1 flex items-center gap-1.5" id="profileStatsInline">
+                <span id="profileFollowersInline">0 followers</span>
+                <span class="opacity-60">•</span>
+                <span id="profilePostsInline"><span id="profilePostsCount">0</span> posts</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Hidden counters for JS compatibility -->
+          <span id="profileFollowersCount" style="display:none;">0</span>
+          <span id="profileFollowingCount" style="display:none;">0</span>
+
+          <!-- Bio & Details -->
+          <div class="profile-bio-box px-0 pt-3 pb-1" id="profileBioBox">
+            <div class="profile-category-tag text-[12px] text-neutral-500 dark:text-neutral-400 font-medium mb-0.5" id="profileCategoryTag">Digital Creator • Video</div>
+            <div class="profile-bio-text text-[13px] text-neutral-900 dark:text-neutral-200 leading-snug" id="profileBioText">🚀 Digital Creator & Explorer. Daily reels & updates!
+✨ Creating daily moments on Flashgram</div>
+            <a href="#" class="profile-bio-link text-[12.5px] text-sky-600 dark:text-sky-400 font-medium inline-flex items-center gap-1 mt-1" id="profileBioLink" onclick="event.preventDefault();">
+              <i class="fa-solid fa-link text-[11px]"></i> <span id="profileBioLinkText">flashgram.me/sohel</span>
+            </a>
+          </div>
+
+          <!-- Full-width "Follow" or "Edit Profile" pill button below the info section -->
+          <div class="mt-2.5 mb-1" id="profilePillActionContainer">
+            <button type="button" class="yt-full-pill-btn" id="profilePrimaryPillBtn" onclick="handleProfilePrimaryPillAction()">
+              Edit profile
+            </button>
+            <button type="button" id="editProfileBtn" style="display:none;" onclick="if (typeof openEditProfileScreen === 'function') openEditProfileScreen();"></button>
+          </div>
+
+          <!-- Hidden avatar file input for Set Photo -->
+          <input type="file" id="profileAvatarFileInput" accept="image/*" style="display:none;" />
+        </div>
+
+        <!-- Grid Tabs (Posts / Reels / Reposts) -->
+        <div class="profile-tabs-bar">
+          <div class="profile-tab-item active" id="tabGridBtn" onclick="switchProfileTab('grid')" title="Posts">
+            <svg class="tab-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="3.5"></rect>
+              <line x1="9" y1="3" x2="9" y2="21"></line>
+              <line x1="15" y1="3" x2="15" y2="21"></line>
+              <line x1="3" y1="9" x2="21" y2="9"></line>
+              <line x1="3" y1="15" x2="21" y2="15"></line>
+            </svg>
+          </div>
+          <div class="profile-tab-item" id="tabReelsBtn" onclick="switchProfileTab('reels')" title="Reels">
+            <svg class="tab-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6.5 4.5A1 1 0 0 1 8 3.65l11.5 6.85a1 1 0 0 1 0 1.72L8 19.07a1 1 0 0 1-1.5-.86V4.5z"></path>
+            </svg>
+          </div>
+          <div class="profile-tab-item" id="tabTaggedBtn" onclick="switchProfileTab('tagged')" title="Reposts">
+            <svg class="tab-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4.5 12a7.5 7.5 0 0 1 13.9-3.8M19 4v4.5h-4.5"></path>
+              <path d="M19.5 12a7.5 7.5 0 0 1-13.9 3.8M5 20v-4.5h4.5"></path>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Tab Content: Posts 3-column Grid -->
+        <div class="profile-grid-container" id="profileGridContainer"></div>
+      </div>
+    </div>
+
+    <!-- ৩. ডিরেক্ট মেসেজ ও চ্যাটস ভিউ (Chats & Shabnam AI Chat) -->
+    <div class="view-section bg-white dark:bg-black text-neutral-900 dark:text-white transition-colors duration-200" id="chatsView" style="display: none;">
+      <!-- 1. Conversations List Container -->
+      <div id="chatsListContainer" class="flex flex-col h-full">
+        <!-- Chats Top Header -->
+        <header class="flex items-center justify-between px-4 h-[50px] border-b border-neutral-100 dark:border-neutral-800 shrink-0">
+          <div class="flex items-center gap-3">
+            <button type="button" class="icon-btn" onclick="switchTab('home')" title="Back to Home">
+              <i class="fa-solid fa-arrow-left text-[17px]"></i>
+            </button>
+            <div class="flex items-center gap-1.5 font-bold text-[17px] tracking-tight">
+              <span class="current-user-username" id="chatsHeaderUsername">sohel_077</span>
+              <i class="fa-solid fa-chevron-down text-[10px] opacity-70"></i>
+            </div>
+          </div>
+          <div></div>
+        </header>
+
+        <!-- Search Bar -->
+        <div class="px-4 py-2.5 shrink-0">
+          <div class="chat-search-box">
+            <i class="fa-solid fa-magnifying-glass text-[13px]"></i>
+            <input type="text" id="chatSearchInput" placeholder="Search conversations..." oninput="handleChatSearch(this.value)" class="bg-transparent border-none outline-none text-neutral-900 dark:text-white text-[13.5px] w-full placeholder:text-neutral-400" />
+            <button type="button" id="clearChatSearchBtn" onclick="clearChatSearch()" style="display: none;" class="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200">
+              <i class="fa-solid fa-circle-xmark text-[13px]"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Conversations List -->
+        <div class="flex-1 overflow-y-auto px-2 pb-20 divide-y divide-neutral-100/60 dark:divide-neutral-800/40" id="chatsConversationsList">
+          <!-- Populated by renderChatsList() -->
+        </div>
+
+        <!-- Instagram DM Conversation Context Menu Bottom Sheet / Popup -->
+        <div id="chatConversationActionSheetOverlay" class="absolute inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-xs transition-opacity duration-200 opacity-0 pointer-events-none cursor-pointer" onclick="handleConversationSheetBackdropClick(event)" onpointerdown="handleConversationSheetBackdropClick(event)">
+          <div id="chatConversationActionSheetCard" class="w-full max-w-lg bg-white dark:bg-[#262626] rounded-t-3xl shadow-2xl border-t border-neutral-200/80 dark:border-neutral-700/80 overflow-hidden flex flex-col sheet-slide-up cursor-default pb-6 select-none" onclick="event.stopPropagation()" onpointerdown="event.stopPropagation()">
+            
+            <!-- Handle bar -->
+            <div class="w-10 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 mx-auto mt-3 mb-2 shrink-0"></div>
+
+            <!-- Conversation Summary -->
+            <div class="px-5 py-3 flex items-center gap-3 border-b border-neutral-100 dark:border-neutral-800/80">
+              <div class="relative shrink-0">
+                <img id="chatSheetAvatar" src="" class="w-11 h-11 rounded-full object-cover" alt="" />
+                <span id="chatSheetOnlineDot" class="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-[#262626]" style="display: none;"></span>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5">
+                  <span id="chatSheetName" class="font-bold text-[15px] text-neutral-900 dark:text-white truncate"></span>
+                  <span id="chatSheetVerifiedBadge" class="text-sky-500 text-[12px]" style="display: none;"><i class="fa-solid fa-circle-check"></i></span>
+                </div>
+                <div id="chatSheetSubtext" class="text-[12px] text-neutral-500 dark:text-neutral-400 truncate"></div>
+              </div>
+            </div>
+
+            <!-- Actions Menu List -->
+            <div class="flex flex-col divide-y divide-neutral-100 dark:divide-neutral-800/60" id="chatSheetActionsContainer">
+              <!-- Pin / Unpin -->
+              <button type="button" onclick="actionTogglePinConversation()" class="w-full px-5 py-3.5 flex items-center justify-between text-[14px] font-medium text-neutral-900 dark:text-white hover:bg-neutral-50 dark:hover:bg-neutral-800/60 active:bg-neutral-100 dark:active:bg-neutral-800 transition-colors">
+                <span id="chatSheetPinLabel">Pin</span>
+                <i class="fa-solid fa-thumbtack text-[14px] text-neutral-400" id="chatSheetPinIcon"></i>
+              </button>
+
+              <!-- Mute / Unmute messages -->
+              <button type="button" onclick="actionToggleMuteConversation()" class="w-full px-5 py-3.5 flex items-center justify-between text-[14px] font-medium text-neutral-900 dark:text-white hover:bg-neutral-50 dark:hover:bg-neutral-800/60 active:bg-neutral-100 dark:active:bg-neutral-800 transition-colors">
+                <span id="chatSheetMuteLabel">Mute messages</span>
+                <i class="fa-regular fa-bell-slash text-[14px] text-neutral-400" id="chatSheetMuteIcon"></i>
+              </button>
+
+              <!-- Delete -->
+              <button type="button" onclick="actionShowDeleteConfirmation()" class="w-full px-5 py-3.5 flex items-center justify-between text-[14px] font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 active:bg-red-100 dark:active:bg-red-950/50 transition-colors">
+                <span>Delete</span>
+                <i class="fa-regular fa-trash-can text-[14px] text-red-500"></i>
+              </button>
+
+              <!-- Block / Unblock -->
+              <button type="button" onclick="actionToggleBlockConversation()" class="w-full px-5 py-3.5 flex items-center justify-between text-[14px] font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 active:bg-red-100 dark:active:bg-red-950/50 transition-colors">
+                <span id="chatSheetBlockLabel">Block</span>
+                <i class="fa-solid fa-ban text-[14px] text-red-500"></i>
+              </button>
+            </div>
+
+            <!-- Delete Confirmation Subview -->
+            <div id="chatSheetDeleteConfirmView" class="px-5 py-4 flex flex-col items-center text-center gap-3" style="display: none;">
+              <div class="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950/60 text-red-500 flex items-center justify-center text-lg">
+                <i class="fa-regular fa-trash-can"></i>
+              </div>
+              <div>
+                <h4 class="font-bold text-[15px] text-neutral-900 dark:text-white" id="deleteConfirmTitle">Delete conversation?</h4>
+                <p class="text-[12.5px] text-neutral-500 dark:text-neutral-400 mt-1 max-w-[260px]">Once you delete this conversation, messages and history will be cleared.</p>
+              </div>
+              <div class="w-full flex flex-col gap-2 mt-2">
+                <button type="button" onclick="actionConfirmDeleteConversation()" class="w-full py-2.5 rounded-xl bg-red-500 hover:bg-red-600 active:scale-98 text-white font-semibold text-[13.5px] transition-all">
+                  Delete
+                </button>
+                <button type="button" onclick="actionCancelDeleteConfirmation()" class="w-full py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 font-medium text-[13.5px] transition-all">
+                  Cancel
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Interactive Chat Container with Shabnam AI -->
+      <div id="shabnamChatContainer" class="relative flex flex-col h-full overflow-hidden" style="display: none;">
+        <!-- Chat Header -->
+        <header class="flex items-center justify-between px-3 h-[54px] border-b border-neutral-100 dark:border-neutral-800 shrink-0 bg-white/95 dark:bg-black/95 backdrop-blur-md z-10">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <button type="button" class="icon-btn shrink-0" onclick="closeShabnamChat()" title="Back to chats">
+              <i class="fa-solid fa-arrow-left text-[17px]"></i>
+            </button>
+            <div class="relative cursor-pointer shrink-0" onclick="openProfile('shabnam_ai')" title="View Profile">
+              <div class="w-[38px] h-[38px] rounded-full p-[1.5px] bg-gradient-to-tr from-sky-400 via-indigo-500 to-fuchsia-500">
+                <img src="https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png" class="w-full h-full rounded-full object-cover border border-white dark:border-black" alt="Shabnam AI" />
+              </div>
+              <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-black"></span>
+            </div>
+            <div class="min-w-0 cursor-pointer" onclick="openProfile('shabnam_ai')">
+              <div class="flex items-center gap-1.5 leading-tight">
+                <span class="font-bold text-[14.5px] text-neutral-900 dark:text-white truncate">Shabnam AI</span>
+                <span class="text-sky-500 text-[13px]" title="Verified"><i class="fa-solid fa-circle-check"></i></span>
+              </div>
+              <div class="text-[11px] text-neutral-500 dark:text-neutral-400 flex items-center gap-1">
+                <span>Active now</span>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            <button type="button" class="icon-btn" onclick="openProfile('shabnam_ai')" title="View Profile">
+              <i class="fa-regular fa-user text-[17px]"></i>
+            </button>
+            <button type="button" class="icon-btn" onclick="openShabnamHistoryDrawer()" title="Chat History">
+              <i class="fa-solid fa-clock-rotate-left text-[16px]"></i>
+            </button>
+          </div>
+        </header>
+
+        <!-- Pinned Message Header Banner -->
+        <div id="chatPinnedBanner" class="px-3.5 py-1.5 bg-neutral-100/90 dark:bg-neutral-900/90 border-b border-neutral-200/60 dark:border-neutral-800 flex items-center justify-between gap-2 text-[12px] z-10 shrink-0 backdrop-blur-xs transition-all" style="display: none;">
+          <div class="flex items-center gap-2 min-w-0 cursor-pointer flex-1" onclick="scrollToPinnedMessage()">
+            <span class="w-5 h-5 rounded-full bg-amber-500/10 dark:bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0 text-[10px]">
+              <i class="fa-solid fa-thumbtack"></i>
+            </span>
+            <div class="min-w-0 flex items-center gap-1.5">
+              <span class="font-bold text-[11px] text-amber-500 uppercase tracking-wide shrink-0">Pinned</span>
+              <span class="text-neutral-700 dark:text-neutral-300 truncate" id="chatPinnedTextSnippet">Pinned message</span>
+            </div>
+          </div>
+          <button type="button" onclick="unpinCurrentPinnedMessage()" class="w-5 h-5 rounded-full text-neutral-400 hover:text-neutral-700 dark:hover:text-white flex items-center justify-center text-[11px] shrink-0" title="Unpin message">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <!-- Clean Center Logo Intro Banner (Empty State) -->
+        <div id="shabnamChatEmptyIntro" class="flex-1 flex flex-col items-center justify-center px-6 py-10 text-center select-none my-auto transition-all duration-300" style="display: none;">
+          <div class="w-[100px] h-[100px] mx-auto rounded-full overflow-hidden shrink-0 shadow-sm">
+            <img src="https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png" class="w-full h-full rounded-full object-cover" alt="Shabnam AI" />
+          </div>
+          <h3 class="text-[20px] font-bold text-neutral-900 dark:text-white flex items-center justify-center gap-1.5 mt-5 tracking-tight">
+            <span>Shabnam AI</span>
+            <span class="text-sky-500 text-[16px]" title="Verified"><i class="fa-solid fa-circle-check"></i></span>
+          </h3>
+          <p class="text-[13px] text-neutral-500 dark:text-neutral-400 font-medium mt-1">AI</p>
+          <p class="text-[12px] text-neutral-400 dark:text-neutral-500 text-center max-w-[280px] leading-relaxed mt-4 px-2">
+            Messages are generated by AI. Some may be inaccurate or inappropriate. <a href="javascript:void(0)" onclick="openShabnamAiLearnMoreModal()" class="text-neutral-500 dark:text-neutral-400 underline hover:text-sky-500 transition-colors">Learn more</a>
+          </p>
+        </div>
+
+        <!-- Messages Thread -->
+        <div class="flex-1 overflow-y-auto px-3.5 py-3 space-y-3.5" id="shabnamChatMessages">
+          <!-- Populated by renderShabnamChatMessages() -->
+        </div>
+
+        <!-- Typing Indicator with active avatar status -->
+        <div id="shabnamTypingIndicator" class="px-4 py-2 flex items-center gap-2.5 text-[12px] text-neutral-400 select-none animate-in fade-in duration-200" style="display: none;">
+          <div class="relative w-6 h-6 rounded-full overflow-hidden border border-sky-400/40 shrink-0">
+            <img src="https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png" class="w-full h-full object-cover" alt="Shabnam AI" />
+            <span class="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-white dark:ring-neutral-900 animate-pulse"></span>
+          </div>
+          <div class="flex gap-1.5 items-center bg-neutral-100 dark:bg-neutral-800/80 px-3 py-1.5 rounded-full shadow-xs">
+            <span class="w-1.5 h-1.5 rounded-full bg-sky-500 animate-bounce"></span>
+            <span class="w-1.5 h-1.5 rounded-full bg-sky-500 animate-bounce [animation-delay:0.2s]"></span>
+            <span class="w-1.5 h-1.5 rounded-full bg-sky-500 animate-bounce [animation-delay:0.4s]"></span>
+          </div>
+          <span class="font-medium text-neutral-500 dark:text-neutral-400">Shabnam AI is typing...</span>
+        </div>
+
+        <!-- Image preview if attached -->
+        <div id="chatImagePreviewRow" class="px-4 py-2 bg-neutral-50 dark:bg-neutral-900/60 border-t border-neutral-100 dark:border-neutral-800 flex items-center gap-3" style="display: none;">
+          <div class="relative w-14 h-14 rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-700 shrink-0">
+            <img id="chatAttachedImgPreview" class="w-full h-full object-cover" src="" alt="preview" />
+            <button type="button" onclick="removeChatAttachedImage()" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-white flex items-center justify-center text-[10px]">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+          <div class="text-[12px] text-neutral-500 dark:text-neutral-400 flex-1">
+            Photo attached for Shabnam's review ✨
+          </div>
+        </div>
+
+        <!-- Instagram-style Quote Reply Banner above input pill -->
+        <div id="chatReplyBanner" class="px-3.5 py-2 bg-neutral-100 dark:bg-neutral-900 border-t border-neutral-200/80 dark:border-neutral-800 flex items-center justify-between gap-2.5 shrink-0 transition-all" style="display: none;">
+          <div class="flex items-center gap-2.5 min-w-0 flex-1">
+            <div class="w-1 h-7 bg-sky-500 rounded-full shrink-0"></div>
+            <div class="min-w-0">
+              <div class="text-[11px] font-semibold text-sky-500 flex items-center gap-1">
+                <i class="fa-solid fa-reply text-[10px]"></i>
+                <span id="chatReplySender">Replying to Shabnam AI</span>
+              </div>
+              <p class="text-[12px] text-neutral-600 dark:text-neutral-400 truncate" id="chatReplyTextSnippet">...</p>
+            </div>
+          </div>
+          <button type="button" onclick="cancelChatReply()" class="w-6 h-6 rounded-full text-neutral-400 hover:text-neutral-700 dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-800 flex items-center justify-center transition-colors shrink-0" title="Cancel reply">
+            <i class="fa-solid fa-xmark text-[12px]"></i>
+          </button>
+        </div>
+
+        <!-- Blocked Account Notice Banner (Shown when user blocks this chat) -->
+        <div id="shabnamChatBlockedBanner" class="p-3.5 bg-neutral-100 dark:bg-neutral-900 border-t border-neutral-200/80 dark:border-neutral-800 text-center shrink-0 select-none" style="display: none;">
+          <p class="text-[13px] font-medium text-neutral-600 dark:text-neutral-300">
+            You blocked Shabnam AI.
+          </p>
+          <button type="button" onclick="unblockShabnamAiFromChat()" class="mt-1 text-[13px] font-semibold text-sky-500 hover:text-sky-600 active:scale-95 transition-all">
+            Unblock account to send messages
+          </button>
+        </div>
+
+        <!-- Modern Instagram DM Bottom Input Bar -->
+        <div class="p-2.5 border-t border-neutral-100 dark:border-neutral-800 bg-white dark:bg-black shrink-0" id="shabnamChatInputBarWrapper">
+          <form id="shabnamChatForm" onsubmit="event.preventDefault(); sendShabnamMessage();" class="w-full">
+            <input type="file" id="shabnamChatMediaInput" accept="image/*" style="display:none;" onchange="handleChatImageSelected(this)" />
+            
+            <!-- Rounded Dark Input Pill Container matching reference design -->
+            <div class="relative flex items-center bg-neutral-100 dark:bg-neutral-900 rounded-full border border-neutral-200/80 dark:border-neutral-800 focus-within:border-neutral-400 dark:focus-within:border-neutral-700 transition-colors p-1 pl-1 pr-1.5 gap-1.5">
+              <!-- Round (+) Plus Icon directly inside on Left -->
+              <button type="button" onclick="document.getElementById('shabnamChatMediaInput').click()" class="w-8 h-8 rounded-full bg-sky-500 hover:bg-sky-600 text-white flex items-center justify-center active:scale-95 transition-all shrink-0 shadow-xs" title="Attach picture">
+                <i class="fa-solid fa-plus text-[14px]"></i>
+              </button>
+
+              <!-- Text Input with "Message..." placeholder -->
+              <input type="text" id="shabnamChatInput" placeholder="Message..." autocomplete="off" oninput="handleChatInputChange(this.value)" class="flex-1 min-w-0 h-[36px] bg-transparent text-[14px] text-neutral-900 dark:text-white border-none outline-none placeholder:text-neutral-400 dark:placeholder:text-neutral-500 px-1.5" />
+              
+              <!-- Microphone (Shown when empty) -->
+              <button type="button" id="chatVoiceActionBtn" onclick="triggerVoiceSpeechPrompt()" class="w-8 h-8 rounded-full flex items-center justify-center text-neutral-500 dark:text-neutral-400 hover:text-sky-500 active:scale-95 transition-all shrink-0" title="Voice Input">
+                <i class="fa-solid fa-microphone text-[15px]"></i>
+              </button>
+
+              <!-- Blue/White Paper Airplane Send Button (Shown when user types text) -->
+              <button type="submit" id="chatSendActionBtn" style="display: none;" class="w-8 h-8 rounded-full bg-sky-500 hover:bg-sky-600 text-white flex items-center justify-center active:scale-95 transition-all shrink-0 shadow-sm" title="Send message">
+                <i class="fa-solid fa-paper-plane text-[12px] -ml-0.5"></i>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Shabnam AI Chat History Side Drawer -->
+        <div id="shabnamHistoryDrawer" class="absolute inset-0 z-30 flex justify-end bg-black/50 backdrop-blur-xs transition-opacity duration-300 opacity-0 pointer-events-none" onclick="if(event.target===this) closeShabnamHistoryDrawer()">
+          <div id="shabnamHistoryDrawerPanel" class="w-[85%] max-w-[320px] h-full bg-white dark:bg-neutral-900 border-l border-neutral-200 dark:border-neutral-800 flex flex-col shadow-2xl transform translate-x-full transition-transform duration-300 ease-out" onclick="event.stopPropagation()">
+            <!-- Drawer Header -->
+            <div class="px-4 py-3.5 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between shrink-0">
+              <div class="flex items-center gap-2">
+                <i class="fa-solid fa-clock-rotate-left text-sky-500 text-[15px]"></i>
+                <h4 class="font-bold text-[14.5px] text-neutral-900 dark:text-white">Chat History</h4>
+              </div>
+              <button type="button" onclick="closeShabnamHistoryDrawer()" class="w-7 h-7 rounded-full flex items-center justify-center text-neutral-400 hover:text-neutral-700 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" title="Close">
+                <i class="fa-solid fa-xmark text-[14px]"></i>
+              </button>
+            </div>
+
+            <!-- "New Chat" button prominently at the top -->
+            <div class="p-3 border-b border-neutral-100 dark:border-neutral-800 shrink-0">
+              <button type="button" onclick="startNewShabnamChat()" class="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-sky-500 hover:bg-sky-600 active:scale-[0.98] text-white text-[13.5px] font-semibold transition-all shadow-sm">
+                <i class="fa-solid fa-plus text-[13px]"></i>
+                <span>New Chat</span>
+              </button>
+            </div>
+
+            <!-- Sessions List -->
+            <div id="shabnamHistorySessionsList" class="flex-1 overflow-y-auto p-2.5 space-y-1.5">
+              <!-- Populated by renderShabnamHistoryDrawer() -->
+            </div>
+
+            <!-- Drawer Footer -->
+            <div class="p-3 border-t border-neutral-100 dark:border-neutral-800 text-center bg-neutral-50/50 dark:bg-neutral-900/50 shrink-0">
+              <p class="text-[11px] text-neutral-400 dark:text-neutral-500">Chats are saved privately on this device</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Instagram Message Long-Press Context Menu & Reaction Overlay -->
+        <div id="chatMessageContextMenuOverlay" class="absolute inset-0 z-40 flex flex-col items-center justify-center p-4 bg-black/70 backdrop-blur-sm transition-opacity duration-200 opacity-0 pointer-events-none cursor-pointer" onclick="handleContextMenuBackdropClick(event)" onpointerdown="handleContextMenuBackdropClick(event)">
+          <div class="w-full max-w-[320px] flex flex-col items-center gap-3 select-none cursor-default" onclick="event.stopPropagation()" onpointerdown="event.stopPropagation()">
+            
+            <!-- 1. Reaction Bar (Top of popup) -->
+            <div class="relative flex flex-col items-center z-10">
+              <!-- Expanded Emoji Tray (Appears when (+) is tapped) -->
+              <div id="chatExpandedEmojiTray" class="mb-2 p-2 bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl border border-neutral-200 dark:border-neutral-800 grid grid-cols-6 gap-1 text-[20px] reaction-pill-pop" style="display: none;">
+                <button type="button" onclick="applyChatMessageReaction('🥰')" class="w-8 h-8 flex items-center justify-center hover:scale-125 transition-transform active:scale-95">🥰</button>
+                <button type="button" onclick="applyChatMessageReaction('🥺')" class="w-8 h-8 flex items-center justify-center hover:scale-125 transition-transform active:scale-95">🥺</button>
+                <button type="button" onclick="applyChatMessageReaction('🙌')" class="w-8 h-8 flex items-center justify-center hover:scale-125 transition-transform active:scale-95">🙌</button>
+                <button type="button" onclick="applyChatMessageReaction('💯')" class="w-8 h-8 flex items-center justify-center hover:scale-125 transition-transform active:scale-95">💯</button>
+                <button type="button" onclick="applyChatMessageReaction('🎉')" class="w-8 h-8 flex items-center justify-center hover:scale-125 transition-transform active:scale-95">🎉</button>
+                <button type="button" onclick="applyChatMessageReaction('✨')" class="w-8 h-8 flex items-center justify-center hover:scale-125 transition-transform active:scale-95">✨</button>
+                <button type="button" onclick="applyChatMessageReaction('😍')" class="w-8 h-8 flex items-center justify-center hover:scale-125 transition-transform active:scale-95">😍</button>
+                <button type="button" onclick="applyChatMessageReaction('😭')" class="w-8 h-8 flex items-center justify-center hover:scale-125 transition-transform active:scale-95">😭</button>
+                <button type="button" onclick="applyChatMessageReaction('👍')" class="w-8 h-8 flex items-center justify-center hover:scale-125 transition-transform active:scale-95">👍</button>
+                <button type="button" onclick="applyChatMessageReaction('🙏')" class="w-8 h-8 flex items-center justify-center hover:scale-125 transition-transform active:scale-95">🙏</button>
+                <button type="button" onclick="applyChatMessageReaction('⚡')" class="w-8 h-8 flex items-center justify-center hover:scale-125 transition-transform active:scale-95">⚡</button>
+                <button type="button" onclick="applyChatMessageReaction('😎')" class="w-8 h-8 flex items-center justify-center hover:scale-125 transition-transform active:scale-95">😎</button>
+              </div>
+
+              <!-- Floating Horizontal Pill Bar with Standard Emojis: ❤️, 😂, 😮, 😢, 👏, 🔥 and (+) -->
+              <div class="bg-white dark:bg-[#262626] rounded-full shadow-2xl px-3 py-1.5 flex items-center gap-2.5 border border-neutral-200/80 dark:border-neutral-700/80 reaction-pill-pop">
+                <button type="button" onclick="applyChatMessageReaction('❤️')" class="text-[23px] hover:scale-125 active:scale-90 transition-transform select-none" title="Love">❤️</button>
+                <button type="button" onclick="applyChatMessageReaction('😂')" class="text-[23px] hover:scale-125 active:scale-90 transition-transform select-none" title="Haha">😂</button>
+                <button type="button" onclick="applyChatMessageReaction('😮')" class="text-[23px] hover:scale-125 active:scale-90 transition-transform select-none" title="Wow">😮</button>
+                <button type="button" onclick="applyChatMessageReaction('😢')" class="text-[23px] hover:scale-125 active:scale-90 transition-transform select-none" title="Sad">😢</button>
+                <button type="button" onclick="applyChatMessageReaction('👏')" class="text-[23px] hover:scale-125 active:scale-90 transition-transform select-none" title="Clap">👏</button>
+                <button type="button" onclick="applyChatMessageReaction('🔥')" class="text-[23px] hover:scale-125 active:scale-90 transition-transform select-none" title="Fire">🔥</button>
+                <button type="button" onclick="toggleExpandedEmojiTray()" class="w-7 h-7 rounded-full bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-600 flex items-center justify-center text-[12px] active:scale-90 transition-all ml-0.5 shadow-xs" title="Pick more emojis">
+                  <i class="fa-solid fa-plus"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- 2. Highlighted / Focused Message Bubble Preview -->
+            <div id="contextMenuSelectedBubblePreview" class="w-full max-w-[290px] p-1 flex flex-col pointer-events-none transition-transform">
+              <!-- Populated dynamically with message content -->
+            </div>
+
+            <!-- 3. Action Context Menu (Below Reaction Bar: Reply, Copy, Pin) -->
+            <div class="bg-white dark:bg-[#262626] rounded-2xl shadow-2xl border border-neutral-200/80 dark:border-neutral-700/80 overflow-hidden divide-y divide-neutral-100 dark:divide-neutral-800 w-[220px] context-menu-pop-in">
+              <!-- Reply -->
+              <button type="button" onclick="actionReplySelectedMessage()" class="w-full px-4 py-2.5 flex items-center justify-between text-[13.5px] font-medium text-neutral-800 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800/80 active:bg-neutral-100 dark:active:bg-neutral-800 transition-colors">
+                <span>Reply</span>
+                <i class="fa-solid fa-reply text-[13px] text-neutral-400"></i>
+              </button>
+
+              <!-- Copy -->
+              <button type="button" onclick="actionCopySelectedMessage()" class="w-full px-4 py-2.5 flex items-center justify-between text-[13.5px] font-medium text-neutral-800 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800/80 active:bg-neutral-100 dark:active:bg-neutral-800 transition-colors">
+                <span>Copy</span>
+                <i class="fa-regular fa-copy text-[13px] text-neutral-400"></i>
+              </button>
+
+              <!-- Pin -->
+              <button type="button" onclick="actionPinSelectedMessage()" class="w-full px-4 py-2.5 flex items-center justify-between text-[13.5px] font-medium text-neutral-800 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800/80 active:bg-neutral-100 dark:active:bg-neutral-800 transition-colors">
+                <span id="contextMenuPinLabel">Pin</span>
+                <i class="fa-solid fa-thumbtack text-[13px] text-neutral-400" id="contextMenuPinIcon"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <nav class="bottom-bar" id="bottomNavBar" title="লং প্রেস করে কাস্টমাইজেশন সেটিংস খুলুন">
+      <div class="nav-active-pill" id="navActivePill"></div>
+      <div id="navButtonsContainer" style="display:contents;"></div>
+    </nav>
+
+    <!-- Shabnam AI Learn More Modal -->
+    <div id="shabnamAiLearnMoreModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" style="display: none;" onclick="if(event.target===this) closeShabnamAiLearnMoreModal()">
+      <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl text-neutral-900 dark:text-white relative animate-in fade-in zoom-in-95 duration-200" onclick="event.stopPropagation()">
+        <button type="button" onclick="closeShabnamAiLearnMoreModal()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:text-neutral-900 dark:hover:text-white flex items-center justify-center transition-colors">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+        <div class="w-14 h-14 mx-auto rounded-full bg-gradient-to-tr from-sky-400/20 to-fuchsia-400/20 text-sky-500 flex items-center justify-center text-2xl mb-4 border border-sky-500/20">
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+        </div>
+        <h4 class="text-[18px] font-bold text-center mb-1 flex items-center justify-center gap-1.5">
+          <span>About Shabnam AI</span>
+          <span class="text-sky-500 text-[15px]"><i class="fa-solid fa-circle-check"></i></span>
+        </h4>
+        <p class="text-[12.5px] text-neutral-500 dark:text-neutral-400 text-center mb-4 leading-relaxed">
+          Shabnam AI is your creative companion on Flashgram. You can brainstorm viral video concepts, generate captions, discuss lifestyle topics, or share pictures for feedback.
+        </p>
+        <div class="bg-neutral-50 dark:bg-neutral-800/60 rounded-2xl p-3.5 text-[12px] text-neutral-600 dark:text-neutral-300 space-y-2 mb-5">
+          <div class="flex items-start gap-2.5">
+            <i class="fa-solid fa-robot text-sky-500 mt-0.5 shrink-0"></i>
+            <span>Responses are dynamically generated using AI models and may occasionally be inaccurate or outdated.</span>
+          </div>
+          <div class="flex items-start gap-2.5">
+            <i class="fa-solid fa-shield-halved text-emerald-500 mt-0.5 shrink-0"></i>
+            <span>Avoid sharing sensitive personal information or passwords.</span>
+          </div>
+        </div>
+        <button type="button" onclick="closeShabnamAiLearnMoreModal()" class="w-full py-2.5 rounded-full bg-sky-500 hover:bg-sky-600 text-white text-[13.5px] font-semibold transition-all shadow-sm active:scale-98">
+          Got it
+        </button>
+      </div>
+    </div>
+
+    <!-- Full-Screen Avatar Viewer Modal (Solid Dark/Black Backdrop) -->
+    <div class="avatar-viewer-modal" id="avatarViewerModal" aria-hidden="true">
+      <div class="avatar-viewer-backdrop" id="avatarViewerBackdrop"></div>
+      
+      <!-- Top Navigation Bar inside Viewer -->
+      <div class="avatar-viewer-topbar">
+        <button type="button" class="viewer-icon-btn" id="avatarViewerCloseBtn" title="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+        <div class="viewer-top-meta">
+          <span class="viewer-username" id="viewerUsername">Sohel ✨</span>
+          <span class="viewer-subtitle">Profile Photo</span>
+        </div>
+        <button type="button" class="viewer-icon-btn" id="avatarViewerActionBtn" title="Set New Photo">
+          <i class="fa-solid fa-camera"></i>
+        </button>
+      </div>
+
+      <!-- Main Centered Scaled Image -->
+      <div class="avatar-viewer-content" id="avatarViewerContent">
+        <div class="avatar-viewer-frame" id="avatarViewerFrame">
+          <img id="avatarViewerImg" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=85" alt="Sohel Photo" draggable="false" />
+        </div>
+      </div>
+
+      <!-- Bottom Actions -->
+      <div class="avatar-viewer-bottom-bar">
+        <button type="button" class="viewer-pill-btn" id="viewerDownloadBtn"><i class="fa-solid fa-arrow-down-to-bracket"></i> Save Photo</button>
+        <button type="button" class="viewer-pill-btn" id="viewerShareBtn"><i class="fa-solid fa-share-nodes"></i> Share</button>
+      </div>
+    </div>
+
+    <!-- 1. Edit Profile Full Screen (Instagram Image 2 Style) -->
+    <div class="edit-profile-screen" id="editProfileScreen" aria-hidden="true">
+      <div class="edit-screen-header">
+        <button type="button" class="edit-header-btn" id="editProfileCancelBtn">Cancel</button>
+        <button type="button" class="edit-header-btn-done" id="editProfileDoneBtn">Done</button>
+      </div>
+
+      <div class="edit-screen-body">
+        <!-- Avatar Preview and Edit Picture Button -->
+        <div class="edit-avatar-section">
+          <div class="edit-avatar-preview-box" id="editAvatarPreviewBox" title="Tap to change photo">
+            <img id="editProfileAvatarPreview" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80" alt="Avatar Preview" />
+          </div>
+          <button type="button" class="edit-avatar-btn-link" id="btnEditPictureOrAvatar">
+            Edit picture or avatar
+          </button>
+        </div>
+
+        <!-- Modern Boxed Form Fields Group -->
+        <div class="edit-fields-group">
+          <!-- Row 1: Side-by-Side First name & Last name -->
+          <div class="edit-field-grid-2">
+            <div class="edit-field-boxed-item">
+              <label class="edit-field-box-label" for="inputEditFirstName">First name</label>
+              <div class="edit-input-box-wrapper">
+                <input type="text" class="edit-boxed-input" id="inputEditFirstName" placeholder="First name" value="Sohel" autocomplete="given-name" />
+              </div>
+            </div>
+            <div class="edit-field-boxed-item">
+              <label class="edit-field-box-label" for="inputEditLastName">Last name</label>
+              <div class="edit-input-box-wrapper">
+                <input type="text" class="edit-boxed-input" id="inputEditLastName" placeholder="Last name" value="✨" autocomplete="family-name" />
+              </div>
+            </div>
+          </div>
+          <!-- Hidden input for backwards compatibility -->
+          <input type="hidden" id="inputEditName" value="Sohel ✨" />
+
+          <!-- Row 2: Full-width Username Field -->
+          <div class="edit-field-boxed-item">
+            <label class="edit-field-box-label" for="inputEditUsername">Username</label>
+            <div class="edit-input-box-wrapper">
+              <input type="text" class="edit-boxed-input" id="inputEditUsername" placeholder="Username" value="sohel_077" autocomplete="username" autocapitalize="none" spellcheck="false" />
+            </div>
+          </div>
+
+          <!-- Row 3: Bio Field - Expandable multi-line textarea with character counter -->
+          <div class="edit-field-boxed-item">
+            <label class="edit-field-box-label" for="inputEditBio">Bio</label>
+            <div class="edit-textarea-box-wrapper">
+              <textarea class="edit-boxed-textarea" id="inputEditBio" rows="3" maxlength="150" placeholder="Add a bio to your profile..."></textarea>
+              <div class="edit-textarea-footer">
+                <span class="edit-bio-counter" id="editBioInlineCounter">0 / 150</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pronouns Field -->
+          <div class="edit-field-boxed-item">
+            <label class="edit-field-box-label" for="inputEditPronouns">Pronouns</label>
+            <div class="edit-input-box-wrapper">
+              <input type="text" class="edit-boxed-input" id="inputEditPronouns" placeholder="Add pronouns" value="she/her" />
+            </div>
+          </div>
+
+          <!-- Links Field -->
+          <div class="edit-field-boxed-item">
+            <label class="edit-field-box-label">Links</label>
+            <div class="edit-input-box-wrapper edit-link-box-wrapper" id="editProfileLinksRow" title="Tap to manage links">
+              <span class="edit-links-preview-text" id="editLinksPreviewSnippet">1 link</span>
+              <i class="fa-solid fa-chevron-right edit-chevron-icon"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Dedicated Bio Editing Screen -->
+    <div class="bio-editing-screen" id="bioEditingScreen" aria-hidden="true">
+      <div class="edit-screen-header">
+        <button type="button" class="edit-header-btn" id="bioEditingCancelBtn">Cancel</button>
+        <div class="edit-header-title">Bio</div>
+        <button type="button" class="edit-header-btn-done" id="bioEditingDoneBtn" title="Save Bio">
+          <i class="fa-solid fa-check" style="font-size: 17px;"></i>
+        </button>
+      </div>
+
+      <div class="bio-screen-body">
+        <div class="bio-textarea-wrapper">
+          <textarea class="bio-input-textarea" id="bioDedicatedTextarea" rows="6" maxlength="150" placeholder="Add a bio to your profile..."></textarea>
+          <div class="bio-char-counter" id="bioCharCounter">0 / 150</div>
+        </div>
+        <div class="bio-help-text">You can add emojis, hashtags, and line breaks to personalize your profile bio.</div>
+      </div>
+    </div>
+
+    <!-- 3. Links Management Modal -->
+    <div class="links-modal-overlay" id="linksModalOverlay" aria-hidden="true">
+      <div class="links-sheet">
+        <div class="links-sheet-header">
+          <div class="links-sheet-title">Edit Links</div>
+          <button type="button" class="viewer-icon-btn" id="closeLinksBtn" style="width:28px;height:28px;font-size:12px;">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <div class="links-field-group">
+          <label class="links-label">External URL</label>
+          <input type="text" class="links-input" id="inputLinksUrl" placeholder="https://linktr.ee/yourusername" value="flashgram.me/sohel" />
+        </div>
+        <div class="links-field-group">
+          <label class="links-label">Title (Optional)</label>
+          <input type="text" class="links-input" id="inputLinksTitle" placeholder="My Website / Socials" value="flashgram.me/sohel" />
+        </div>
+        <button type="button" class="links-save-btn" id="saveLinksBtn">Save Link</button>
+      </div>
+    </div>
+
+    <!-- 4. Interactive Image Pinch-to-Zoom & Crop Modal (Image 3 Style) -->
+    <div class="image-crop-modal" id="imageCropModal" aria-hidden="true">
+      <div class="crop-header">
+        <button type="button" class="crop-header-btn" id="cropModalCancelBtn">Cancel</button>
+        <div class="crop-header-title">Move and Scale</div>
+        <button type="button" class="crop-header-btn-done" id="cropModalDoneBtn">Done</button>
+      </div>
+
+      <div class="crop-stage-container" id="cropStageContainer">
+        <!-- Interactive Scalable/Pannable Image Layer -->
+        <div class="crop-image-layer" id="cropImageLayer">
+          <img id="cropTargetImg" src="" alt="Crop Target" draggable="false" />
+        </div>
+
+        <!-- Centered Circular Mask Overlay showing crop guide -->
+        <div class="crop-circular-mask" id="cropCircularMask"></div>
+      </div>
+
+      <!-- Crop Bottom Gesture Hints & Zoom Slider -->
+      <div class="crop-bottom-toolbar">
+        <div class="crop-slider-row">
+          <i class="fa-regular fa-image" style="font-size: 13px; color: rgba(255,255,255,0.5);"></i>
+          <input type="range" class="crop-zoom-slider" id="cropZoomSlider" min="1" max="3.5" step="0.01" value="1" />
+          <i class="fa-regular fa-image" style="font-size: 18px; color: #ffffff;"></i>
+        </div>
+        <div class="crop-hint-text">Pinch or drag to reposition within circle</div>
+      </div>
+    </div>
+
+    <!-- 5. Camera & Microphone Live Capture Modal (Android / Browser Media Viewfinder) -->
+    <div class="camera-mic-modal" id="cameraMicModal" aria-hidden="true">
+      <div class="camera-mic-topbar">
+        <button type="button" class="camera-top-btn" id="closeCameraModalBtn" title="Close Camera" onclick="closeCameraModal()">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+        <div class="camera-status-pill">
+          <i class="fa-solid fa-circle text-red-500 text-[8px] animate-pulse hidden" id="cameraRecordingDot"></i>
+          <span id="cameraStatusLabel">Live Camera & Mic</span>
+        </div>
+        <button type="button" class="camera-top-btn" id="flipCameraBtn" title="Flip Camera" onclick="toggleCameraFacing()">
+          <i class="fa-solid fa-camera-rotate"></i>
+        </button>
+      </div>
+
+      <div class="camera-viewfinder-container">
+        <video id="cameraMicLiveVideo" class="camera-live-video" autoplay playsinline muted></video>
+
+        <!-- Android / Browser Permission Prompt Box (Displays when permission needed or retried) -->
+        <div class="camera-permission-box hidden" id="cameraPermissionPromptBox">
+          <div class="camera-permission-icon-group">
+            <i class="fa-solid fa-camera"></i>
+            <i class="fa-solid fa-microphone"></i>
+          </div>
+          <div class="camera-permission-title">Camera & Microphone Access</div>
+          <p class="camera-permission-desc">Tap below to trigger the Android system permission popup to record video reels and capture photos with sound.</p>
+          <button type="button" class="camera-permission-grant-btn" id="requestMediaPermissionPromptBtn" onclick="openCameraMicrophoneSession()">
+            <i class="fa-solid fa-shield-halved"></i> Allow Camera & Mic
+          </button>
+          <button type="button" class="text-xs text-neutral-400 mt-3.5 hover:text-white underline cursor-pointer bg-transparent border-0" onclick="document.getElementById('videoFileInput').click(); closeCameraModal();">
+            Or choose existing file from device
+          </button>
+        </div>
+      </div>
+
+      <div class="camera-bottom-toolbar">
+        <button type="button" class="camera-top-btn" id="cameraOpenGalleryBtn" title="Choose from Gallery" onclick="document.getElementById('videoFileInput').click(); closeCameraModal();">
+          <i class="fa-regular fa-images"></i>
+        </button>
+        
+        <div class="flex flex-col items-center">
+          <div id="cameraRecordingTimer" class="text-xs font-semibold tracking-wider text-red-400 mb-1.5 opacity-0 transition-opacity">00:00</div>
+          <button type="button" class="camera-shutter-btn" id="cameraShutterBtn" title="Tap to capture / hold to record video with audio">
+            <div class="camera-shutter-inner" id="cameraShutterInner"></div>
+          </button>
+        </div>
+
+        <button type="button" class="camera-top-btn" id="triggerMicToggleBtn" title="Microphone Status" onclick="toggleMicMute()">
+          <i class="fa-solid fa-microphone" id="micIconStatus"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- 6. Media Creation Action Prompt Sheet (Triggered by + or Stories) -->
+    <div class="media-creation-overlay" id="mediaCreationOverlay" aria-hidden="true" onclick="if (event.target === this) closeMediaCreationPrompt();">
+      <div class="media-creation-sheet">
+        <div class="w-10 h-1 bg-neutral-500/40 rounded-full mx-auto mb-4"></div>
+        <div class="text-sm font-semibold mb-3 px-1 text-center">Create New Post or Reel</div>
+        <div class="flex flex-col gap-2">
+          <button type="button" class="flex items-center gap-3.5 p-3 rounded-xl hover:bg-neutral-800/20 active:bg-neutral-800/40 cursor-pointer border border-neutral-700/20 transition-colors w-full text-left font-medium text-sm text-inherit" id="promptOpenCameraBtn" onclick="closeMediaCreationPrompt(); openCameraMicrophoneSession();">
+            <div class="w-10 h-10 rounded-full bg-blue-500/15 text-blue-500 flex items-center justify-center text-lg shrink-0">
+              <i class="fa-solid fa-camera"></i>
+            </div>
+            <div>
+              <div class="font-semibold text-sm">Open Camera & Microphone</div>
+              <div class="text-xs opacity-70">Trigger Android permission popup & record live with audio</div>
+            </div>
+          </button>
+          <button type="button" class="flex items-center gap-3.5 p-3 rounded-xl hover:bg-neutral-800/20 active:bg-neutral-800/40 cursor-pointer border border-neutral-700/20 transition-colors w-full text-left font-medium text-sm text-inherit" id="promptUploadFileBtn" onclick="closeMediaCreationPrompt(); document.getElementById('videoFileInput').click();">
+            <div class="w-10 h-10 rounded-full bg-neutral-500/15 text-neutral-400 flex items-center justify-center text-lg shrink-0">
+              <i class="fa-solid fa-folder-open"></i>
+            </div>
+            <div>
+              <div class="font-semibold text-sm">Choose from Device</div>
+              <div class="text-xs opacity-70">Select video or photo from gallery / file manager</div>
+            </div>
+          </button>
+          <button type="button" class="mt-2 py-2.5 rounded-xl bg-neutral-800/50 hover:bg-neutral-800 text-neutral-300 text-xs font-semibold cursor-pointer w-full text-center transition-colors border-0" onclick="closeMediaCreationPrompt();">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-modal-overlay" id="settingsOverlay">
+      <div class="settings-panel">
+        <div class="settings-drag-bar"></div>
+        
+        <!-- 1. Header -->
+        <div class="settings-header">
+          <h2>Themes & UI</h2>
+          <button class="close-btn" id="closeSettingsBtn"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <p class="settings-subtitle">Customize your app appearance with fonts, emojis, and liquid glass</p>
+
+        <!-- 2. Font & Emoji Section -->
+        <div class="settings-card">
+          <div class="card-header-group">
+            <i class="fa-solid fa-font" style="color: #60a5fa;"></i>
+            <div>
+              <div class="card-title">FONT & EMOJI</div>
+              <div class="card-desc">Personalize typography and reactions</div>
+            </div>
+          </div>
+
+          <div class="setting-item-row">
+            <div class="setting-item-info">
+              <div class="setting-item-title">Change App Font</div>
+              <div class="setting-item-desc">Select your preferred font style</div>
+            </div>
+            <select id="appFontSelect" class="settings-select">
+              <option value="inter">Inter (Default)</option>
+              <option value="classic">Instagram Serif</option>
+              <option value="rounded">Modern Rounded</option>
+              <option value="grandhotel">Grand Hotel (Script)</option>
+              <option value="mono">Typewriter</option>
+            </select>
+          </div>
+
+          <div class="setting-item-row">
+            <div class="setting-item-info">
+              <div class="setting-item-title">Change App Emoji</div>
+              <div class="setting-item-desc">Choose your emoji style</div>
+            </div>
+            <select id="appEmojiSelect" class="settings-select">
+              <option value="apple">iOS / Apple Style</option>
+              <option value="android">Android (Noto Color)</option>
+              <option value="meta">Meta / Facebook Style</option>
+              <option value="twemoji">Twemoji (Twitter)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 3. Reorder Navigation Bar Section -->
+        <div class="settings-card">
+          <div class="card-header-group">
+            <i class="fa-solid fa-arrows-up-down-left-right" style="color: #fbbf24;"></i>
+            <div>
+              <div class="card-title">REORDER NAVIGATION BAR</div>
+              <div class="card-desc">Drag icons to reorder</div>
+            </div>
+          </div>
+
+          <div class="reorder-list-box" id="dragListBox"></div>
+          <div class="reorder-helper-text">Long Press and Drag to Reorder</div>
+
+          <button class="reset-btn" id="resetOrderBtn">
+            <i class="fa-solid fa-rotate-left"></i> Reset Navigation Order
+          </button>
+        </div>
+
+        <!-- 4. Liquid Glass Settings Card -->
+        <div class="settings-card" id="liquidGlassCard">
+          <div class="card-header-group">
+            <i class="fa-solid fa-droplet" style="color: #4dd0e1;"></i>
+            <div>
+              <div class="card-title">LIQUID GLASS</div>
+              <div class="card-desc">Navigation Bar Customizer & Effects</div>
+            </div>
+          </div>
+
+          <div class="setting-item-row">
+            <div class="setting-item-info">
+              <div class="setting-item-title">Enable Liquid Glass</div>
+              <div class="setting-item-desc">Turn on/off liquid glassmorphism on the bottom navigation bar</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="liquidGlassToggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="glass-running-pill disabled" id="glassStatusBadge">
+            <i class="fa-regular fa-circle" style="font-size: 8px;"></i>
+            <span>Disabled: Standard Flat Bar</span>
+          </div>
+
+          <!-- Collapsible Customization Panel -->
+          <div class="glass-customizer-collapse" id="glassCustomizerCollapse">
+            
+            <!-- Real-Time Interactive Live Preview -->
+            <div class="glass-preview-wrapper">
+              <div class="glass-preview-header">
+                <span class="glass-preview-tag"><i class="fa-solid fa-eye"></i> LIVE PREVIEW</span>
+                <span class="glass-preview-sub">Interactive preview • Tap icons</span>
+              </div>
+              <div class="glass-preview-canvas" id="glassPreviewCanvas">
+                <div class="glass-preview-pill" id="glassPreviewPill">
+                  <div class="preview-active-pill" id="previewActivePill"></div>
+                  <div class="preview-nav-item active" data-id="home" title="Home"><i class="fa-solid fa-house"></i></div>
+                  <div class="preview-nav-item" data-id="reels" title="Reels"><i class="fa-solid fa-play"></i></div>
+                  <div class="preview-nav-item" data-id="messages" title="Messages"><i class="fa-regular fa-paper-plane"></i></div>
+                  <div class="preview-nav-item" data-id="search" title="Search"><i class="fa-solid fa-magnifying-glass"></i></div>
+                  <div class="preview-nav-item" data-id="profile" title="Profile">
+                    <div class="preview-avatar-circle">
+                      <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=60&auto=format&fit=crop&q=80" alt="avatar" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Customization Sliders & Selectors -->
+            <div class="glass-sliders-list">
+              
+              <!-- 1. Glass Style Selector -->
+              <div class="glass-selector-group">
+                <div class="slider-control-header">
+                  <span class="slider-label"><i class="fa-solid fa-palette"></i> Glass Style</span>
+                  <span class="slider-value-display" id="valStyle">Classic</span>
+                </div>
+                <div class="glass-segmented-control" id="glassStyleSelector">
+                  <button type="button" class="glass-segmented-btn active" data-style="classic"><i class="fa-solid fa-gem"></i> Classic</button>
+                  <button type="button" class="glass-segmented-btn" data-style="frosted"><i class="fa-solid fa-snowflake"></i> Frosted</button>
+                  <button type="button" class="glass-segmented-btn" data-style="neon"><i class="fa-solid fa-bolt"></i> Neon</button>
+                  <button type="button" class="glass-segmented-btn" data-style="cyberpunk"><i class="fa-solid fa-burst"></i> Cyberpunk</button>
+                </div>
+              </div>
+
+              <!-- 2. Floating Position Selector -->
+              <div class="glass-selector-group">
+                <div class="slider-control-header">
+                  <span class="slider-label"><i class="fa-solid fa-up-down"></i> Floating Position</span>
+                  <span class="slider-value-display" id="valPosition">Low (16px)</span>
+                </div>
+                <div class="glass-segmented-control" id="glassPositionSelector">
+                  <button type="button" class="glass-segmented-btn active" data-position="low"><i class="fa-solid fa-arrow-down"></i> Low</button>
+                  <button type="button" class="glass-segmented-btn" data-position="medium"><i class="fa-solid fa-grip-lines"></i> Medium</button>
+                  <button type="button" class="glass-segmented-btn" data-position="high"><i class="fa-solid fa-arrow-up"></i> High</button>
+                </div>
+              </div>
+
+              <!-- 3. Glass Width -->
+              <div class="slider-control-group">
+                <div class="slider-control-header">
+                  <span class="slider-label"><i class="fa-solid fa-arrows-left-right"></i> Glass Width</span>
+                  <span class="slider-value-display" id="valWidth">83%</span>
+                </div>
+                <input type="range" id="sliderWidth" class="glass-range-slider" min="60" max="98" step="1" value="83" />
+                <div class="slider-ticks">
+                  <span>60%</span>
+                  <span>83% (Default)</span>
+                  <span>98%</span>
+                </div>
+              </div>
+
+              <!-- 4. Glass Height -->
+              <div class="slider-control-group">
+                <div class="slider-control-header">
+                  <span class="slider-label"><i class="fa-solid fa-arrows-up-down"></i> Glass Height</span>
+                  <span class="slider-value-display" id="valHeight">52px</span>
+                </div>
+                <input type="range" id="sliderHeight" class="glass-range-slider" min="42" max="64" step="1" value="52" />
+                <div class="slider-ticks">
+                  <span>42px</span>
+                  <span>52px (Default)</span>
+                  <span>64px</span>
+                </div>
+              </div>
+
+              <!-- 5. Corner Radius -->
+              <div class="slider-control-group">
+                <div class="slider-control-header">
+                  <span class="slider-label"><i class="fa-regular fa-square"></i> Corner Radius</span>
+                  <span class="slider-value-display" id="valRadius">50px (Full Pill)</span>
+                </div>
+                <input type="range" id="sliderRadius" class="glass-range-slider" min="8" max="50" step="1" value="50" />
+                <div class="slider-ticks">
+                  <span>8px (Square)</span>
+                  <span>28px (Soft)</span>
+                  <span>50px (Pill)</span>
+                </div>
+              </div>
+
+              <!-- 6. Blur Effect (Backdrop) -->
+              <div class="slider-control-group">
+                <div class="slider-control-header">
+                  <span class="slider-label"><i class="fa-solid fa-wand-magic-sparkles"></i> Blur Effect (Backdrop)</span>
+                  <span class="slider-value-display" id="valBlur">16px</span>
+                </div>
+                <input type="range" id="sliderBlur" class="glass-range-slider" min="0" max="40" step="1" value="16" />
+                <div class="slider-ticks">
+                  <span>0px (None)</span>
+                  <span>16px (Default)</span>
+                  <span>40px (Max)</span>
+                </div>
+              </div>
+
+              <!-- 7. Background Tint / Opacity -->
+              <div class="slider-control-group">
+                <div class="slider-control-header">
+                  <span class="slider-label"><i class="fa-solid fa-circle-half-stroke"></i> Background Tint / Opacity</span>
+                  <span class="slider-value-display" id="valOpacity">50%</span>
+                </div>
+                <input type="range" id="sliderOpacity" class="glass-range-slider" min="5" max="90" step="1" value="50" />
+                <div class="slider-ticks">
+                  <span>5% (Clear)</span>
+                  <span>50% (Default)</span>
+                  <span>90% (Solid)</span>
+                </div>
+              </div>
+
+              <!-- 8. Glass Shine / Glow -->
+              <div class="slider-control-group">
+                <div class="slider-control-header">
+                  <span class="slider-label"><i class="fa-solid fa-sun"></i> Glass Shine / Glow</span>
+                  <span class="slider-value-display" id="valBorder">25%</span>
+                </div>
+                <input type="range" id="sliderBorder" class="glass-range-slider" min="0" max="80" step="1" value="25" />
+                <div class="slider-ticks">
+                  <span>0% (Matte)</span>
+                  <span>25% (Default)</span>
+                  <span>80% (Vibrant)</span>
+                </div>
+              </div>
+
+              <!-- Reset to Recommended Defaults Button -->
+              <button class="reset-btn glass-reset-action" id="resetGlassSettingsBtn">
+                <i class="fa-solid fa-rotate-left"></i> Reset to Recommended Defaults
+              </button>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. Account & Session Card -->
+        <div class="settings-card" id="accountSessionCard">
+          <div class="card-header-group">
+            <i class="fa-solid fa-user-shield" style="color: #a855f7;"></i>
+            <div>
+              <div class="card-title">ACCOUNT & SESSION</div>
+              <div class="card-desc">Authentication and account switching</div>
+            </div>
+          </div>
+
+          <div class="setting-item-row">
+            <div class="setting-item-info">
+              <div class="setting-item-title">Onboarding Flow</div>
+              <div class="setting-item-desc">Revisit the login and onboarding walkthrough</div>
+            </div>
+            <button type="button" onclick="const s = document.getElementById('settingsOverlay'); if (s) s.classList.remove('open'); openAuthOnboardingFlow(1);" class="px-3.5 py-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-800 dark:text-white text-xs font-semibold transition-colors cursor-pointer">
+              Open Flow
+            </button>
+          </div>
+
+          <div class="setting-item-row" style="border-bottom: none;">
+            <div class="setting-item-info">
+              <div class="setting-item-title text-red-500">Log Out</div>
+              <div class="setting-item-desc">Sign out of your session on this device</div>
+            </div>
+            <button type="button" onclick="handleAuthLogout()" class="px-3.5 py-1.5 rounded-full bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 text-xs font-semibold transition-colors border border-red-200 dark:border-red-900/50 cursor-pointer">
+              Log Out
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Multi-Step User Onboarding & Authentication Flow -->
+    <div id="authOnboardingOverlay" class="bg-white dark:bg-black text-neutral-900 dark:text-white">
+      
+      <!-- STEP 1: Login / Sign In Screen (Layout Reordering) -->
+      <div id="authStep1" class="auth-step-container active px-6 pt-10 pb-6">
+        <div class="flex flex-col items-center text-center mt-4 w-full">
+          <!-- App Logo -->
+          <div class="w-16 h-16 rounded-[22px] bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888] p-[2px] shadow-lg flex items-center justify-center mb-2.5 active:scale-95 transition-transform cursor-pointer" title="Flashgram">
+            <div class="w-full h-full rounded-[20px] flex items-center justify-center bg-transparent text-white text-3xl">
+              <i class="fa-brands fa-instagram"></i>
+            </div>
+          </div>
+
+          <!-- App Title -->
+          <div class="text-[40px] font-normal leading-tight text-neutral-900 dark:text-white select-none tracking-wide" style="font-family: 'Grand Hotel', cursive, sans-serif;">
+            Instagram
+          </div>
+
+          <!-- Subtitle -->
+          <div class="text-[15px] font-medium text-neutral-500 dark:text-neutral-400 mt-1 mb-8">
+            Log in or sign up
+          </div>
+
+          <!-- First Input: Rounded text field for "Email or phone number" -->
+          <div class="w-full mb-3.5">
+            <input 
+              type="text" 
+              id="authInputEmailPhone" 
+              placeholder="Email or phone number" 
+              class="w-full px-5 py-3.5 rounded-full bg-neutral-100/90 dark:bg-neutral-900 border border-neutral-200/90 dark:border-neutral-800 text-[14.5px] text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all" 
+              autocomplete="username"
+              onkeydown="if(event.key==='Enter') handleAuthContinue();"
+            />
+          </div>
+
+          <!-- Below input: Full-width rounded "Continue" button -->
+          <button 
+            type="button" 
+            id="authBtnContinue" 
+            onclick="handleAuthContinue()" 
+            class="w-full py-3.5 rounded-full bg-[#0095F6] hover:bg-sky-600 active:scale-[0.99] text-white font-semibold text-[14.5px] transition-all shadow-sm flex items-center justify-center gap-2 mb-3.5 cursor-pointer"
+          >
+            <span>Continue</span>
+          </button>
+
+          <!-- Below "Continue" button: Native Google One-Tap & Explicit "Sign in with Google" button -->
+          <div id="g_id_onload"
+               data-client_id="480251116405-85u1cn7gcf1l01joafvvv5lgl133pj9m.apps.googleusercontent.com"
+               data-context="signin"
+               data-callback="handleGoogleCredentialResponse"
+               data-auto_prompt="false"
+               data-auto_select="false"
+               data-use_fedcm_for_prompt="true"
+               data-close_on_tap_outside="true"
+               class="hidden">
+          </div>
+
+          <!-- Container for Google's standard renderButton fallback -->
+          <div id="googleBtnContainer" class="w-full mb-3 flex items-center justify-center empty:hidden"></div>
+
+          <!-- Explicit "Sign in with Google" button that triggers the account picker -->
+          <button 
+            type="button" 
+            id="authBtnGoogle" 
+            onclick="handleExplicitGoogleSignIn()" 
+            class="w-full py-3.5 rounded-full bg-black dark:bg-[#1f1f1f] text-white hover:bg-neutral-900 dark:hover:bg-[#282828] border border-neutral-800 dark:border-neutral-700/80 active:scale-[0.99] transition-all flex items-center justify-center gap-3 font-semibold text-[14px] shadow-sm cursor-pointer mb-3"
+          >
+            <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
+              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+              <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.16 0 9.94 0 12s.45 3.84 1.25 5.42l4.03-3.15z"/>
+              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+            </svg>
+            <span id="authBtnGoogleText">Sign in with Google</span>
+          </button>
+        </div>
+
+        <!-- At the bottom footer: Centered links for "Terms of Service • Privacy Policy" -->
+        <div class="mt-auto pt-4 pb-2 text-center text-[12.5px] text-neutral-400 dark:text-neutral-500 select-none">
+          <a href="#" onclick="event.preventDefault(); if (typeof showInstagramToast==='function') showInstagramToast('Terms of Service: By signing up, you agree to our Terms.');" class="hover:underline hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors">Terms of Service</a>
+          <span class="mx-1.5 opacity-60">•</span>
+          <a href="#" onclick="event.preventDefault(); if (typeof showInstagramToast==='function') showInstagramToast('Privacy Policy: Learn how we process your personal data.');" class="hover:underline hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors">Privacy Policy</a>
+        </div>
+      </div>
+
+      <!-- STEP 2: Set Full Name & Username Screen -->
+      <div id="authStep2" class="auth-step-container px-6 pt-5 pb-6" style="display: none !important;">
+        <div class="w-full">
+          <!-- Header with back arrow on the top left -->
+          <div class="flex items-center justify-between h-12 mb-3 shrink-0">
+            <button type="button" onclick="goToAuthStep(1, false)" class="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-95 transition-all cursor-pointer" title="Back to log in">
+              <i class="fa-solid fa-arrow-left text-[18px]"></i>
+            </button>
+            <span class="text-[13px] font-semibold text-neutral-400 dark:text-neutral-500">Step 2 of 4</span>
+          </div>
+
+          <!-- Bold title: "What's your name?" -->
+          <h1 class="text-[26px] font-extrabold text-neutral-900 dark:text-white tracking-tight mb-1.5">
+            What's your name?
+          </h1>
+          <p class="text-[13.5px] text-neutral-500 dark:text-neutral-400 mb-6">
+            Add your name and choose a unique username so your friends can find you.
+          </p>
+
+          <!-- Input 1: Full name -->
+          <div class="w-full mb-3.5">
+            <label class="block text-[12px] font-semibold text-neutral-500 dark:text-neutral-400 mb-1.5 px-1">Full name</label>
+            <input 
+              type="text" 
+              id="authInputFullName" 
+              placeholder="Full name" 
+              class="w-full px-5 py-3.5 rounded-full bg-neutral-100/90 dark:bg-neutral-900 border border-neutral-200/90 dark:border-neutral-800 text-[15px] font-medium text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all" 
+              autocomplete="name"
+              onkeydown="if(event.key==='Enter') document.getElementById('authInputUsername').focus();"
+            />
+          </div>
+
+          <!-- Input 2: Username -->
+          <div class="w-full mb-5">
+            <label class="block text-[12px] font-semibold text-neutral-500 dark:text-neutral-400 mb-1.5 px-1">Username</label>
+            <div class="relative w-full">
+              <span class="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500 font-semibold text-[15px]">@</span>
+              <input 
+                type="text" 
+                id="authInputUsername" 
+                placeholder="username" 
+                class="w-full pl-9 pr-5 py-3.5 rounded-full bg-neutral-100/90 dark:bg-neutral-900 border border-neutral-200/90 dark:border-neutral-800 text-[15px] font-medium text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all" 
+                autocomplete="username"
+                onkeydown="if(event.key==='Enter') handleAuthNextName();"
+              />
+            </div>
+          </div>
+
+          <!-- Primary full-width blue button: "Next" -->
+          <button 
+            type="button" 
+            id="authBtnNextName" 
+            onclick="handleAuthNextName()" 
+            class="w-full py-3.5 rounded-full bg-[#0095F6] hover:bg-sky-600 active:scale-[0.99] text-white font-semibold text-[14.5px] transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <span>Next</span>
+          </button>
+        </div>
+
+        <div class="mt-auto pt-4 text-center text-[12px] text-neutral-400 dark:text-neutral-500 select-none">
+          You can change your username and display name anytime in settings.
+        </div>
+      </div>
+
+      <!-- STEP 3: Add Profile Photo Screen -->
+      <div id="authStep3" class="auth-step-container px-6 pt-5 pb-6" style="display: none !important;">
+        <div class="w-full">
+          <!-- Header with "Skip" button on the top right -->
+          <div class="flex items-center justify-between h-12 mb-3 shrink-0">
+            <button type="button" onclick="goToAuthStep(2, false)" class="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-95 transition-all cursor-pointer" title="Back to name">
+              <i class="fa-solid fa-arrow-left text-[18px]"></i>
+            </button>
+            <div class="flex items-center gap-3">
+              <span class="text-[13px] font-semibold text-neutral-400 dark:text-neutral-500">Step 3 of 4</span>
+              <button 
+                type="button" 
+                onclick="handleAuthProceedToOtp(true)" 
+                class="text-[14.5px] font-semibold text-neutral-600 dark:text-neutral-300 hover:text-sky-500 active:scale-95 transition-all px-2.5 py-1 rounded-lg cursor-pointer"
+                title="Skip photo"
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+
+          <!-- Title -->
+          <div class="text-center px-2 mt-2">
+            <h1 class="text-[23px] font-extrabold text-neutral-900 dark:text-white tracking-tight leading-snug mb-2">
+              Add a profile photo that shows your vibe
+            </h1>
+            <p class="text-[13.5px] text-neutral-500 dark:text-neutral-400 mb-8">
+              Choose a photo so your friends recognize your profile instantly.
+            </p>
+          </div>
+
+          <!-- Centered large circular avatar placeholder with a blue camera (+) icon inside -->
+          <div class="relative w-40 h-40 mx-auto my-3 cursor-pointer select-none group" onclick="triggerOnboardingPhotoPicker()" title="Choose profile picture">
+            <!-- Circular Frame -->
+            <div id="onboardingAvatarFrame" class="w-full h-full rounded-full bg-neutral-100 dark:bg-neutral-800/90 border-2 border-dashed border-neutral-300 dark:border-neutral-700 group-hover:border-sky-500 transition-all flex items-center justify-center overflow-hidden shadow-inner">
+              <img id="onboardingAvatarImg" src="" alt="Avatar" class="w-full h-full object-cover hidden" />
+              <i id="onboardingAvatarEmptyIcon" class="fa-solid fa-user text-neutral-300 dark:text-neutral-600 text-6xl group-hover:scale-105 transition-transform"></i>
+            </div>
+            
+            <!-- Blue Camera (+) Icon Badge -->
+            <div class="absolute bottom-1 right-1 w-11 h-11 rounded-full bg-[#0095F6] text-white flex items-center justify-center text-[16px] shadow-md ring-4 ring-white dark:ring-black group-hover:scale-110 transition-transform">
+              <i class="fa-solid fa-camera"></i>
+            </div>
+          </div>
+
+          <div class="text-center mt-3">
+            <span id="onboardingPhotoSelectedLabel" class="text-[13px] text-emerald-500 font-medium hidden flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-circle-check"></i> Photo selected!
+            </span>
+          </div>
+
+          <!-- Hidden File Input -->
+          <input type="file" id="onboardingPhotoInput" accept="image/*" style="display:none;" onchange="handleOnboardingPhotoSelected(this)" />
+        </div>
+
+        <!-- Bottom primary full-width button: "Add a photo" / "Continue" -->
+        <div class="mt-auto pt-4 pb-2 w-full">
+          <button 
+            type="button" 
+            id="authBtnPhotoAction" 
+            onclick="handleAuthPhotoAction()" 
+            class="w-full py-3.5 rounded-full bg-[#0095F6] hover:bg-sky-600 active:scale-[0.99] text-white font-semibold text-[14.5px] transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <i class="fa-solid fa-camera text-[15px]" id="authBtnPhotoIcon"></i>
+            <span id="authBtnPhotoText">Add a photo</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- STEP 4: Instagram-Style OTP Verification Screen -->
+      <div id="authStep4" class="auth-step-container px-6 pt-5 pb-6" style="display: none !important;">
+        <div class="w-full">
+          <!-- Header with back arrow on top left -->
+          <div class="flex items-center justify-between h-12 mb-2 shrink-0">
+            <button type="button" onclick="goToAuthStep(3, false)" class="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-95 transition-all cursor-pointer" title="Back to photo">
+              <i class="fa-solid fa-arrow-left text-[18px]"></i>
+            </button>
+            <span class="text-[13px] font-semibold text-neutral-400 dark:text-neutral-500">Step 4 of 4</span>
+          </div>
+
+          <!-- Instagram-Style Centered Account Preview Card -->
+          <div class="w-full max-w-[340px] mx-auto bg-gradient-to-b from-neutral-50 to-neutral-100/70 dark:from-neutral-900 dark:to-neutral-900/90 border border-neutral-200/90 dark:border-neutral-800 rounded-3xl p-4.5 mb-4 flex flex-col items-center text-center shadow-xs">
+            <!-- Circular Avatar with Instagram Gradient Ring -->
+            <div class="relative mb-2.5">
+              <div class="w-[72px] h-[72px] rounded-full p-[2px] bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888] shadow-md">
+                <div class="w-full h-full rounded-full overflow-hidden bg-white dark:bg-black p-[2px]">
+                  <img id="authSummaryAvatarImg" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" class="w-full h-full rounded-full object-cover" alt="Profile" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'" />
+                </div>
+              </div>
+              <div class="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-sky-500 text-white flex items-center justify-center text-[10px] ring-2 ring-white dark:ring-black shadow-xs" title="Verified">
+                <i class="fa-solid fa-check"></i>
+              </div>
+            </div>
+
+            <!-- Full Name with Verified Badge -->
+            <div class="flex items-center justify-center gap-1.5 leading-tight mb-0.5">
+              <span id="authSummaryFullName" class="font-extrabold text-[16.5px] text-neutral-900 dark:text-white tracking-tight">Sohel</span>
+              <span class="text-sky-500 text-[13px]"><i class="fa-solid fa-circle-check"></i></span>
+            </div>
+
+            <!-- @username -->
+            <div id="authSummaryUsername" class="text-[13px] text-neutral-500 dark:text-neutral-400 font-semibold mb-2.5">
+              @sohel_077
+            </div>
+
+            <!-- Verified Recipient Email Pill -->
+            <div class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-sky-50 dark:bg-sky-950/50 border border-sky-200/60 dark:border-sky-800/60 text-sky-700 dark:text-sky-300 text-[12px] font-medium shadow-xs max-w-full">
+              <i class="fa-regular fa-envelope text-[11.5px] text-sky-500 shrink-0"></i>
+              <span class="truncate">Code sent to: <b id="authSummaryTargetEmail" class="font-bold text-sky-900 dark:text-sky-100">sohelmommy@gmail.com</b></span>
+            </div>
+          </div>
+
+          <!-- Title: "Enter confirmation code" -->
+          <h1 class="text-[20px] font-extrabold text-neutral-900 dark:text-white tracking-tight text-center mb-1">
+            Enter confirmation code
+          </h1>
+          <p class="text-[12.5px] text-neutral-500 dark:text-neutral-400 text-center mb-4 max-w-[280px] mx-auto">
+            Check your email inbox or spam folder for your 6-digit verification code.
+          </p>
+
+          <!-- 6-digit OTP Input Container -->
+          <div class="flex items-center justify-between gap-2 my-2 w-full max-w-[340px] mx-auto" id="authOtpInputsContainer">
+            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-box w-11 h-13 text-center text-[22px] font-bold rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/25 transition-all" data-index="0" />
+            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-box w-11 h-13 text-center text-[22px] font-bold rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/25 transition-all" data-index="1" />
+            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-box w-11 h-13 text-center text-[22px] font-bold rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/25 transition-all" data-index="2" />
+            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-box w-11 h-13 text-center text-[22px] font-bold rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/25 transition-all" data-index="3" />
+            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-box w-11 h-13 text-center text-[22px] font-bold rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/25 transition-all" data-index="4" />
+            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="otp-box w-11 h-13 text-center text-[22px] font-bold rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/25 transition-all" data-index="5" />
+          </div>
+
+          <!-- Actions Row: Auto-paste & Countdown Resend -->
+          <div class="flex items-center justify-between w-full max-w-[340px] mx-auto mt-4 px-1">
+            <button type="button" onclick="handleAutoPasteOtp()" class="text-[12.5px] font-semibold text-neutral-600 dark:text-neutral-400 hover:text-sky-500 flex items-center gap-1.5 py-1 px-2.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800/80 transition-all cursor-pointer">
+              <i class="fa-regular fa-paste"></i>
+              <span>Paste code</span>
+            </button>
+
+            <div>
+              <span id="authOtpResendCountdown" class="text-[12.5px] text-neutral-400 dark:text-neutral-500 font-medium">Resend in <span id="authOtpCountdownNum">60</span>s</span>
+              <button type="button" id="authOtpResendBtn" onclick="handleResendOtp()" class="text-[12.5px] font-semibold text-sky-500 hover:text-sky-600 hover:underline transition-all cursor-pointer hidden">
+                Resend Code
+              </button>
+            </div>
+          </div>
+
+          <!-- Confirm / Verify Button -->
+          <button 
+            type="button" 
+            id="authBtnVerifyOtp" 
+            onclick="handleVerifyOtpSubmit()" 
+            class="w-full py-3.5 rounded-full bg-[#0095F6] hover:bg-sky-600 active:scale-[0.99] text-white font-semibold text-[14.5px] transition-all shadow-sm flex items-center justify-center gap-2 mt-6 cursor-pointer"
+          >
+            <span id="authBtnVerifyText">Confirm</span>
+          </button>
+        </div>
+
+        <div class="mt-auto pt-4 text-center text-[12px] text-neutral-400 dark:text-neutral-500 select-none">
+          Having trouble? You can also sign in directly using Google One-Tap.
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+
+</body>
+</html>
