@@ -42,12 +42,13 @@
         }
       });
       // Pre-declare global GIS callback so it's always a valid function when GIS library initializes from HTML
-      window.handleGoogleOneTapResponse = function(response) {
-        if (typeof window.__handleGoogleOneTapResponseImpl === 'function') {
-          return window.__handleGoogleOneTapResponseImpl(response);
+      window.handleGoogleCredentialResponse = function(response) {
+        if (typeof window.__handleGoogleCredentialResponseImpl === 'function') {
+          return window.__handleGoogleCredentialResponseImpl(response);
         }
-        window.__pendingGoogleOneTapResponse = response;
+        window.__pendingGoogleCredentialResponse = response;
       };
+      window.handleGoogleOneTapResponse = window.handleGoogleCredentialResponse;
     })();
   </script>
   <!-- Google Identity Services Script -->
@@ -1237,15 +1238,18 @@
 
           <!-- Below "Continue" button: Native Google One-Tap & Explicit "Sign in with Google" button -->
           <div id="g_id_onload"
-               data-client_id="YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
+               data-client_id="480251116405-85u1cn7gcf1l01joafvvv5lgl133pj9m.apps.googleusercontent.com"
                data-context="signin"
-               data-callback="handleGoogleOneTapResponse"
+               data-callback="handleGoogleCredentialResponse"
                data-auto_prompt="false"
                data-auto_select="false"
-               data-use_fedcm_for_prompt="false"
+               data-use_fedcm_for_prompt="true"
                data-close_on_tap_outside="true"
                class="hidden">
           </div>
+
+          <!-- Container for Google's standard renderButton fallback -->
+          <div id="googleBtnContainer" class="w-full mb-3 flex items-center justify-center empty:hidden"></div>
 
           <!-- Explicit "Sign in with Google" button that triggers the account picker -->
           <button 

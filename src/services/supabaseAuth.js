@@ -322,7 +322,8 @@ import { addOrUpdateSavedAccount } from "../components/AccountSwitcher.js";
        Google Identity Services (GIS) & Google One-Tap Setup
     ======================================================= */
     // 2. Initialize google.accounts.id with client_id
-    const GOOGLE_CLIENT_ID = window.GOOGLE_CLIENT_ID || localStorage.getItem("flashgram_google_client_id") || "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+    const GOOGLE_CLIENT_ID = '480251116405-85u1cn7gcf1l01joafvvv5lgl133pj9m.apps.googleusercontent.com';
+    window.GOOGLE_CLIENT_ID = GOOGLE_CLIENT_ID;
 
     // Helper: Decode Google JWT ID Token payload (client-side)
     function parseJwt(token) {
@@ -387,206 +388,233 @@ import { addOrUpdateSavedAccount } from "../components/AccountSwitcher.js";
       }
     }
 
-    // 2. Initialize google.accounts.id with client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
-    function initGoogleIdentityServices() {
-      if (typeof google === "undefined" || !google.accounts || !google.accounts.id) {
-        setTimeout(initGoogleIdentityServices, 300);
+    // 1. Initialize Google Identity Services (One Tap / Account Chooser):
+    const initializeGoogleOneTap = () => {
+      if (!window.google || !window.google.accounts || !window.google.accounts.id) {
+        setTimeout(initializeGoogleOneTap, 250);
         return;
       }
 
-      const activeClientId = window.GOOGLE_CLIENT_ID || localStorage.getItem("flashgram_google_client_id") || "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
-
       try {
-        google.accounts.id.initialize({
-          client_id: activeClientId,
-          callback: handleGoogleOneTapResponse,
-          use_fedcm_for_prompt: false,
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGoogleCredentialResponse,
           auto_select: false,
           cancel_on_tap_outside: true,
-          itp_support: true
+          context: 'signin',
+          use_fedcm_for_prompt: true
         });
 
-        console.log("Google Identity Services initialized with client_id:", activeClientId);
+        console.log("Google Identity Services initialized with client_id:", GOOGLE_CLIENT_ID);
 
-        // Render native button if container exists
-        const btnContainer = document.getElementById("g_id_signin_container");
+        // Attach Google's standard renderButton as a clean container fallback
+        const btnContainer = document.getElementById("googleBtnContainer") || document.getElementById("g_id_signin_container");
         if (btnContainer) {
           try {
-            google.accounts.id.renderButton(btnContainer, {
-              theme: "outline",
+            window.google.accounts.id.renderButton(btnContainer, {
+              theme: "filled_blue",
               size: "large",
-              type: "standard",
-              text: "signin_with",
               shape: "pill",
-              width: Math.min(320, btnContainer.offsetWidth || 300)
+              width: "100%"
             });
           } catch (_) {}
         }
 
-        // Auto trigger prompt if requested while GIS script was loading
-        if (window.__pendingOneTapPrompt && !isUserAuthenticated()) {
-          window.__pendingOneTapPrompt = false;
-          triggerGoogleOneTap();
+        // Trigger the smooth native-style bottom-sheet account chooser
+        if (!isUserAuthenticated()) {
+          window.google.accounts.id.prompt((notification) => {
+            if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+              const reason = notification.getNotDisplayedReason ? notification.getNotDisplayedReason() : '';
+              console.log('One Tap prompt status:', reason);
+            }
+          });
         }
       } catch (err) {
-        console.warn("Google Identity Services initialization note:", err);
+        console.warn("Google Identity Services initialization notice:", err);
       }
-    }
-    window.initGoogleIdentityServices = initGoogleIdentityServices;
+    };
+    const initGoogleIdentityServices = initializeGoogleOneTap;
+    const triggerGoogleOneTap = initializeGoogleOneTap;
+    window.initializeGoogleOneTap = initializeGoogleOneTap;
+    window.initGoogleIdentityServices = initializeGoogleOneTap;
+    window.triggerGoogleOneTap = initializeGoogleOneTap;
 
     // Automatically check and initialize GIS when window.google is available
     if (typeof window !== "undefined") {
       if (document.readyState === "complete" || document.readyState === "interactive") {
-        setTimeout(initGoogleIdentityServices, 100);
+        setTimeout(initializeGoogleOneTap, 100);
       } else {
         window.addEventListener("DOMContentLoaded", () => {
-          setTimeout(initGoogleIdentityServices, 100);
+          setTimeout(initializeGoogleOneTap, 100);
         });
       }
     }
 
-    // 4. Auto-trigger google.accounts.id.prompt() when the user reaches the login view
-    function triggerGoogleOneTap() {
-      if (isUserAuthenticated()) return;
-
-      const activeClientId = window.GOOGLE_CLIENT_ID || localStorage.getItem("flashgram_google_client_id");
-      if (!activeClientId || activeClientId.includes("YOUR_GOOGLE_CLIENT_ID")) {
-        return;
-      }
-
-      if (!isFedCmAllowed()) {
-        return;
-      }
-
-      if (typeof google !== "undefined" && google.accounts && google.accounts.id) {
+    // 2. Direct "Sign in with Google" Button Handler:
+    const handleExplicitGoogleSignIn = () => {
+      if (window.google && window.google.accounts && window.google.accounts.id) {
         try {
-          google.accounts.id.prompt((notification) => {
-            if (notification.isNotDisplayed()) {
-              console.info("Google One-Tap bottom drawer not displayed:", notification.getNotDisplayedReason());
-            } else if (notification.isSkippedMoment()) {
-              console.info("Google One-Tap skipped:", notification.getSkippedReason());
-            } else if (notification.isDismissedMoment()) {
-              console.info("Google One-Tap dismissed:", notification.getDismissedReason());
-            } else {
-              console.log("Google One-Tap active moment:", notification);
-            }
+          window.google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: handleGoogleCredentialResponse,
+            auto_select: false,
+            cancel_on_tap_outside: true,
+            context: 'signin',
+            use_fedcm_for_prompt: true
           });
-        } catch (e) {
-          console.warn("google.accounts.id.prompt execution notice:", e);
-        }
-      } else {
-        window.__pendingOneTapPrompt = true;
-      }
-    }
-    window.triggerGoogleOneTap = triggerGoogleOneTap;
 
-    // 3. Configure the callback to authenticate using supabase.auth.signInWithIdToken with the Google credential
-    async function handleGoogleOneTapResponse(response) {
-      if (!response || !response.credential) {
-        console.warn("No credential provided in Google One-Tap response.");
-        return;
-      }
-
-      const idToken = response.credential;
-      console.log("Received Google ID Token credential from Google One-Tap / Account Picker.");
-
-      const btnText = document.getElementById("authBtnGoogleText");
-      const origBtnText = btnText ? btnText.textContent : "Sign in with Google";
-      if (btnText) btnText.textContent = "Authenticating with Google...";
-
-      try {
-        const activeSb = window.supabaseClient || window.supabase || (typeof supabaseClient !== "undefined" ? supabaseClient : null);
-        let authenticatedUser = null;
-
-        // Call supabase.auth.signInWithIdToken with Google credential
-        if (activeSb && activeSb.auth && typeof activeSb.auth.signInWithIdToken === "function") {
-          try {
-            const { data, error } = await activeSb.auth.signInWithIdToken({
-              provider: 'google',
-              token: idToken
-            });
-
-            if (!error && data && data.user) {
-              console.log("Supabase signInWithIdToken succeeded:", data.user);
-              authenticatedUser = data.user;
-            } else if (error) {
-              console.warn("Supabase signInWithIdToken note:", error.message);
-            }
-          } catch (sbErr) {
-            console.warn("Supabase signInWithIdToken invocation note:", sbErr);
+          // Attach Google's standard renderButton as a clean container fallback
+          const btnContainer = document.getElementById("googleBtnContainer");
+          if (btnContainer) {
+            try {
+              window.google.accounts.id.renderButton(btnContainer, {
+                theme: "filled_blue",
+                size: "large",
+                shape: "pill",
+                width: "100%"
+              });
+            } catch (_) {}
           }
-        }
 
-        // Decode payload from Google ID Token
-        const jwtPayload = parseJwt(idToken) || {};
-        const email = jwtPayload.email || (authenticatedUser && authenticatedUser.email) || "";
-        const fullName = jwtPayload.name || jwtPayload.given_name || (authenticatedUser && authenticatedUser.user_metadata && authenticatedUser.user_metadata.full_name) || (email ? email.split("@")[0] : "Google User");
-        const avatarUrl = jwtPayload.picture || (authenticatedUser && authenticatedUser.user_metadata && authenticatedUser.user_metadata.avatar_url) || "";
-        const rawUid = (authenticatedUser && (authenticatedUser.id || authenticatedUser.uid)) || jwtPayload.sub || ("google_" + Date.now());
-
-        const finalUser = authenticatedUser || {
-          id: rawUid,
-          uid: rawUid,
-          email: email,
-          displayName: fullName,
-          photoURL: avatarUrl,
-          user_metadata: {
-            full_name: fullName,
-            display_name: fullName,
-            email: email,
-            avatar_url: avatarUrl,
-            picture: avatarUrl,
-            sub: jwtPayload.sub,
-            iss: jwtPayload.iss
-          }
-        };
-
-        if (typeof showInstagramToast === "function") {
-          showInstagramToast(`Welcome back, ${fullName}! 🎉`);
-        }
-
-        await handleSuccessfulGoogleLogin(finalUser);
-      } catch (err) {
-        console.error("Error during Google One-Tap processing:", err);
-        if (typeof showInstagramToast === "function") {
-          showInstagramToast("Google One-Tap Error. Connecting account...");
-        }
-        await handleSupabaseDirectGoogleLogin();
-      } finally {
-        if (btnText) btnText.textContent = origBtnText;
-      }
-    }
-    window.__handleGoogleOneTapResponseImpl = handleGoogleOneTapResponse;
-    window.handleGoogleOneTapResponse = handleGoogleOneTapResponse;
-    if (window.__pendingGoogleOneTapResponse) {
-      const pendingResp = window.__pendingGoogleOneTapResponse;
-      window.__pendingGoogleOneTapResponse = null;
-      handleGoogleOneTapResponse(pendingResp);
-    }
-
-    // 5. Explicit "Sign in with Google" button that triggers the account picker
-    function handleExplicitGoogleSignIn() {
-      const activeClientId = window.GOOGLE_CLIENT_ID || localStorage.getItem("flashgram_google_client_id");
-      if (activeClientId && !activeClientId.includes("YOUR_GOOGLE_CLIENT_ID") && isFedCmAllowed() && typeof google !== "undefined" && google.accounts && google.accounts.id) {
-        try {
-          // Trigger Google One-Tap account drawer / picker
-          google.accounts.id.prompt((notification) => {
-            if (notification.isNotDisplayed()) {
-              const reason = notification.getNotDisplayedReason();
-              console.info("Google One-Tap bottom drawer not displayed (" + reason + "), falling back to Supabase OAuth...");
-              handleAuthGoogle();
+          // Directly call window.google.accounts.id.prompt(); so the half-panel sheet slides up from the bottom showing all Gmail accounts on the device.
+          window.google.accounts.id.prompt((notification) => {
+            if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+              const reason = notification.getNotDisplayedReason ? notification.getNotDisplayedReason() : '';
+              console.log('One Tap prompt status:', reason);
             }
           });
           return;
-        } catch (e) {
-          console.warn("Google One-Tap prompt notice:", e);
+        } catch (err) {
+          console.warn("Error triggering Google prompt:", err);
         }
       }
 
-      // If GIS is not loaded, FedCM is restricted, or placeholder client ID, fallback to standard Supabase Google OAuth
-      handleAuthGoogle();
-    }
+      initializeGoogleOneTap();
+    };
     window.handleExplicitGoogleSignIn = handleExplicitGoogleSignIn;
+
+    // 3. Supabase Token Exchange & Profile Creation:
+    const handleGoogleCredentialResponse = async (response) => {
+      const idToken = response?.credential;
+      if (!idToken) return;
+
+      const btnText = document.getElementById("authBtnGoogleText");
+      if (btnText) btnText.textContent = "Connecting with Google...";
+
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: 'google',
+        token: idToken,
+      });
+
+      if (error) {
+        console.error('Supabase Google login error:', error.message);
+        if (btnText) btnText.textContent = "Sign in with Google";
+        alert('Google Sign-In failed: ' + error.message);
+        return;
+      }
+
+      if (data?.user) {
+        const user = data.user;
+        const rawName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
+        const cleanUsername = (user.email?.split('@')[0] || `user_${user.id.slice(0, 5)}`).toLowerCase().replace(/[^a-z0-9_]/g, '');
+
+        // Create or update profile row in Supabase
+        try {
+          await supabase.from('profiles').upsert({
+            id: user.id,
+            username: cleanUsername,
+            full_name: rawName,
+            avatar_url: user.user_metadata?.avatar_url || '',
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' });
+        } catch (e) {
+          console.warn("Profiles upsert notice:", e);
+        }
+
+        // Refresh application auth state and navigate to feed
+        if (typeof refreshAuthState === 'function') {
+          refreshAuthState(user, rawName, cleanUsername);
+        }
+      }
+
+      if (btnText) btnText.textContent = "Sign in with Google";
+    };
+    const handleGoogleOneTapResponse = handleGoogleCredentialResponse;
+    window.handleGoogleCredentialResponse = handleGoogleCredentialResponse;
+    window.__handleGoogleCredentialResponseImpl = handleGoogleCredentialResponse;
+    window.handleGoogleOneTapResponse = handleGoogleCredentialResponse;
+    window.__handleGoogleOneTapResponseImpl = handleGoogleCredentialResponse;
+    if (window.__pendingGoogleCredentialResponse) {
+      const pendingResp = window.__pendingGoogleCredentialResponse;
+      window.__pendingGoogleCredentialResponse = null;
+      handleGoogleCredentialResponse(pendingResp);
+    }
+    if (window.__pendingGoogleOneTapResponse) {
+      const pendingResp = window.__pendingGoogleOneTapResponse;
+      window.__pendingGoogleOneTapResponse = null;
+      handleGoogleCredentialResponse(pendingResp);
+    }
+
+    // Refresh application auth state and navigate to feed
+    function refreshAuthState(user, rawName, cleanUsername) {
+      if (!user) {
+        try {
+          const sess = localStorage.getItem("flashgram_user_session");
+          if (sess) {
+            const parsed = JSON.parse(sess);
+            user = { id: parsed.uid || parsed.id, email: parsed.email, user_metadata: { full_name: parsed.displayName, avatar_url: parsed.photoURL } };
+          }
+        } catch (_) {}
+      }
+      if (!user) return;
+
+      const name = rawName || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
+      const username = cleanUsername || (user.email?.split('@')[0] || `user_${user.id.slice(0, 5)}`).toLowerCase().replace(/[^a-z0-9_]/g, '');
+      const avatar = user.user_metadata?.avatar_url || '';
+
+      UserProfileStore.setState({
+        name: name,
+        username: username,
+        email: user.email || '',
+        avatar: avatar
+      });
+
+      try {
+        localStorage.setItem("flashgram_authenticated", "true");
+        localStorage.setItem("flashgram_user_session", JSON.stringify({
+          uid: user.id,
+          id: user.id,
+          email: user.email,
+          displayName: name,
+          username: username,
+          photoURL: avatar,
+          loggedInAt: Date.now()
+        }));
+
+        addOrUpdateSavedAccount({
+          id: user.id,
+          username: username,
+          name: name,
+          avatar: avatar,
+          email: user.email
+        });
+      } catch (_) {}
+
+      initAvatarRealtimeSync(user.id);
+
+      if (typeof syncCurrentLoggedInUserProfile === "function") {
+        syncCurrentLoggedInUserProfile().catch(e => console.warn(e));
+      }
+
+      closeAuthOnboardingFlow();
+
+      if (typeof switchTab === "function") {
+        switchTab("home");
+      }
+
+      showInstagramToast(`Welcome, ${name}! 🎉`);
+    }
+    window.refreshAuthState = refreshAuthState;
 
     function handleAuthContinue() {
       const emailInput = document.getElementById("authInputEmailPhone");
@@ -1269,8 +1297,11 @@ export {
   goToAuthStep,
   parseJwt,
   initGoogleIdentityServices,
+  initializeGoogleOneTap,
   triggerGoogleOneTap,
   handleGoogleOneTapResponse,
+  handleGoogleCredentialResponse,
+  refreshAuthState,
   handleExplicitGoogleSignIn,
   handleAuthContinue,
   handleAuthGoogle,
