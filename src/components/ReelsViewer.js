@@ -9,6 +9,66 @@ import { getCurrentUserId } from "../services/avatarService.js";
 import { supabase } from "../supabaseClient.js";
 
     /* =======================================================
+       Web Video Picture-in-Picture (PiP) Helper
+    ======================================================= */
+    const enableVideoPiP = async (videoElement) => {
+      if (document.pictureInPictureEnabled && videoElement) {
+        try {
+          if (document.pictureInPictureElement !== videoElement) {
+            await videoElement.requestPictureInPicture();
+          }
+        } catch (err) {
+          console.log('PiP not triggered:', err);
+        }
+      }
+    };
+    if (typeof window !== "undefined") {
+      window.enableVideoPiP = enableVideoPiP;
+    }
+
+    /* =======================================================
+       HTML5 Video Fullscreen & Orientation Lock Helper
+    ======================================================= */
+    const toggleFullScreen = async (elem) => {
+      const target = elem || document.documentElement;
+      try {
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+          if (target.requestFullscreen) {
+            await target.requestFullscreen();
+          } else if (target.webkitRequestFullscreen) {
+            await target.webkitRequestFullscreen();
+          }
+          // When entering full screen on horizontal/landscape video reels, auto-rotate orientation smoothly
+          const video = target.querySelector ? target.querySelector("video") : (target.tagName === 'VIDEO' ? target : null);
+          if (video) {
+            const isLandscape = (video.videoWidth && video.videoHeight && video.videoWidth > video.videoHeight);
+            if (isLandscape && window.screen && window.screen.orientation && window.screen.orientation.lock) {
+              try {
+                await window.screen.orientation.lock("landscape");
+              } catch (_) {}
+            }
+          }
+        } else {
+          if (document.exitFullscreen) {
+            await document.exitFullscreen();
+          } else if (document.webkitExitFullscreen) {
+            await document.webkitExitFullscreen();
+          }
+          if (window.screen && window.screen.orientation && window.screen.orientation.unlock) {
+            try {
+              window.screen.orientation.unlock();
+            } catch (_) {}
+          }
+        }
+      } catch (err) {
+        console.log("Fullscreen toggle error:", err);
+      }
+    };
+    if (typeof window !== "undefined") {
+      window.toggleFullScreen = toggleFullScreen;
+    }
+
+    /* =======================================================
        ৮. রিলস ভিডিও লোডিং
     ======================================================= */
     const reelsFeedWrapper = document.getElementById("reelsFeedWrapper");
@@ -249,6 +309,14 @@ import { supabase } from "../supabaseClient.js";
                 <i class="fa-regular fa-paper-plane"></i>
                 <span>${sharesDisplay}</span>
               </div>
+              <div class="reel-action-btn pip-btn" title="Picture in Picture">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                <span>PiP</span>
+              </div>
+              <div class="reel-action-btn fullscreen-btn" title="Fullscreen">
+                <i class="fa-solid fa-expand"></i>
+                <span>Full</span>
+              </div>
               <div class="reel-action-btn more-btn">
                 <i class="fa-solid fa-ellipsis"></i>
               </div>
@@ -398,6 +466,27 @@ import { supabase } from "../supabaseClient.js";
             openReelsShareSheet(reel);
           };
         }
+
+        const pipBtn = item.querySelector(".pip-btn");
+        if (pipBtn) {
+          pipBtn.onclick = (e) => {
+            e.stopPropagation();
+            enableVideoPiP(video);
+          };
+        }
+
+        const fullscreenBtn = item.querySelector(".fullscreen-btn");
+        if (fullscreenBtn) {
+          fullscreenBtn.onclick = (e) => {
+            e.stopPropagation();
+            toggleFullScreen(wrapper);
+          };
+        }
+
+        video.addEventListener("dblclick", (e) => {
+          e.stopPropagation();
+          toggleFullScreen(wrapper);
+        });
 
         const moreBtn = item.querySelector(".more-btn");
         if (moreBtn) {
@@ -777,6 +866,45 @@ import { supabase } from "../supabaseClient.js";
       });
     }
 
+    /* Auto Picture-in-Picture when user presses home button or switches apps */
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") {
+          const activeVid = currentActiveReelVideo && !currentActiveReelVideo.paused 
+            ? currentActiveReelVideo 
+            : Array.from(document.querySelectorAll(".reel-video")).find(v => !v.paused);
+          if (activeVid) {
+            enableVideoPiP(activeVid);
+          }
+        }
+      });
 
+      window.addEventListener("pagehide", () => {
+        const activeVid = currentActiveReelVideo && !currentActiveReelVideo.paused 
+          ? currentActiveReelVideo 
+          : Array.from(document.querySelectorAll(".reel-video")).find(v => !v.paused);
+        if (activeVid) {
+          enableVideoPiP(activeVid);
+        }
+      });
 
-export { loadReels, setupReelObserver, syncActiveReel, playCurrentReel, pauseAllReels, attachVideoProgressTracker, handleProgressBarSeek, resetVideoProgressBar, detachVideoProgressTracker, spawnFloatingHeart, openMyProfileTab, toggleReelFollowBtn, playShabnamReelVideo, navigateToReel, openReelsShareSheet, openReelsCommentsSheet };
+      const handleFullscreenChange = () => {
+        const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
+        if (!isFS && window.screen && window.screen.orientation && window.screen.orientation.unlock) {
+          try {
+            window.screen.orientation.unlock();
+          } catch (_) {}
+        }
+        document.querySelectorAll(".fullscreen-btn i").forEach(icon => {
+          if (isFS) {
+            icon.className = "fa-solid fa-compress";
+          } else {
+            icon.className = "fa-solid fa-expand";
+          }
+        });
+      };
+      document.addEventListener("fullscreenchange", handleFullscreenChange);
+      document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    }
+
+export { loadReels, setupReelObserver, syncActiveReel, playCurrentReel, pauseAllReels, attachVideoProgressTracker, handleProgressBarSeek, resetVideoProgressBar, detachVideoProgressTracker, spawnFloatingHeart, openMyProfileTab, toggleReelFollowBtn, playShabnamReelVideo, navigateToReel, openReelsShareSheet, openReelsCommentsSheet, enableVideoPiP, toggleFullScreen };
