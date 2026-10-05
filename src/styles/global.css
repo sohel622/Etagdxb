@@ -63,19 +63,45 @@
       }
     }
 
-    /* টপ বার (Image 1 Style: No divider line below header) */
+    /* টপ বার (Image 1 Style: No divider line below header) with Safe Area Top Padding */
     .top-bar {
-      height: 52px;
-      min-height: 52px;
+      height: calc(52px + env(safe-area-inset-top, 0px));
+      min-height: calc(52px + env(safe-area-inset-top, 0px));
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-left: 16px;
+      padding-right: 16px;
+      padding-bottom: 0;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 16px;
       background: #ffffff;
       border-bottom: none;
       z-index: 10;
       flex-shrink: 0;
       transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    /* Safe Area Top for Android Status Bar on All View Headers */
+    .profile-top-bar {
+      height: calc(48px + env(safe-area-inset-top, 0px)) !important;
+      min-height: calc(48px + env(safe-area-inset-top, 0px)) !important;
+      padding-top: env(safe-area-inset-top, 0px) !important;
+    }
+
+    #chatsListContainer > header {
+      height: calc(50px + env(safe-area-inset-top, 0px)) !important;
+      min-height: calc(50px + env(safe-area-inset-top, 0px)) !important;
+      padding-top: env(safe-area-inset-top, 0px) !important;
+    }
+
+    #shabnamChatContainer > header {
+      height: calc(54px + env(safe-area-inset-top, 0px)) !important;
+      min-height: calc(54px + env(safe-area-inset-top, 0px)) !important;
+      padding-top: env(safe-area-inset-top, 0px) !important;
+    }
+
+    .reels-top-header {
+      top: calc(14px + env(safe-area-inset-top, 0px)) !important;
     }
 
     .top-bar-actions {
