@@ -7,6 +7,7 @@ import { openProfile } from "./Profile.js";
 import { isFollowingUser, toggleFollowUser } from "../services/followService.js";
 import { getCurrentUserId } from "../services/avatarService.js";
 import { supabase } from "../supabaseClient.js";
+import { setActiveReelVideo, initReelsPipHandler, triggerReelPiP } from "../services/pipService.js";
 
     /* =======================================================
        Web Video Picture-in-Picture (PiP) Helper
@@ -781,6 +782,8 @@ import { supabase } from "../supabaseClient.js";
             video.currentTime = 0;
             video.muted = isGlobalAudioMuted;
             video.play().catch(() => {});
+            currentActiveReelVideo = video;
+            setActiveReelVideo(video);
             attachVideoProgressTracker(video);
           } else {
             video.pause();
@@ -792,6 +795,9 @@ import { supabase } from "../supabaseClient.js";
       });
 
       document.querySelectorAll(".reel-item").forEach(item => reelObserverInstance.observe(item));
+
+      // Initialize automatic hardware back button and app leave PiP handling
+      initReelsPipHandler();
 
       // Auto-sync active reel if reels view is currently showing
       if (reelsView && reelsView.classList.contains("active")) {
@@ -836,14 +842,16 @@ import { supabase } from "../supabaseClient.js";
             video.muted = isGlobalAudioMuted;
             video.play().catch(() => {});
             currentActiveReelVideo = video;
+            setActiveReelVideo(video);
           }
         }
       }
     }
 
-    // Capture any play event inside reelsView to guarantee progress bar sync
+    // Capture any play event inside reelsView to guarantee progress bar sync & PiP readiness
     reelsView.addEventListener("play", (e) => {
-      if (e.target && e.target.classList.contains("reel-video")) {
+      if (e.target && (e.target.classList.contains("reel-video") || e.target.tagName === "VIDEO")) {
+        setActiveReelVideo(e.target);
         if (currentActiveReelVideo !== e.target) {
           attachVideoProgressTracker(e.target);
         }

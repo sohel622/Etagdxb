@@ -15,6 +15,7 @@ import { initRealtimeMessagesListener } from "./services/chatService.js";
 import { preloadFollowStatus } from "./services/followService.js";
 import { initStatusBarListener } from "./services/statusBarService.js";
 import { checkAndPromptPermissionsOnLaunch } from "./services/notificationService.js";
+import { initReelsPipHandler } from "./services/pipService.js";
 
 export const App = {
   async init() {
@@ -87,6 +88,9 @@ export const App = {
 
     // 11. Instagram-style Permission Onboarding check on App Launch
     checkAndPromptPermissionsOnLaunch();
+
+    // 12. Hardware Back Button & Reels Picture-in-Picture Handler
+    initReelsPipHandler();
   }
 };
 

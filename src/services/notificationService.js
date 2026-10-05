@@ -6,17 +6,27 @@ import { updateUploadProgressBanner } from '../components/UploadProgressBanner.j
 let channelCreated = false;
 const activeUploads = new Map();
 
+// Static IDs according to specifications
+export const UPLOAD_NOTIFICATION_ID = 8888;
+export const COMPLETION_NOTIFICATION_ID = 8889;
+
+// Throttling state to prevent flicker and OS notification manager spam
+let lastUpdatedPercent = -1;
+let lastUpdatedTime = 0;
+
 /**
  * Initialize Notification Channels for Android 8.0+
+ * Creates "flashgram_upload_channel" with IMPORTANCE_LOW (2) so background
+ * progress updates never trigger sound, vibration, or heads-up popups.
  */
 export async function initNotificationChannel() {
   if (channelCreated || !Capacitor.isNativePlatform()) return;
   try {
     await LocalNotifications.createChannel({
-      id: 'reel_uploads',
-      name: 'Reel Uploads',
-      description: 'Real-time Instagram-style reel upload progress and alerts',
-      importance: 3, // HIGH importance
+      id: 'flashgram_upload_channel',
+      name: 'Upload Progress',
+      description: 'Silent background upload progress',
+      importance: 2, // IMPORTANCE_LOW (2)
       visibility: 1, // PUBLIC
       vibration: false,
       sound: undefined
@@ -33,7 +43,6 @@ export async function initNotificationChannel() {
  */
 export async function checkAndPromptPermissionsOnLaunch() {
   try {
-    // If already granted in this session or stored, check native status
     let notificationGranted = false;
 
     if (Capacitor.isNativePlatform()) {
@@ -43,7 +52,6 @@ export async function checkAndPromptPermissionsOnLaunch() {
       notificationGranted = Notification.permission === 'granted';
     }
 
-    // Check if dismissed before in localStorage
     const userAlreadyGranted = localStorage.getItem('flashgram_permissions_granted') === 'true';
 
     if (!notificationGranted && !userAlreadyGranted) {
@@ -51,7 +59,6 @@ export async function checkAndPromptPermissionsOnLaunch() {
         showPermissionOnboardingModal();
       }, 800);
     } else {
-      // Mark as granted
       localStorage.setItem('flashgram_permissions_granted', 'true');
       initNotificationChannel();
     }
@@ -110,14 +117,12 @@ export async function handleGrantAllPermissions() {
   }
 
   try {
-    // 1. Request Local Notifications permission via Capacitor Plugin
     if (Capacitor.isNativePlatform()) {
       await LocalNotifications.requestPermissions();
     } else if (typeof Notification !== 'undefined' && Notification.requestPermission) {
       await Notification.requestPermission();
     }
 
-    // 2. Request Camera & Microphone media stream access
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -125,11 +130,8 @@ export async function handleGrantAllPermissions() {
       } catch (_) {}
     }
 
-    // 3. Mark state as granted in app
     localStorage.setItem('flashgram_permissions_granted', 'true');
     await initNotificationChannel();
-
-    // 4. Close modal and transition user into the feed
     closePermissionOnboardingModal(false);
   } catch (err) {
     console.warn('[NotificationService] Error requesting permissions:', err);
@@ -143,50 +145,52 @@ export async function handleGrantAllPermissions() {
 }
 
 /**
- * Create a new upload progress session with unique notification ID
+ * Create a new upload progress session with static notification ID 8888
  */
 export function createUploadSession(videoThumbnailUrl) {
-  const notificationId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
+  lastUpdatedPercent = -1;
+  lastUpdatedTime = 0;
+
   const session = {
-    id: notificationId,
-    thumbnailUrl: videoThumbnailUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=120',
+    id: UPLOAD_NOTIFICATION_ID,
+    thumbnailUrl: videoThumbnailUrl || undefined,
     lastProgressTime: 0,
     lastPercent: -1
   };
-  activeUploads.set(notificationId, session);
+  activeUploads.set(UPLOAD_NOTIFICATION_ID, session);
   return session;
 }
 
 /**
- * Update Instagram-style notification in real-time with uploaded MB vs total MB
+ * Update Instagram-style horizontal progress notification in real-time
+ * Prevents flickering, repeated sound/vibrations, and notification spam
  */
 export async function notifyUploadProgress(notificationId, { loaded, total, percent, videoThumbnailUrl }) {
-  const session = activeUploads.get(notificationId) || {
-    id: notificationId,
-    thumbnailUrl: videoThumbnailUrl,
-    lastProgressTime: 0,
-    lastPercent: -1
+  const session = activeUploads.get(UPLOAD_NOTIFICATION_ID) || {
+    id: UPLOAD_NOTIFICATION_ID,
+    thumbnailUrl: videoThumbnailUrl
   };
 
-  const now = Date.now();
-  const safePercent = Math.min(100, Math.max(0, percent));
+  const safePercent = Math.min(100, Math.max(0, Math.round(percent)));
   const uploadedMB = (loaded / (1024 * 1024)).toFixed(1);
   const totalMB = (total / (1024 * 1024)).toFixed(1);
 
   // Update in-app progress banner
   updateUploadProgressBanner(safePercent, { uploadedMB, totalMB });
 
-  // Throttle native notification updates to at most once per 300ms or 2% diff
-  const shouldUpdateNative = 
-    safePercent === 0 || 
-    safePercent >= 100 || 
-    (now - session.lastProgressTime >= 300) || 
-    Math.abs(safePercent - session.lastPercent) >= 2;
+  // Throttle: avoid spamming OS notification manager
+  // Only call notification update if progress changes by at least 5% or once every 800ms
+  const now = Date.now();
+  if (safePercent < 100 && safePercent > 0) {
+    const percentDiff = safePercent - lastUpdatedPercent;
+    const timeDiff = now - lastUpdatedTime;
+    if (percentDiff < 5 && timeDiff < 800) {
+      return;
+    }
+  }
 
-  if (!shouldUpdateNative) return;
-  session.lastProgressTime = now;
-  session.lastPercent = safePercent;
-  activeUploads.set(notificationId, session);
+  lastUpdatedPercent = safePercent;
+  lastUpdatedTime = now;
 
   if (Capacitor.isNativePlatform()) {
     try {
@@ -194,16 +198,22 @@ export async function notifyUploadProgress(notificationId, { loaded, total, perc
       await LocalNotifications.schedule({
         notifications: [
           {
-            id: notificationId,
-            title: 'Flashgram • Reel uploading...',
-            body: `${uploadedMB} MB / ${totalMB} MB (${safePercent}%)`,
-            smallIcon: 'ic_stat_flashgram', // Image 1 monochrome white logo
+            id: UPLOAD_NOTIFICATION_ID,
+            title: 'Flashgram',
+            body: `Reel uploading... ${uploadedMB} MB / ${totalMB} MB (${safePercent}%)`,
+            smallIcon: 'ic_stat_flashgram',
+            largeIcon: session.thumbnailUrl || videoThumbnailUrl || undefined, // Right-side thumbnail
             iconColor: '#E1306C',
-            largeIcon: session.thumbnailUrl || videoThumbnailUrl, // Right side video preview thumbnail
-            channelId: 'reel_uploads',
-            ongoing: true,
+            channelId: 'flashgram_upload_channel',
+            ongoing: true, // Non-dismissible while uploading
             autoCancel: false,
-            extra: { progress: safePercent }
+            silent: true, // Absolutely no repeated chime/vibration
+            onlyAlertOnce: true, // Phone only alerts the very first time; subsequent progress updates remain completely silent
+            extra: {
+              progress: safePercent,
+              max: 100,
+              indeterminate: false
+            }
           }
         ]
       });
@@ -214,28 +224,41 @@ export async function notifyUploadProgress(notificationId, { loaded, total, perc
 }
 
 /**
- * Triggered when reel upload completes successfully
+ * 100% Completion Handler (Triggered Strictly Once)
+ * Cancels ongoing progress notification (id: 8888) immediately and schedules
+ * a single completion notification with new ID (id: 8889).
  */
 export async function notifyUploadSuccess(notificationId, videoThumbnailUrl) {
-  const session = activeUploads.get(notificationId);
-  const thumb = videoThumbnailUrl || (session ? session.thumbnailUrl : null);
-  activeUploads.delete(notificationId);
+  const session = activeUploads.get(UPLOAD_NOTIFICATION_ID);
+  const thumb = videoThumbnailUrl || (session ? session.thumbnailUrl : undefined);
+  activeUploads.delete(UPLOAD_NOTIFICATION_ID);
+
+  lastUpdatedPercent = -1;
+  lastUpdatedTime = 0;
 
   if (Capacitor.isNativePlatform()) {
     try {
       await initNotificationChannel();
+
+      // Cancel the ongoing progress notification (id: 8888) immediately
+      await LocalNotifications.cancel({
+        notifications: [{ id: UPLOAD_NOTIFICATION_ID }]
+      });
+
+      // Schedule a single completion notification with a new ID (id: 8889)
       await LocalNotifications.schedule({
         notifications: [
           {
-            id: notificationId,
+            id: COMPLETION_NOTIFICATION_ID,
             title: 'Flashgram',
-            body: 'Your reel has been shared successfully! 🎉',
+            body: 'Reel uploaded successfully! 🎉',
             smallIcon: 'ic_stat_flashgram',
+            largeIcon: thumb || undefined,
             iconColor: '#E1306C',
-            largeIcon: thumb,
-            channelId: 'reel_uploads',
+            channelId: 'flashgram_upload_channel',
             ongoing: false,
-            autoCancel: true
+            autoCancel: true,
+            silent: false // Chime once upon success
           }
         ]
       });
@@ -245,7 +268,7 @@ export async function notifyUploadSuccess(notificationId, videoThumbnailUrl) {
   } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     try {
       new Notification('Flashgram', {
-        body: 'Your reel has been shared successfully! 🎉',
+        body: 'Reel uploaded successfully! 🎉',
         icon: thumb || '/android/app/src/main/res/drawable/splash.png'
       });
     } catch (_) {}
@@ -256,22 +279,29 @@ export async function notifyUploadSuccess(notificationId, videoThumbnailUrl) {
  * Triggered if upload fails
  */
 export async function notifyUploadError(notificationId, errorMessage) {
-  activeUploads.delete(notificationId);
+  activeUploads.delete(UPLOAD_NOTIFICATION_ID);
+  lastUpdatedPercent = -1;
+  lastUpdatedTime = 0;
 
   if (Capacitor.isNativePlatform()) {
     try {
       await initNotificationChannel();
+      await LocalNotifications.cancel({
+        notifications: [{ id: UPLOAD_NOTIFICATION_ID }]
+      });
+
       await LocalNotifications.schedule({
         notifications: [
           {
-            id: notificationId,
+            id: COMPLETION_NOTIFICATION_ID,
             title: 'Flashgram • Upload failed',
             body: errorMessage || 'Could not upload reel. Please try again.',
             smallIcon: 'ic_stat_flashgram',
             iconColor: '#E1306C',
-            channelId: 'reel_uploads',
+            channelId: 'flashgram_upload_channel',
             ongoing: false,
-            autoCancel: true
+            autoCancel: true,
+            silent: false
           }
         ]
       });
@@ -283,9 +313,11 @@ export async function notifyUploadError(notificationId, errorMessage) {
 
 // Expose on window for inline event handlers in index.html
 if (typeof window !== 'undefined') {
-  window.handleGrantAllPermissions = handleGrantAllPermissions;
-  window.closePermissionOnboardingModal = closePermissionOnboardingModal;
+  window.checkAndPromptPermissionsOnLaunch = checkAndPromptPermissionsOnLaunch;
   window.showPermissionOnboardingModal = showPermissionOnboardingModal;
+  window.closePermissionOnboardingModal = closePermissionOnboardingModal;
+  window.handleGrantAllPermissions = handleGrantAllPermissions;
+  window.initNotificationChannel = initNotificationChannel;
   window.createUploadSession = createUploadSession;
   window.notifyUploadProgress = notifyUploadProgress;
   window.notifyUploadSuccess = notifyUploadSuccess;
