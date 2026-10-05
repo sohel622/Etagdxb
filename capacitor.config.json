@@ -4,5 +4,11 @@
   "webDir": "dist",
   "server": {
     "androidScheme": "https"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_flashgram",
+      "iconColor": "#E1306C"
+    }
   }
 }

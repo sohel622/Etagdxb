@@ -25,6 +25,8 @@ import * as ShareIntentHandler from './services/shareIntentHandler.js';
 import * as CloudinaryService from './services/cloudinaryService.js';
 import * as AvatarService from './services/avatarService.js';
 import * as UploadProgressBanner from './components/UploadProgressBanner.js';
+import * as StatusBarService from './services/statusBarService.js';
+import * as NotificationService from './services/notificationService.js';
 
 // App Controller
 import { App } from './App.js';
@@ -51,6 +53,8 @@ Object.assign(window, {
   ...CloudinaryService,
   ...AvatarService,
   ...UploadProgressBanner,
+  ...StatusBarService,
+  ...NotificationService,
   supabase,
   App
 });

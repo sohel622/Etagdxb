@@ -13,6 +13,8 @@ import { initAvatarRealtimeSync } from "./services/avatarService.js";
 import { initAccountSwitcher } from "./components/AccountSwitcher.js";
 import { initRealtimeMessagesListener } from "./services/chatService.js";
 import { preloadFollowStatus } from "./services/followService.js";
+import { initStatusBarListener } from "./services/statusBarService.js";
+import { checkAndPromptPermissionsOnLaunch } from "./services/notificationService.js";
 
 export const App = {
   async init() {
@@ -79,6 +81,12 @@ export const App = {
     // 9. Realtime Direct Messaging & Follows Synchronization
     initRealtimeMessagesListener();
     preloadFollowStatus();
+
+    // 10. Dynamic Instagram-style Status Bar listener
+    initStatusBarListener();
+
+    // 11. Instagram-style Permission Onboarding check on App Launch
+    checkAndPromptPermissionsOnLaunch();
   }
 };
 

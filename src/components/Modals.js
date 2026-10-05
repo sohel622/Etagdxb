@@ -10,6 +10,7 @@ import { switchTab } from "./navigation/BottomNavbar.js";
 import { uploadVideoToCloudinary, deriveCloudinaryThumbnailUrl, savePostToSupabase } from "../services/cloudinaryService.js";
 import { uploadUserAvatar, getCurrentUserId, liveSyncUserProfile, syncProfileToSupabase } from "../services/avatarService.js";
 import { showUploadProgressBanner, updateUploadProgressBanner, completeUploadProgressBanner, failUploadProgressBanner } from "./UploadProgressBanner.js";
+import { createUploadSession, notifyUploadProgress, notifyUploadSuccess, notifyUploadError } from "../services/notificationService.js";
 
 // --- Shared State Variables ---
 let selectedAvatarFile = null;
@@ -1099,10 +1100,18 @@ function startRecordingSession() {
           title: "Keep Flashgram open to finish posting..."
         });
 
+        // Initialize Instagram-style notification upload session with thumbnail & real-time MB tracking
+        const uploadSession = createUploadSession(previewThumb);
+
         try {
           // Direct real HTTP POST upload to Cloudinary (no dummy local storage)
-          const cldData = await uploadVideoToCloudinary(blob, (percent) => {
-            updateUploadProgressBanner(percent);
+          const cldData = await uploadVideoToCloudinary(blob, (percent, meta) => {
+            notifyUploadProgress(uploadSession.id, {
+              loaded: meta?.loaded || 0,
+              total: meta?.total || blob.size || 1,
+              percent,
+              videoThumbnailUrl: previewThumb
+            });
           });
 
           if (!cldData || !cldData.secure_url) {
@@ -1160,12 +1169,14 @@ function startRecordingSession() {
           };
 
           completeUploadProgressBanner(newPost);
+          notifyUploadSuccess(uploadSession.id, previewThumb);
           await loadReels();
           updateProfilePostsCount();
           renderProfileGrid();
         } catch (err) {
           console.error("Cloudinary / Supabase Reel upload error:", err);
           failUploadProgressBanner(err.message || "Network error");
+          notifyUploadError(uploadSession.id, err.message || "Upload failed");
           showInstagramToast("Upload failed: " + (err.message || "Network error"));
         }
       }
@@ -1243,10 +1254,18 @@ function initMediaCreationAndCamera() {
           title: "Keep Flashgram open to finish posting..."
         });
 
+        // Initialize Instagram-style notification upload session with thumbnail & real-time MB tracking
+        const uploadSession = createUploadSession(previewThumb);
+
         try {
           // Direct real HTTP POST upload to Cloudinary (no dummy local storage)
-          const cldData = await uploadVideoToCloudinary(file, (percent) => {
-            updateUploadProgressBanner(percent);
+          const cldData = await uploadVideoToCloudinary(file, (percent, meta) => {
+            notifyUploadProgress(uploadSession.id, {
+              loaded: meta?.loaded || 0,
+              total: meta?.total || file.size || 1,
+              percent,
+              videoThumbnailUrl: previewThumb
+            });
           });
 
           if (!cldData || !cldData.secure_url) {
@@ -1304,12 +1323,14 @@ function initMediaCreationAndCamera() {
           };
 
           completeUploadProgressBanner(newPost);
+          notifyUploadSuccess(uploadSession.id, previewThumb);
           await loadReels();
           updateProfilePostsCount();
           renderProfileGrid();
         } catch (err) {
           console.error("Cloudinary / Supabase video upload error:", err);
           failUploadProgressBanner(err.message || "Network error");
+          notifyUploadError(uploadSession.id, err.message || "Upload failed");
           showInstagramToast("Upload failed: " + (err.message || "Network error"));
         }
       }

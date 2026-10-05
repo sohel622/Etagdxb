@@ -61,7 +61,15 @@ export async function uploadVideoToCloudinary(file, onProgress) {
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable) {
           const percent = Math.round((e.loaded / e.total) * 100);
-          onProgress(percent);
+          const uploadedMB = (e.loaded / (1024 * 1024)).toFixed(1);
+          const totalMB = (e.total / (1024 * 1024)).toFixed(1);
+          onProgress(percent, {
+            loaded: e.loaded,
+            total: e.total,
+            percent,
+            uploadedMB,
+            totalMB
+          });
         }
       };
     }

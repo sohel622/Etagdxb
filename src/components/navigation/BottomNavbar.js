@@ -3,6 +3,7 @@ import { DEFAULT_NAV } from "../../utils/mockData.js";
 import { UserProfileStore } from "../../utils/storage.js";
 import { setupProfileIconLongPress } from "../AccountSwitcher.js";
 import { updateChatNavUnreadBadge } from "../../services/chatService.js";
+import { updateStatusBar } from "../../services/statusBarService.js";
 
 let currentNav = [...DEFAULT_NAV];
 try {
@@ -327,6 +328,9 @@ function applyCurrentDynamicTheme() {
       }
     }
   }
+  if (activeNavId !== "reels") {
+    updateStatusBar(activeNavId);
+  }
 }
 
 if (typeof window !== "undefined") {
@@ -347,6 +351,7 @@ function switchTab(tabId, btnElement) {
     window.activeNavId = tabId;
     window.switchTab = switchTab;
   }
+  updateStatusBar(tabId);
   showStandardNavBar();
   const hView = document.getElementById("homeView") || homeView;
   const rView = document.getElementById("reelsView") || reelsView;

@@ -916,6 +916,71 @@
       </div>
     </div>
 
+    <!-- 6. Instagram-Style Mandatory Permission Onboarding Bottom Sheet -->
+    <div id="permissionOnboardingModal" class="fixed inset-0 z-[100] flex items-end justify-center bg-black/65 backdrop-blur-sm transition-opacity duration-300 opacity-0 pointer-events-none" style="display: none;">
+      <div id="permissionOnboardingSheet" class="w-full max-w-[480px] bg-white dark:bg-[#1a1a1a] text-neutral-900 dark:text-white rounded-t-3xl p-6 shadow-2xl transition-transform duration-300 translate-y-full border-t border-neutral-200 dark:border-neutral-800">
+        <!-- Drag Handle -->
+        <div class="w-10 h-1 bg-neutral-300 dark:bg-neutral-700 rounded-full mx-auto mb-5"></div>
+
+        <!-- Instagram-style Gradient Badge -->
+        <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 flex items-center justify-center text-white text-2xl mx-auto shadow-lg shadow-rose-500/20 mb-4">
+          <i class="fa-solid fa-shield-halved"></i>
+        </div>
+
+        <!-- Title -->
+        <h3 class="text-xl font-bold text-center tracking-tight mb-2">
+          Allow Permissions to Continue
+        </h3>
+
+        <!-- Explanation -->
+        <p class="text-sm text-center text-neutral-500 dark:text-neutral-400 mb-5 px-3 leading-relaxed">
+          Flashgram needs notification access to show your upload progress and alerts, and camera/storage to create reels.
+        </p>
+
+        <!-- Feature List Items -->
+        <div class="space-y-3 mb-6 bg-neutral-50 dark:bg-neutral-900/60 rounded-2xl p-4 border border-neutral-100 dark:border-neutral-800/80">
+          <div class="flex items-center gap-3.5">
+            <div class="w-8 h-8 rounded-full bg-pink-500/10 text-pink-500 flex items-center justify-center text-sm shrink-0">
+              <i class="fa-solid fa-bell"></i>
+            </div>
+            <div class="text-xs">
+              <div class="font-semibold text-neutral-800 dark:text-neutral-200">Reel Upload Notifications</div>
+              <div class="text-neutral-500 dark:text-neutral-400">Track real-time uploaded MB &amp; thumbnail alerts</div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3.5">
+            <div class="w-8 h-8 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-sm shrink-0">
+              <i class="fa-solid fa-video"></i>
+            </div>
+            <div class="text-xs">
+              <div class="font-semibold text-neutral-800 dark:text-neutral-200">Camera &amp; Audio</div>
+              <div class="text-neutral-500 dark:text-neutral-400">Record reels and capture photos with sound</div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3.5">
+            <div class="w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-sm shrink-0">
+              <i class="fa-solid fa-photo-film"></i>
+            </div>
+            <div class="text-xs">
+              <div class="font-semibold text-neutral-800 dark:text-neutral-200">Photos &amp; Storage</div>
+              <div class="text-neutral-500 dark:text-neutral-400">Select and share videos from your gallery</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Button -->
+        <button type="button" id="grantPermissionsBtn" onclick="handleGrantAllPermissions()" class="w-full py-3.5 px-4 bg-sky-500 hover:bg-sky-600 active:scale-[0.98] transition-all rounded-xl text-white font-semibold text-center text-[15px] shadow-md shadow-sky-500/25 flex items-center justify-center gap-2 cursor-pointer border-0">
+          <i class="fa-solid fa-check"></i> Grant All Permissions
+        </button>
+
+        <button type="button" onclick="closePermissionOnboardingModal(true)" class="w-full mt-2.5 py-2 text-center text-xs text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300 font-medium cursor-pointer bg-transparent border-0">
+          Maybe Later
+        </button>
+      </div>
+    </div>
+
     <div class="settings-modal-overlay" id="settingsOverlay">
       <div class="settings-panel">
         <div class="settings-drag-bar"></div>

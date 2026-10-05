@@ -89,7 +89,7 @@ export function showUploadProgressBanner({ thumbnailSrc, title = "Keep Flashgram
 /**
  * Update upload progress in real-time
  */
-export function updateUploadProgressBanner(percent) {
+export function updateUploadProgressBanner(percent, meta) {
   const els = resolveElements();
   const safePercent = Math.min(100, Math.max(0, Math.round(percent)));
 
@@ -97,11 +97,17 @@ export function updateUploadProgressBanner(percent) {
     els.progressBarEl.style.width = `${safePercent}%`;
   }
   if (els.percentTextEl) {
-    els.percentTextEl.textContent = `${safePercent}%`;
+    if (meta && meta.uploadedMB && meta.totalMB) {
+      els.percentTextEl.textContent = `${meta.uploadedMB}/${meta.totalMB} MB (${safePercent}%)`;
+    } else {
+      els.percentTextEl.textContent = `${safePercent}%`;
+    }
   }
   if (safePercent >= 100) {
     if (els.titleEl) els.titleEl.textContent = "Finishing post...";
     if (els.subtextEl) els.subtextEl.textContent = "• Saving to Supabase";
+  } else if (meta && meta.uploadedMB && meta.totalMB && els.titleEl) {
+    els.titleEl.textContent = `Uploading reel... (${meta.uploadedMB} MB / ${meta.totalMB} MB)`;
   }
 }
 
