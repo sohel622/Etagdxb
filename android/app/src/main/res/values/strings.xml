@@ -4,4 +4,9 @@
     <string name="title_activity_main">Flashgram</string>
     <string name="package_name">com.flashgram.app</string>
     <string name="custom_url_scheme">com.flashgram.app</string>
+    <string name="widget_description">Quickly jump to Reels, Create a post, Search, or View your Profile</string>
+    <string name="shortcut_new_post">New post</string>
+    <string name="shortcut_messages">Messages</string>
+    <string name="shortcut_camera">Camera</string>
+    <string name="shortcut_activity">View activity</string>
 </resources>

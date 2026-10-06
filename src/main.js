@@ -28,6 +28,7 @@ import * as UploadProgressBanner from './components/UploadProgressBanner.js';
 import * as StatusBarService from './services/statusBarService.js';
 import * as NotificationService from './services/notificationService.js';
 import * as PipService from './services/pipService.js';
+import * as DeepLinkService from './services/deepLinkService.js';
 
 // App Controller
 import { App } from './App.js';
@@ -57,6 +58,7 @@ Object.assign(window, {
   ...StatusBarService,
   ...NotificationService,
   ...PipService,
+  ...DeepLinkService,
   supabase,
   App
 });

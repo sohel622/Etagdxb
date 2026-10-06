@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="new_post"
+        android:enabled="true"
+        android:icon="@drawable/ic_stat_flashgram"
+        android:shortcutShortLabel="@string/shortcut_new_post"
+        android:shortcutLongLabel="@string/shortcut_new_post">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.flashgram.app"
+            android:targetClass="com.flashgram.app.MainActivity"
+            android:data="flashgram://upload" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="messages"
+        android:enabled="true"
+        android:icon="@drawable/ic_stat_flashgram"
+        android:shortcutShortLabel="@string/shortcut_messages"
+        android:shortcutLongLabel="@string/shortcut_messages">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.flashgram.app"
+            android:targetClass="com.flashgram.app.MainActivity"
+            android:data="flashgram://messages" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="camera"
+        android:enabled="true"
+        android:icon="@drawable/ic_stat_flashgram"
+        android:shortcutShortLabel="@string/shortcut_camera"
+        android:shortcutLongLabel="@string/shortcut_camera">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.flashgram.app"
+            android:targetClass="com.flashgram.app.MainActivity"
+            android:data="flashgram://camera" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="activity"
+        android:enabled="true"
+        android:icon="@drawable/ic_stat_flashgram"
+        android:shortcutShortLabel="@string/shortcut_activity"
+        android:shortcutLongLabel="@string/shortcut_activity">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.flashgram.app"
+            android:targetClass="com.flashgram.app.MainActivity"
+            android:data="flashgram://notifications" />
+    </shortcut>
+</shortcuts>

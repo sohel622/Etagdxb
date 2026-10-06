@@ -16,6 +16,7 @@ import { preloadFollowStatus } from "./services/followService.js";
 import { initStatusBarListener } from "./services/statusBarService.js";
 import { checkAndPromptPermissionsOnLaunch } from "./services/notificationService.js";
 import { initReelsPipHandler } from "./services/pipService.js";
+import { initDeepLinkListener } from "./services/deepLinkService.js";
 
 export const App = {
   async init() {
@@ -91,6 +92,9 @@ export const App = {
 
     // 12. Hardware Back Button & Reels Picture-in-Picture Handler
     initReelsPipHandler();
+
+    // 13. Deep Link & Home Screen Widget Shortcut Handler
+    initDeepLinkListener();
   }
 };
 
