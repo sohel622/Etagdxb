@@ -5,6 +5,12 @@
     <string name="package_name">com.flashgram.app</string>
     <string name="custom_url_scheme">com.flashgram.app</string>
     <string name="widget_description">Quickly jump to Reels, Create a post, Search, or View your Profile</string>
+    <string name="widget_quick_actions_title">Flashgram Quick Actions</string>
+    <string name="widget_quick_actions_desc">Quickly jump to Reels, Create a post, Search, or View your Profile</string>
+    <string name="widget_reels_player_title">Flashgram Reels Video</string>
+    <string name="widget_reels_player_desc">Watch trending Reels directly with interactive playback on your Home Screen</string>
+    <string name="widget_trending_title">Flashgram Stories &amp; Trending</string>
+    <string name="widget_trending_desc">Discover top trending creators and active stories</string>
     <string name="shortcut_new_post">New post</string>
     <string name="shortcut_messages">Messages</string>
     <string name="shortcut_camera">Camera</string>

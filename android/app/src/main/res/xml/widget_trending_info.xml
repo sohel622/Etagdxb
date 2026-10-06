@@ -3,10 +3,10 @@
     android:minWidth="250dp"
     android:minHeight="110dp"
     android:updatePeriodMillis="86400000"
-    android:initialLayout="@layout/widget_quick_actions"
-    android:previewImage="@drawable/preview_widget_quick_actions"
-    android:previewLayout="@layout/widget_quick_actions"
+    android:initialLayout="@layout/widget_trending"
+    android:previewImage="@drawable/preview_widget_trending"
+    android:previewLayout="@layout/widget_trending"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
-    android:description="@string/widget_quick_actions_desc">
+    android:description="@string/widget_trending_desc">
 </appwidget-provider>

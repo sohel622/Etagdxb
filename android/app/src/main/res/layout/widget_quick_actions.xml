@@ -35,6 +35,7 @@
             android:textSize="14sp"
             android:textStyle="bold" />
 
+        <!-- Subtle gradient dot indicator -->
         <View
             android:layout_width="6dp"
             android:layout_height="6dp"

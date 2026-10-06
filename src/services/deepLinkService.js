@@ -98,6 +98,19 @@ export function handleDeepLink(urlStr) {
         }
         break;
 
+      case 'story':
+      case 'stories':
+        if (urlStr.includes('user=shabnam_ai') || urlStr.includes('shabnam_ai')) {
+          if (typeof window.openProfile === 'function') {
+            window.openProfile('shabnam_ai');
+          }
+        } else {
+          if (typeof window.switchTab === 'function') {
+            window.switchTab('home');
+          }
+        }
+        break;
+
       case 'home':
       default:
         if (cleanPath === 'home' || cleanPath === '' || cleanPath === '/') {

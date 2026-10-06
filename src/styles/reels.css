@@ -275,4 +275,217 @@
       transition: opacity 0.15s ease-in, visibility 0.15s ease-in;
     }
 
+    /* =======================================================
+       Picture-in-Picture (PiP) Mode - Clean View & Controls
+    ======================================================= */
+    body.pip-active #bottomNavBar,
+    body.pip-active .bottom-bar,
+    body.pip-active .reels-top-header,
+    body.pip-active .reels-bottom-info,
+    body.pip-active .reels-sidebar,
+    body.pip-active .sound-status-badge,
+    body.pip-active #reelsProgressBarContainer,
+    body.pip-active #topNavbar,
+    body.pip-active .top-nav,
+    body.pip-active .reels-cam-btn,
+    body.pip-active .floating-hearts-container,
+    body.pip-active .fullscreen-btn,
+    body.pip-active .creator-info,
+    body.pip-active .reel-watermark {
+      display: none !important;
+      opacity: 0 !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+
+    body.pip-active #reelsView {
+      padding: 0 !important;
+      margin: 0 !important;
+      height: 100vh !important;
+      width: 100vw !important;
+      overflow: hidden !important;
+      background: #000000 !important;
+    }
+
+    body.pip-active #reelsFeedWrapper {
+      height: 100% !important;
+      width: 100% !important;
+      overflow: hidden !important;
+    }
+
+    body.pip-active .reel-item {
+      height: 100% !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    body.pip-active .reel-video-wrapper {
+      height: 100% !important;
+      width: 100% !important;
+      position: absolute !important;
+      inset: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #000000 !important;
+    }
+
+    body.pip-active .reel-video,
+    body.pip-active video.active-reel {
+      width: 100% !important;
+      height: 100% !important;
+      max-width: 100% !important;
+      max-height: 100% !important;
+      object-fit: cover !important;
+      position: absolute !important;
+      inset: 0 !important;
+      z-index: 9999 !important;
+    }
+
+    /* Subtle Floating Video Controls in PiP Mode */
+    .pip-floating-controls {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      background: rgba(18, 18, 20, 0.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 9999px;
+      padding: 6px 14px;
+      z-index: 100000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    body.pip-active .pip-floating-controls.visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .pip-ctrl-btn {
+      background: transparent;
+      border: none;
+      color: #ffffff;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 15px;
+      transition: transform 0.15s ease, background-color 0.15s ease;
+    }
+
+    .pip-ctrl-btn:active {
+      transform: scale(0.9);
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .pip-ctrl-btn.pip-play-btn {
+      background: rgba(225, 48, 108, 0.9);
+      width: 40px;
+      height: 40px;
+      font-size: 16px;
+    }
+
+    /* =======================================================
+       Custom Instagram-style Reels Volume HUD
+    ======================================================= */
+    .reels-volume-hud {
+      position: absolute;
+      top: calc(env(safe-area-inset-top, 0px) + 54px);
+      left: 16px;
+      z-index: 75;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 11px;
+      background: rgba(20, 20, 24, 0.72);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 9999px;
+      color: #ffffff;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-6px) scale(0.96);
+      transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+      user-select: none;
+      cursor: pointer;
+    }
+
+    .reels-volume-hud.visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0) scale(1);
+    }
+
+    .reels-volume-hud:active {
+      transform: scale(0.95);
+    }
+
+    .reels-volume-icon-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      color: #ffffff;
+      font-size: 13px;
+    }
+
+    .reels-volume-bars {
+      display: flex;
+      align-items: center;
+      gap: 2.5px;
+      height: 14px;
+    }
+
+    .reels-volume-bars .volume-bar {
+      width: 2.5px;
+      height: 12px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.22);
+      transition: background-color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
+    }
+
+    /* Subtle curved / staggered audio wave look */
+    .reels-volume-bars .volume-bar[data-index="0"],
+    .reels-volume-bars .volume-bar[data-index="7"] {
+      height: 8px;
+    }
+
+    .reels-volume-bars .volume-bar[data-index="1"],
+    .reels-volume-bars .volume-bar[data-index="6"] {
+      height: 10px;
+    }
+
+    .reels-volume-bars .volume-bar[data-index="2"],
+    .reels-volume-bars .volume-bar[data-index="5"] {
+      height: 12px;
+    }
+
+    .reels-volume-bars .volume-bar[data-index="3"],
+    .reels-volume-bars .volume-bar[data-index="4"] {
+      height: 14px;
+    }
+
+    .reels-volume-bars .volume-bar.filled {
+      background: #ffffff;
+      box-shadow: 0 0 6px rgba(255, 255, 255, 0.55);
+    }
+
+
+
 

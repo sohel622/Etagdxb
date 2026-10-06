@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#141416" />
+            <corners android:radius="16dp" />
+            <stroke android:width="1.2dp" android:color="#2A2A2E" />
+        </shape>
+    </item>
+    <!-- 3 Mini Circles representing avatars -->
+    <item android:left="25dp" android:top="28dp" android:width="28dp" android:height="28dp">
+        <shape android:shape="oval">
+            <gradient
+                android:angle="45"
+                android:startColor="#833AB4"
+                android:endColor="#FCAF45" />
+        </shape>
+    </item>
+    <item android:gravity="center_horizontal" android:top="28dp" android:width="28dp" android:height="28dp">
+        <shape android:shape="oval">
+            <gradient
+                android:angle="45"
+                android:startColor="#833AB4"
+                android:endColor="#FCAF45" />
+        </shape>
+    </item>
+    <item android:right="25dp" android:gravity="right" android:top="28dp" android:width="28dp" android:height="28dp">
+        <shape android:shape="oval">
+            <gradient
+                android:angle="45"
+                android:startColor="#833AB4"
+                android:endColor="#FCAF45" />
+        </shape>
+    </item>
+</layer-list>

@@ -49,17 +49,43 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
-        <!-- Flashgram Quick Actions Home Screen Widget -->
+        <!-- 1. Flashgram Quick Actions Home Screen Widget -->
         <receiver
-            android:name=".FlashgramWidgetProvider"
+            android:name=".FlashgramQuickActionsWidget"
             android:exported="true"
-            android:label="Flashgram Quick Actions">
+            android:label="@string/widget_quick_actions_title">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/flashgram_widget_info" />
+                android:resource="@xml/widget_quick_actions_info" />
+        </receiver>
+
+        <!-- 2. Flashgram Reels Video Player Card Widget -->
+        <receiver
+            android:name=".FlashgramReelsPlayerWidget"
+            android:exported="true"
+            android:label="@string/widget_reels_player_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_reels_player_info" />
+        </receiver>
+
+        <!-- 3. Flashgram Stories & Trending Widget -->
+        <receiver
+            android:name=".FlashgramTrendingWidget"
+            android:exported="true"
+            android:label="@string/widget_trending_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_trending_info" />
         </receiver>
 
         <meta-data

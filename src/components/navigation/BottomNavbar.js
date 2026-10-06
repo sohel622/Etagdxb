@@ -211,10 +211,29 @@ function renderNavigation() {
   });
 }
 
+export function setReelsActiveState(isActive) {
+  window.__isReelsActive = Boolean(isActive);
+  if (window.NativeReelsBridge && typeof window.NativeReelsBridge.setReelsActive === "function") {
+    try {
+      window.NativeReelsBridge.setReelsActive(Boolean(isActive));
+    } catch (_) {}
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.setReelsActiveState = setReelsActiveState;
+}
+
 function navigate(route) {
   try {
     window.history.pushState({ route }, "", route);
   } catch (_) {}
+
+  if (route === "/reels") {
+    setReelsActiveState(true);
+  } else {
+    setReelsActiveState(false);
+  }
 
   if (route === "/" || route === "/home") {
     switchTab("home");
@@ -233,11 +252,16 @@ if (typeof window !== "undefined") {
   window.navigate = navigate;
   window.addEventListener("popstate", () => {
     const path = window.location.pathname;
-    if (path === "/reels") switchTab("reels");
-    else if (path === "/messages") switchTab("messages");
-    else if (path === "/search") switchTab("search");
-    else if (path === "/profile") switchTab("profile");
-    else switchTab("home");
+    if (path === "/reels") {
+      setReelsActiveState(true);
+      switchTab("reels");
+    } else {
+      setReelsActiveState(false);
+      if (path === "/messages") switchTab("messages");
+      else if (path === "/search") switchTab("search");
+      else if (path === "/profile") switchTab("profile");
+      else switchTab("home");
+    }
   });
 }
 
@@ -408,6 +432,7 @@ function switchTab(tabId, btnElement) {
   }
 
   if (tabId === "reels") {
+    setReelsActiveState(true);
     if (typeof pauseAllHomeVideos === "function") pauseAllHomeVideos();
     if (hView) hView.classList.remove("active");
     if (pView) pView.classList.remove("active");
@@ -421,6 +446,7 @@ function switchTab(tabId, btnElement) {
     }
     if (typeof playCurrentReel === "function") playCurrentReel();
   } else {
+    setReelsActiveState(false);
     if (typeof setActiveClearModeReelId === "function") {
       setActiveClearModeReelId(null);
     } else if (typeof disableReelsClearMode === "function") {

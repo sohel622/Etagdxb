@@ -2,22 +2,123 @@ package com.flashgram.app;
 
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.PictureInPictureParams;
+import android.app.RemoteAction;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.res.Configuration;
+import android.graphics.drawable.Icon;
+import android.media.AudioManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Rational;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import com.getcapacitor.BridgeActivity;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends BridgeActivity {
+
+    public static volatile boolean isReelsActive = false;
+
+    private static final String ACTION_PIP_PLAY_PAUSE = "com.flashgram.app.ACTION_PIP_PLAY_PAUSE";
+    private static final String ACTION_PIP_NEXT = "com.flashgram.app.ACTION_PIP_NEXT";
+
+    private final BroadcastReceiver pipReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent == null || intent.getAction() == null) return;
+            String action = intent.getAction();
+            if (ACTION_PIP_PLAY_PAUSE.equals(action)) {
+                if (bridge != null && bridge.getWebView() != null) {
+                    bridge.getWebView().evaluateJavascript(
+                        "window.toggleCurrentReelPlayback && window.toggleCurrentReelPlayback();",
+                        null
+                    );
+                }
+            } else if (ACTION_PIP_NEXT.equals(action)) {
+                if (bridge != null && bridge.getWebView() != null) {
+                    bridge.getWebView().evaluateJavascript(
+                        "window.goToNextReel && window.goToNextReel();",
+                        null
+                    );
+                }
+            }
+        }
+    };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         applySystemUiSettings();
         createUploadNotificationChannel();
+
+        if (bridge != null && bridge.getWebView() != null) {
+            bridge.getWebView().addJavascriptInterface(new Object() {
+                @android.webkit.JavascriptInterface
+                public void setReelsActive(boolean active) {
+                    isReelsActive = active;
+                }
+            }, "NativeReelsBridge");
+        }
+
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(ACTION_PIP_PLAY_PAUSE);
+        filter.addAction(ACTION_PIP_NEXT);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(pipReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(pipReceiver, filter);
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        try {
+            unregisterReceiver(pipReceiver);
+        } catch (Exception ignored) {}
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        boolean inReels = isReelsActive;
+        if (!inReels && bridge != null && bridge.getWebView() != null) {
+            String url = bridge.getWebView().getUrl();
+            if (url != null && url.contains("/reels")) {
+                inReels = true;
+            }
+        }
+
+        // Intercept volume keys only when Reels feed is active
+        if (inReels && (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN)) {
+            AudioManager audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+            if (audioManager != null) {
+                int direction = (keyCode == KeyEvent.KEYCODE_VOLUME_UP) ? AudioManager.ADJUST_RAISE : AudioManager.ADJUST_LOWER;
+                // Adjust volume SILENTLY without showing native Android side slider UI (0 flag)
+                audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, 0);
+
+                int currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+                int maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                int percent = Math.round(((float) currentVol / maxVol) * 100);
+
+                // Dispatch event to WebView
+                if (bridge != null && bridge.getWebView() != null) {
+                    bridge.getWebView().evaluateJavascript(
+                        "window.dispatchEvent(new CustomEvent('reelsVolumeChange', { detail: { volume: " + percent + " } }));",
+                        null
+                    );
+                }
+                return true; // Consume event to suppress native system UI
+            }
+        }
+        return super.onKeyDown(keyCode, event);
     }
 
     private void createUploadNotificationChannel() {
@@ -46,7 +147,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onNewIntent(android.content.Intent intent) {
+    protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
     }
@@ -64,6 +165,31 @@ public class MainActivity extends BridgeActivity {
                 Rational aspectRatio = new Rational(9, 16);
                 PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder();
                 builder.setAspectRatio(aspectRatio);
+
+                // Add RemoteActions for Play/Pause and Next Reel
+                List<RemoteAction> actions = new ArrayList<>();
+
+                int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    flags |= PendingIntent.FLAG_IMMUTABLE;
+                }
+
+                // Play/Pause Remote Action
+                Intent playPauseIntent = new Intent(ACTION_PIP_PLAY_PAUSE).setPackage(getPackageName());
+                PendingIntent playPausePending = PendingIntent.getBroadcast(this, 201, playPauseIntent, flags);
+                Icon playPauseIcon = Icon.createWithResource(this, R.drawable.ic_pip_play_pause);
+                RemoteAction playPauseAction = new RemoteAction(playPauseIcon, "Play/Pause", "Toggle Playback", playPausePending);
+                actions.add(playPauseAction);
+
+                // Next Reel Remote Action
+                Intent nextIntent = new Intent(ACTION_PIP_NEXT).setPackage(getPackageName());
+                PendingIntent nextPending = PendingIntent.getBroadcast(this, 202, nextIntent, flags);
+                Icon nextIcon = Icon.createWithResource(this, R.drawable.ic_pip_next);
+                RemoteAction nextAction = new RemoteAction(nextIcon, "Next Reel", "Next Reel", nextPending);
+                actions.add(nextAction);
+
+                builder.setActions(actions);
+
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     builder.setAutoEnterEnabled(true);
                 }
@@ -77,6 +203,13 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, Configuration newConfig) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
+        // Notify WebView about PiP mode change
+        if (bridge != null && bridge.getWebView() != null) {
+            bridge.getWebView().evaluateJavascript(
+                "window.dispatchEvent(new CustomEvent('pipModeChange', { detail: { isPiP: " + isInPictureInPictureMode + " } }));",
+                null
+            );
+        }
         if (!isInPictureInPictureMode) {
             applySystemUiSettings();
         }

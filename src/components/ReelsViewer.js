@@ -8,6 +8,7 @@ import { isFollowingUser, toggleFollowUser } from "../services/followService.js"
 import { getCurrentUserId } from "../services/avatarService.js";
 import { supabase } from "../supabaseClient.js";
 import { setActiveReelVideo, initReelsPipHandler, triggerReelPiP } from "../services/pipService.js";
+import { initReelsVolumeHUD } from "./reels/ReelsVolumeHUD.js";
 
     /* =======================================================
        Web Video Picture-in-Picture (PiP) Helper
@@ -283,7 +284,7 @@ import { setActiveReelVideo, initReelsPipHandler, triggerReelPiP } from "../serv
 
         item.innerHTML = `
           <div class="reel-video-wrapper">
-            <video class="reel-video" src="${vidUrl}" loop playsinline preload="metadata"></video>
+            <video class="reel-video" src="${vidUrl}" playsinline preload="metadata"></video>
             
             <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
 
@@ -682,15 +683,15 @@ import { setActiveReelVideo, initReelsPipHandler, triggerReelPiP } from "../serv
         if (reelsProgressBarFill) {
           reelsProgressBarFill.style.width = "100%";
         }
-        // When looped, seamlessly reset and track next cycle
-        setTimeout(() => {
-          if (video && !video.paused) {
-            updateProgress();
-          }
-        }, 80);
+        // Auto-Play Next Reel on Video End (Auto Scroll)
+        goToNextReel();
       };
       boundVideoPlayHandler = startProgressLoop;
       boundVideoPauseHandler = stopProgressLoop;
+
+      video.onended = () => {
+        goToNextReel();
+      };
 
       video.addEventListener("timeupdate", boundVideoProgressHandler);
       video.addEventListener("seeking", boundVideoSeekingHandler);
@@ -799,6 +800,9 @@ import { setActiveReelVideo, initReelsPipHandler, triggerReelPiP } from "../serv
       // Initialize automatic hardware back button and app leave PiP handling
       initReelsPipHandler();
 
+      // Initialize Instagram-style Custom Reels Volume HUD
+      initReelsVolumeHUD();
+
       // Auto-sync active reel if reels view is currently showing
       if (reelsView && reelsView.classList.contains("active")) {
         syncActiveReel();
@@ -858,6 +862,98 @@ import { setActiveReelVideo, initReelsPipHandler, triggerReelPiP } from "../serv
       }
     }, true);
 
+    // Auto-Play Next Reel on Video End (Auto Scroll)
+    reelsView.addEventListener("ended", (e) => {
+      if (e.target && (e.target.classList.contains("reel-video") || e.target.tagName === "VIDEO")) {
+        goToNextReel();
+      }
+    }, true);
+
+    function goToNextReel() {
+      const reelsContainer = document.getElementById("reelsView");
+      const items = Array.from(document.querySelectorAll("#reelsFeedWrapper .reel-item"));
+      if (items.length === 0 || !reelsContainer) return;
+
+      const currentItem = currentActiveReelVideo ? currentActiveReelVideo.closest(".reel-item") : null;
+      let nextItem = null;
+
+      if (currentItem) {
+        const currentIndex = items.indexOf(currentItem);
+        if (currentIndex !== -1 && currentIndex + 1 < items.length) {
+          nextItem = items[currentIndex + 1];
+        } else {
+          nextItem = items[0]; // Loop back to the first reel
+        }
+      } else {
+        nextItem = items[0];
+      }
+
+      if (nextItem) {
+        const nextVideo = nextItem.querySelector("video");
+        if (nextVideo) {
+          pauseAllReels(nextVideo);
+          nextItem.scrollIntoView({ behavior: "smooth", block: "start" });
+          nextVideo.currentTime = 0;
+          nextVideo.muted = isGlobalAudioMuted;
+          nextVideo.play().catch(() => {});
+          currentActiveReelVideo = nextVideo;
+          setActiveReelVideo(nextVideo);
+          attachVideoProgressTracker(nextVideo);
+        }
+      }
+    }
+
+    function goToPrevReel() {
+      const reelsContainer = document.getElementById("reelsView");
+      const items = Array.from(document.querySelectorAll("#reelsFeedWrapper .reel-item"));
+      if (items.length === 0 || !reelsContainer) return;
+
+      const currentItem = currentActiveReelVideo ? currentActiveReelVideo.closest(".reel-item") : null;
+      let prevItem = null;
+
+      if (currentItem) {
+        const currentIndex = items.indexOf(currentItem);
+        if (currentIndex > 0) {
+          prevItem = items[currentIndex - 1];
+        } else {
+          prevItem = items[items.length - 1];
+        }
+      } else {
+        prevItem = items[0];
+      }
+
+      if (prevItem) {
+        const prevVideo = prevItem.querySelector("video");
+        if (prevVideo) {
+          pauseAllReels(prevVideo);
+          prevItem.scrollIntoView({ behavior: "smooth", block: "start" });
+          prevVideo.currentTime = 0;
+          prevVideo.muted = isGlobalAudioMuted;
+          prevVideo.play().catch(() => {});
+          currentActiveReelVideo = prevVideo;
+          setActiveReelVideo(prevVideo);
+          attachVideoProgressTracker(prevVideo);
+        }
+      }
+    }
+
+    function toggleCurrentReelPlayback() {
+      const currentVideo = currentActiveReelVideo || document.querySelector("video.active-reel") || document.querySelector("#reelsView video");
+      if (!currentVideo) return;
+
+      if (currentVideo.paused) {
+        currentVideo.play().catch(() => {});
+      } else {
+        currentVideo.pause();
+      }
+    }
+
+    if (typeof window !== "undefined") {
+      window.goToNextReel = goToNextReel;
+      window.goToPrevReel = goToPrevReel;
+      window.toggleCurrentReelPlayback = toggleCurrentReelPlayback;
+    }
+
     function playCurrentReel() {
       if (currentActiveReelVideo && !currentActiveReelVideo.paused) {
         attachVideoProgressTracker(currentActiveReelVideo);
@@ -915,4 +1011,4 @@ import { setActiveReelVideo, initReelsPipHandler, triggerReelPiP } from "../serv
       document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
     }
 
-export { loadReels, setupReelObserver, syncActiveReel, playCurrentReel, pauseAllReels, attachVideoProgressTracker, handleProgressBarSeek, resetVideoProgressBar, detachVideoProgressTracker, spawnFloatingHeart, openMyProfileTab, toggleReelFollowBtn, playShabnamReelVideo, navigateToReel, openReelsShareSheet, openReelsCommentsSheet, enableVideoPiP, toggleFullScreen };
+export { loadReels, setupReelObserver, syncActiveReel, playCurrentReel, pauseAllReels, attachVideoProgressTracker, handleProgressBarSeek, resetVideoProgressBar, detachVideoProgressTracker, spawnFloatingHeart, openMyProfileTab, toggleReelFollowBtn, playShabnamReelVideo, navigateToReel, openReelsShareSheet, openReelsCommentsSheet, enableVideoPiP, toggleFullScreen, goToNextReel, goToPrevReel, toggleCurrentReelPlayback };

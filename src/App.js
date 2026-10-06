@@ -17,6 +17,7 @@ import { initStatusBarListener } from "./services/statusBarService.js";
 import { checkAndPromptPermissionsOnLaunch } from "./services/notificationService.js";
 import { initReelsPipHandler } from "./services/pipService.js";
 import { initDeepLinkListener } from "./services/deepLinkService.js";
+import { initReelsVolumeHUD } from "./components/reels/ReelsVolumeHUD.js";
 
 export const App = {
   async init() {
@@ -95,6 +96,9 @@ export const App = {
 
     // 13. Deep Link & Home Screen Widget Shortcut Handler
     initDeepLinkListener();
+
+    // 14. Instagram-style Custom Reels Volume HUD
+    initReelsVolumeHUD();
   }
 };
 
