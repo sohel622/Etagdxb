@@ -229,6 +229,18 @@ function navigate(route) {
     window.history.pushState({ route }, "", route);
   } catch (_) {}
 
+  if (route.startsWith("/reel/") || route.startsWith("/reels/")) {
+    setReelsActiveState(true);
+    const reelId = route.replace(/^\/reels?\//, '').split('?')[0].split('#')[0];
+    if (reelId && typeof window.navigateToReel === "function") {
+      window.navigateToReel(reelId);
+      return;
+    } else {
+      switchTab("reels");
+      return;
+    }
+  }
+
   if (route === "/reels") {
     setReelsActiveState(true);
   } else {
@@ -252,7 +264,15 @@ if (typeof window !== "undefined") {
   window.navigate = navigate;
   window.addEventListener("popstate", () => {
     const path = window.location.pathname;
-    if (path === "/reels") {
+    if (path.startsWith("/reel/") || path.startsWith("/reels/")) {
+      setReelsActiveState(true);
+      const reelId = path.replace(/^\/reels?\//, '').split('?')[0].split('#')[0];
+      if (reelId && typeof window.navigateToReel === "function") {
+        window.navigateToReel(reelId);
+      } else {
+        switchTab("reels");
+      }
+    } else if (path === "/reels") {
       setReelsActiveState(true);
       switchTab("reels");
     } else {

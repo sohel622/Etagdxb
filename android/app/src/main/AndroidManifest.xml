@@ -33,6 +33,17 @@
                 <data android:scheme="flashgram" />
             </intent-filter>
 
+            <!-- Production Android App Links for Etagdxb.vercel.app /reel -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="Etagdxb.vercel.app"
+                    android:pathPrefix="/reel" />
+            </intent-filter>
+
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />

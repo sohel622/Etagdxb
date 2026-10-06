@@ -269,6 +269,54 @@ const staticDir = fs.existsSync(path.join(__dirname, 'dist'))
 app.use(express.static(staticDir));
 app.use(express.static(__dirname));
 
+// Dynamic Open Graph preview cards for public Reel links (WhatsApp, Telegram, Twitter, etc.)
+app.get(['/reel/:id', '/reels/:id'], (req, res) => {
+  const reelId = req.params.id;
+  const indexPath = fs.existsSync(path.join(staticDir, 'index.html'))
+    ? path.join(staticDir, 'index.html')
+    : path.join(__dirname, 'index.html');
+
+  try {
+    let html = fs.readFileSync(indexPath, 'utf-8');
+
+    const shareUrl = `https://Etagdxb.vercel.app/reel/${reelId}`;
+    const previewImage = 'https://Etagdxb.vercel.app/og-preview.png';
+    const ogTitle = `Reel on Flashgram • Watch Now`;
+    const ogDesc = `Watch this trending reel on Flashgram. Tap to watch in full screen.`;
+
+    const dynamicMeta = `
+  <meta property="og:type" content="video.other" />
+  <meta property="og:site_name" content="Flashgram" />
+  <meta property="og:title" content="${ogTitle}" />
+  <meta property="og:description" content="${ogDesc}" />
+  <meta property="og:image" content="${previewImage}" />
+  <meta property="og:url" content="${shareUrl}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${ogTitle}" />
+  <meta name="twitter:description" content="${ogDesc}" />
+  <meta name="twitter:image" content="${previewImage}" />
+    `.trim();
+
+    html = html.replace(/<meta property="og:type"[^>]*>/i, '');
+    html = html.replace(/<meta property="og:site_name"[^>]*>/i, '');
+    html = html.replace(/<meta property="og:title"[^>]*>/i, '');
+    html = html.replace(/<meta property="og:description"[^>]*>/i, '');
+    html = html.replace(/<meta property="og:image"[^>]*>/i, '');
+    html = html.replace(/<meta property="og:url"[^>]*>/i, '');
+    html = html.replace(/<meta name="twitter:card"[^>]*>/i, '');
+    html = html.replace(/<meta name="twitter:title"[^>]*>/i, '');
+    html = html.replace(/<meta name="twitter:description"[^>]*>/i, '');
+    html = html.replace(/<meta name="twitter:image"[^>]*>/i, '');
+
+    html = html.replace('<head>', `<head>\n  ${dynamicMeta}`);
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(html);
+  } catch (err) {
+    res.sendFile(indexPath);
+  }
+});
+
 app.get('*', (req, res) => {
   const indexPath = fs.existsSync(path.join(staticDir, 'index.html'))
     ? path.join(staticDir, 'index.html')

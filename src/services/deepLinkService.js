@@ -11,6 +11,28 @@ export function handleDeepLink(urlStr) {
   console.log('[DeepLink] Processing URL/Route:', urlStr);
 
   try {
+    // 1. Check for direct Reel App Links: https://Etagdxb.vercel.app/reel/:id
+    if (urlStr.includes('/reel/')) {
+      const match = urlStr.match(/\/reel\/([^/?#]+)/i);
+      const reelId = match ? match[1] : null;
+      if (reelId) {
+        console.log('[DeepLink] Direct reel target detected:', reelId);
+        if (typeof window.switchTab === 'function') {
+          window.switchTab('reels');
+        }
+        if (typeof window.navigateToReel === 'function') {
+          window.navigateToReel(reelId);
+        } else {
+          setTimeout(() => {
+            if (typeof window.navigateToReel === 'function') {
+              window.navigateToReel(reelId);
+            }
+          }, 350);
+        }
+        return;
+      }
+    }
+
     let cleanPath = urlStr.trim();
 
     // Strip scheme if present (e.g. "flashgram://reels" -> "reels")
@@ -19,7 +41,7 @@ export function handleDeepLink(urlStr) {
       cleanPath = parts[1] || '';
     }
 
-    // Strip domain if present (e.g. "flashgram.app/reels" -> "reels")
+    // Strip domain if present (e.g. "Etagdxb.vercel.app/reels" -> "reels")
     if (cleanPath.includes('/')) {
       const segments = cleanPath.split('/').filter(Boolean);
       cleanPath = segments[segments.length - 1] || segments[0] || '';
@@ -32,6 +54,7 @@ export function handleDeepLink(urlStr) {
 
     // Route to appropriate view without reloading
     switch (cleanPath) {
+      case 'reel':
       case 'reels':
         if (typeof window.switchTab === 'function') {
           window.switchTab('reels');
@@ -48,7 +71,6 @@ export function handleDeepLink(urlStr) {
         if (typeof window.openCameraMicrophoneSession === 'function') {
           window.openCameraMicrophoneSession();
         } else {
-          // If modal helper not yet ready, retry shortly
           setTimeout(() => {
             if (typeof window.openCameraMicrophoneSession === 'function') {
               window.openCameraMicrophoneSession();
@@ -136,10 +158,28 @@ export function initDeepLinkListener() {
 
   try {
     // 1. Listen for background/foreground URL open events
-    CapApp.addListener('appUrlOpen', (data) => {
-      console.log('[DeepLink] Received appUrlOpen event:', data?.url);
-      if (data?.url) {
-        handleDeepLink(data.url);
+    CapApp.addListener('appUrlOpen', (event) => {
+      console.log('[DeepLink] Received appUrlOpen event:', event?.url);
+      try {
+        if (event?.url) {
+          const urlStr = event.url;
+          if (urlStr.includes('Etagdxb.vercel.app') && urlStr.includes('/reel/')) {
+            const match = urlStr.match(/\/reel\/([^/?#]+)/i);
+            const reelId = match ? match[1] : null;
+            if (reelId) {
+              if (typeof window.navigate === 'function') {
+                window.navigate(`/reel/${reelId}`);
+              } else if (typeof window.navigateToReel === 'function') {
+                window.navigateToReel(reelId);
+              }
+              return;
+            }
+          }
+          handleDeepLink(urlStr);
+        }
+      } catch (e) {
+        console.error('Deep link error:', e);
+        if (event?.url) handleDeepLink(event.url);
       }
     });
 
@@ -147,15 +187,39 @@ export function initDeepLinkListener() {
     CapApp.getLaunchUrl().then((launchUrl) => {
       if (launchUrl && launchUrl.url) {
         console.log('[DeepLink] App launch URL detected:', launchUrl.url);
-        // Small delay to allow DOM initialization
         setTimeout(() => {
-          handleDeepLink(launchUrl.url);
+          const urlStr = launchUrl.url;
+          if (urlStr.includes('Etagdxb.vercel.app') && urlStr.includes('/reel/')) {
+            const match = urlStr.match(/\/reel\/([^/?#]+)/i);
+            const reelId = match ? match[1] : null;
+            if (reelId) {
+              if (typeof window.navigate === 'function') {
+                window.navigate(`/reel/${reelId}`);
+              } else if (typeof window.navigateToReel === 'function') {
+                window.navigateToReel(reelId);
+              }
+              return;
+            }
+          }
+          handleDeepLink(urlStr);
         }, 300);
       }
     }).catch(() => {});
 
-    // 3. Fallback for Web/Browser URL parameters (e.g. ?route=reels or /reels)
+    // 3. Fallback for Web/Browser URL parameters or direct pathname
     if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      if (path.startsWith('/reel/') || path.startsWith('/reels/')) {
+        const reelId = path.replace(/^\/reels?\//, '').split('?')[0].split('#')[0];
+        if (reelId) {
+          setTimeout(() => {
+            if (typeof window.navigateToReel === 'function') {
+              window.navigateToReel(reelId);
+            }
+          }, 350);
+        }
+      }
+
       const urlParams = new URLSearchParams(window.location.search);
       const routeParam = urlParams.get('route') || urlParams.get('action');
       if (routeParam) {

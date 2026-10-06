@@ -79,7 +79,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onDestroy() {
+    public void onDestroy() {
         super.onDestroy();
         try {
             unregisterReceiver(pipReceiver);
@@ -147,7 +147,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onNewIntent(Intent intent) {
+    public void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
     }

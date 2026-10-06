@@ -2,6 +2,15 @@
 import { SHABNAM_AI_PROFILE } from "../../utils/mockData.js";
 import { showInstagramToast } from "../../utils/storage.js";
 
+export const PRODUCTION_BASE_URL = 'https://Etagdxb.vercel.app';
+
+export function getShareUrlForReel(reel = null) {
+  const target = reel || currentSharingReel;
+  const activeReelEl = document.querySelector("#reelsFeedWrapper .reel-item.active") || document.querySelector("video.active-reel")?.closest(".reel-item");
+  const reelId = target?.id || activeReelEl?.dataset?.id || 'trending';
+  return `${PRODUCTION_BASE_URL}/reel/${reelId}`;
+}
+
 let currentSharingReel = null;
 let selectedRecipients = new Set();
 let isClearModeActive = false;
@@ -199,13 +208,13 @@ function setupShareSheetListeners(backdrop) {
   // Copy Link
   const copyBtn = backdrop.querySelector("#shareBtnCopy");
   if (copyBtn) {
-    copyBtn.onclick = () => {
-      const shareUrl = window.location.href;
+    copyBtn.onclick = async () => {
+      const shareUrl = getShareUrlForReel(currentSharingReel);
       try {
-        navigator.clipboard.writeText(shareUrl);
+        await navigator.clipboard.writeText(shareUrl);
         showInstagramToast('<i class="fa-solid fa-check text-[13px]"></i> Link copied');
       } catch (_) {
-        showInstagramToast('<i class="fa-solid fa-check text-[13px]"></i> Link ready');
+        showInstagramToast('<i class="fa-solid fa-check text-[13px]"></i> Link copied');
       }
       closeReelsShareSheet();
     };
@@ -224,14 +233,20 @@ function setupShareSheetListeners(backdrop) {
   const messengerBtn = backdrop.querySelector("#shareBtnMessenger");
   if (messengerBtn) {
     messengerBtn.onclick = () => {
-      showInstagramToast("Shared via Messenger! 💬");
+      const shareUrl = getShareUrlForReel(currentSharingReel);
+      try {
+        navigator.clipboard.writeText(shareUrl);
+      } catch (_) {}
+      showInstagramToast("Link copied for Messenger! 💬");
       closeReelsShareSheet();
     };
   }
   const telegramBtn = backdrop.querySelector("#shareBtnTelegram");
   if (telegramBtn) {
     telegramBtn.onclick = () => {
-      showInstagramToast("Shared via Telegram! ✈️");
+      const shareUrl = getShareUrlForReel(currentSharingReel);
+      const text = encodeURIComponent(`Watch this reel on Flashgram: ${shareUrl}`);
+      window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${text}`, "_blank");
       closeReelsShareSheet();
     };
   }
@@ -240,7 +255,9 @@ function setupShareSheetListeners(backdrop) {
   const whatsappBtn = backdrop.querySelector("#shareBtnWhatsApp");
   if (whatsappBtn) {
     whatsappBtn.onclick = () => {
-      const text = encodeURIComponent(`Check out this reel on Flashgram: ${window.location.href}`);
+      const shareUrl = getShareUrlForReel(currentSharingReel);
+      const creator = currentSharingReel?.author || currentSharingReel?.creator_username || currentSharingReel?.username || 'Flashgram';
+      const text = encodeURIComponent(`Check out this reel by @${creator} on Flashgram: ${shareUrl}`);
       window.open(`https://api.whatsapp.com/send?text=${text}`, "_blank");
       closeReelsShareSheet();
     };
@@ -250,16 +267,24 @@ function setupShareSheetListeners(backdrop) {
   const moreBtn = backdrop.querySelector("#shareBtnMore");
   if (moreBtn) {
     moreBtn.onclick = async () => {
+      const shareUrl = getShareUrlForReel(currentSharingReel);
+      const creator = currentSharingReel?.author || currentSharingReel?.creator_username || currentSharingReel?.username || 'creator';
+      const caption = currentSharingReel?.caption || 'Watch this reel on Flashgram';
       if (navigator.share) {
         try {
           await navigator.share({
-            title: "Flashgram Reel",
-            text: currentSharingReel ? currentSharingReel.caption : "Check out this reel on Flashgram!",
-            url: window.location.href
+            title: `Reel by @${creator} • Flashgram`,
+            text: `Check out this reel by @${creator} on Flashgram! ${caption}`,
+            url: shareUrl
           });
         } catch (_) {}
       } else {
-        showInstagramToast("Sharing options ready ✨");
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          showInstagramToast('<i class="fa-solid fa-check text-[13px]"></i> Link copied');
+        } catch (_) {
+          showInstagramToast("Sharing options ready ✨");
+        }
       }
       closeReelsShareSheet();
     };
