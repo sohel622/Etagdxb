@@ -23,6 +23,27 @@ export const API_KEY =
 export const CLOUDINARY_VIDEO_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`;
 
 /**
+ * Automatically inject Cloudinary video optimization parameters (q_auto,f_auto,w_720,c_limit)
+ * right after "/upload/" to fix buffering, slow loading, and stuttering.
+ * @param {string} url - Original video URL
+ * @returns {string} - Optimized video streaming URL
+ */
+export function getOptimizedVideoUrl(url) {
+  if (!url || typeof url !== "string") return url || "";
+  
+  // Check if it's a Cloudinary URL and contains /upload/
+  if (url.includes("cloudinary.com") && url.includes("/upload/")) {
+    // If it already has optimization transformations, avoid duplicate injection
+    if (url.includes("/upload/q_auto") || url.includes("/upload/w_720") || url.includes("/upload/f_auto")) {
+      return url;
+    }
+    return url.replace("/upload/", "/upload/q_auto,f_auto,w_720,c_limit/");
+  }
+
+  return url;
+}
+
+/**
  * Derive high-quality poster frame URL from Cloudinary video URL
  * Replaces video extension (.mp4, .webm, etc.) with .jpg
  */
@@ -306,10 +327,15 @@ export async function fetchSupabasePosts() {
     const genuineUsername = pr.username || pr.display_name || post.author_name || 'creator';
     const genuineAvatar = pr.avatar_url || post.avatar || defaultAvatar;
     const stableId = post.id || `post_${post.created_at || idx}`;
+    const rawUrl = post.video_url || post.url || '';
+    const optimizedUrl = getOptimizedVideoUrl(rawUrl);
 
     return {
       ...post,
       id: stableId,
+      url: optimizedUrl,
+      video_url: optimizedUrl,
+      thumbnail_url: post.thumbnail_url || (rawUrl ? deriveCloudinaryThumbnailUrl(rawUrl) : ''),
       profiles: {
         id: pr.id || post.user_id,
         username: genuineUsername,

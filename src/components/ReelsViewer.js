@@ -2,7 +2,7 @@
 import { db } from "../services/database.js";
 import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowShabnam } from "../utils/storage.js";
 import { openReelsShareSheet, openReelsCommentsSheet, disableReelsClearMode, setActiveClearModeReelId, openPostOptionsSheet } from "./reels/index.js";
-import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl } from "../services/cloudinaryService.js";
+import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl, getOptimizedVideoUrl } from "../services/cloudinaryService.js";
 import { openProfile } from "./Profile.js";
 import { isFollowingUser, toggleFollowUser } from "../services/followService.js";
 import { getCurrentUserId } from "../services/avatarService.js";
@@ -227,8 +227,9 @@ import { initReelsVolumeHUD } from "./reels/ReelsVolumeHUD.js";
       const defaultAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
 
       livePosts.forEach((reel, index) => {
-        const vidUrl = reel.video_url || reel.url || '';
-        const thumbUrl = reel.thumbnail_url || (vidUrl ? deriveCloudinaryThumbnailUrl(vidUrl) : '');
+        const rawVidUrl = reel.video_url || reel.url || '';
+        const vidUrl = getOptimizedVideoUrl(rawVidUrl);
+        const thumbUrl = reel.thumbnail_url || (rawVidUrl ? deriveCloudinaryThumbnailUrl(rawVidUrl) : '');
         const profile = (Array.isArray(reel.profiles) ? reel.profiles[0] : reel.profiles) || {};
         const currentUserId = typeof getCurrentUserId === "function" ? getCurrentUserId() : null;
         const isShabnamReel = reel.user === 'shabnam_ai' || (reel.id && reel.id === 'shabnam_reel_1') || (profile.username === 'shabnam_ai');
@@ -284,7 +285,7 @@ import { initReelsVolumeHUD } from "./reels/ReelsVolumeHUD.js";
 
         item.innerHTML = `
           <div class="reel-video-wrapper">
-            <video class="reel-video" src="${vidUrl}" playsinline preload="metadata"></video>
+            <video class="reel-video" src="${vidUrl}" poster="${thumbUrl}" playsinline webkit-playsinline preload="metadata"></video>
             
             <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
 

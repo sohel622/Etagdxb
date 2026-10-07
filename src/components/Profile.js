@@ -6,7 +6,7 @@ import { switchTab, activeNavId } from "./BottomNavigation.js";
 import { openShabnamChat } from "./ShabnamAI.js";
 import { playShabnamReelVideo, navigateToReel } from "./ReelsViewer.js";
 import { openEditProfileScreen, openMediaCreationPrompt } from "./Modals.js";
-import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl } from "../services/cloudinaryService.js";
+import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl, getOptimizedVideoUrl } from "../services/cloudinaryService.js";
 import { supabase } from "../supabaseClient.js";
 import { getCurrentUserId } from "../services/avatarService.js";
 import { isFollowingUser, toggleFollowUser } from "../services/followService.js";
@@ -596,7 +596,7 @@ window.addEventListener("popstate", (e) => {
         const el = document.createElement("div");
         el.className = "profile-grid-item";
         el.innerHTML = `
-          <video src="${SHABNAM_AI_PROFILE.videoUrl}" style="width:100%; height:100%; object-fit:cover;" muted preload="metadata" playsinline></video>
+          <video src="${getOptimizedVideoUrl(SHABNAM_AI_PROFILE.videoUrl)}" poster="${SHABNAM_AI_PROFILE.avatar}" style="width:100%; height:100%; object-fit:cover;" muted preload="metadata" playsinline></video>
           <div class="profile-grid-badge"><i class="fa-solid fa-play"></i></div>
           <div class="profile-grid-overlay">
             <span><i class="fa-solid fa-heart"></i> 142K</span>
@@ -647,8 +647,9 @@ window.addEventListener("popstate", (e) => {
       container.innerHTML = "";
 
       const userGridItems = userPosts.map((p, idx) => {
-        const vidSrc = p.video_url || p.url || (p.blob ? URL.createObjectURL(p.blob) : '');
-        const posterUrl = p.thumbnail_url || (vidSrc ? deriveCloudinaryThumbnailUrl(vidSrc) : '');
+        const rawVidSrc = p.video_url || p.url || (p.blob ? URL.createObjectURL(p.blob) : '');
+        const vidSrc = getOptimizedVideoUrl(rawVidSrc);
+        const posterUrl = p.thumbnail_url || (rawVidSrc ? deriveCloudinaryThumbnailUrl(rawVidSrc) : '');
         return {
           id: String(p.id || idx),
           type: 'video',
@@ -688,7 +689,7 @@ window.addEventListener("popstate", (e) => {
           const el = document.createElement("div");
           el.className = "profile-grid-item";
           el.innerHTML = `
-            <video src="${item.videoSrc}" style="width:100%; height:100%; object-fit:cover;" muted preload="metadata" playsinline></video>
+            <video src="${item.videoSrc}" poster="${item.poster || ''}" style="width:100%; height:100%; object-fit:cover;" muted preload="metadata" playsinline></video>
             <div class="profile-grid-badge"><i class="fa-solid fa-play"></i></div>
             <div class="profile-grid-overlay">
               <span><i class="fa-solid fa-heart"></i> ${item.likes}</span>
@@ -731,7 +732,7 @@ window.addEventListener("popstate", (e) => {
           const el = document.createElement("div");
           el.className = "profile-grid-item";
           el.innerHTML = `
-            <video src="${item.videoSrc}" style="width:100%; height:100%; object-fit:cover;" muted preload="metadata" playsinline></video>
+            <video src="${item.videoSrc}" poster="${item.poster || ''}" style="width:100%; height:100%; object-fit:cover;" muted preload="metadata" playsinline></video>
             <div class="profile-grid-badge"><i class="fa-solid fa-play"></i></div>
             <div class="profile-grid-overlay">
               <span><i class="fa-solid fa-play" style="font-size: 11px;"></i> ${item.views}</span>

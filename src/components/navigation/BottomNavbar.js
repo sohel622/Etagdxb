@@ -213,6 +213,16 @@ function renderNavigation() {
 
 export function setReelsActiveState(isActive) {
   window.__isReelsActive = Boolean(isActive);
+  if (isActive) {
+    updateStatusBar("reels");
+  } else if (activeNavId && activeNavId !== "reels") {
+    updateStatusBar(activeNavId);
+  }
+  if (typeof window !== "undefined") {
+    try {
+      window.dispatchEvent(new CustomEvent("reelsActiveStateChange", { detail: { isActive: Boolean(isActive) } }));
+    } catch (_) {}
+  }
   if (window.NativeReelsBridge && typeof window.NativeReelsBridge.setReelsActive === "function") {
     try {
       window.NativeReelsBridge.setReelsActive(Boolean(isActive));
@@ -394,6 +404,9 @@ function switchTab(tabId, btnElement) {
   if (typeof window !== "undefined") {
     window.activeNavId = tabId;
     window.switchTab = switchTab;
+    try {
+      window.dispatchEvent(new CustomEvent("routeChange", { detail: { tab: tabId, route: `/${tabId}` } }));
+    } catch (_) {}
   }
   updateStatusBar(tabId);
   showStandardNavBar();

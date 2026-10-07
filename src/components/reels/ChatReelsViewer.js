@@ -6,6 +6,7 @@ import { openReelsCommentsSheet, openReelsShareSheet, openPostOptionsSheet } fro
 import { isGlobalAudioMuted, toggleGlobalAudio } from "../Navbar.js";
 import { isFollowingShabnam, toggleFollowShabnam, showInstagramToast } from "../../utils/storage.js";
 import { spawnFloatingHeart } from "../ReelsViewer.js";
+import { getOptimizedVideoUrl, deriveCloudinaryThumbnailUrl } from "../../services/cloudinaryService.js";
 
 let chatReelsOverlay = null;
 let activeChatVideos = [];
@@ -117,9 +118,12 @@ export function openChatReelsViewer({ videos = [], initialIndex = 0 } = {}) {
       followBtnHtml = `<button type="button" class="follow-btn" id="chatReelFollowBtn_${index}">Follow</button>`;
     }
 
+    const optVidUrl = getOptimizedVideoUrl(reel.url);
+    const thumbUrl = reel.thumbnail_url || (reel.url ? deriveCloudinaryThumbnailUrl(reel.url) : '');
+
     item.innerHTML = `
       <div class="reel-video-wrapper w-full h-full relative flex items-center justify-center bg-black">
-        <video class="reel-video w-full h-full object-cover" src="${reel.url}" loop playsinline preload="auto" ${isMuted ? 'muted' : ''}></video>
+        <video class="reel-video w-full h-full object-cover" src="${optVidUrl}" poster="${thumbUrl}" loop playsinline webkit-playsinline preload="metadata" ${isMuted ? 'muted' : ''}></video>
         
         <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
 

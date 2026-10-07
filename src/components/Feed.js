@@ -7,7 +7,7 @@ import { openMyProfileTab, navigateToReel } from "./ReelsViewer.js";
 import { openReelsCommentsSheet, openReelsShareSheet, getStoredComments, openPostOptionsSheet } from "./reels/index.js";
 import { openProfile } from "./Profile.js";
 import { renderSuggestedReels } from "./SuggestedReels.js";
-import { deriveCloudinaryThumbnailUrl, fetchSupabasePosts } from "../services/cloudinaryService.js";
+import { deriveCloudinaryThumbnailUrl, fetchSupabasePosts, getOptimizedVideoUrl } from "../services/cloudinaryService.js";
 import { isFollowingUser, toggleFollowUser } from "../services/followService.js";
 import { getCurrentUserId } from "../services/avatarService.js";
 import { supabase } from "../supabaseClient.js";
@@ -144,7 +144,7 @@ function createPostCardElement(post, index = 0) {
       </div>
       <i class="fa-solid fa-ellipsis post-more-btn cursor-pointer" title="Post options"></i>
     </div>
-    <div class="home-video-container" data-post-id="${post.id}" data-video-url="${post.url}" data-poster-url="${posterImg}" style="cursor: pointer;" title="Watch Reel">
+    <div class="home-video-container" data-post-id="${post.id}" data-video-url="${getOptimizedVideoUrl(post.url || post.video_url)}" data-poster-url="${posterImg}" style="cursor: pointer;" title="Watch Reel">
       <div class="home-video-skeleton"></div>
       <img class="home-video-poster" src="${posterImg}" alt="${displayUser} video" loading="lazy" crossorigin="anonymous" onerror="this.style.display='none';" />
       <div class="home-play-badge"><i class="fa-solid fa-play ml-0.5"></i></div>
@@ -336,8 +336,9 @@ async function renderHomeFeed() {
     const currentUserId = typeof getCurrentUserId === "function" ? getCurrentUserId() : null;
 
     const formattedUserPosts = (livePosts || []).map((p, idx) => {
-      const vidUrl = p.video_url || p.url || '';
-      const thumbUrl = p.thumbnail_url || (vidUrl ? deriveCloudinaryThumbnailUrl(vidUrl) : '');
+      const rawVidUrl = p.video_url || p.url || '';
+      const vidUrl = getOptimizedVideoUrl(rawVidUrl);
+      const thumbUrl = p.thumbnail_url || (rawVidUrl ? deriveCloudinaryThumbnailUrl(rawVidUrl) : '');
       const profile = (Array.isArray(p.profiles) ? p.profiles[0] : p.profiles) || {};
       
       const isMine = Boolean(
@@ -489,14 +490,14 @@ function mountAndPlayVideo(container) {
     video.setAttribute("webkit-playsinline", "");
     video.crossOrigin = "anonymous";
     video.setAttribute("crossorigin", "anonymous");
-    video.preload = "auto";
+    video.preload = "metadata";
 
     // Requirement 2: Attach crisp first-frame poster on video element (valid image or #t=0.001)
     if (posterUrl && !posterUrl.includes(".mp4") && !posterUrl.includes(".webm") && !String(posterUrl).startsWith("blob:")) {
       video.poster = posterUrl;
       video.setAttribute("poster", posterUrl);
     }
-    video.src = videoUrl;
+    video.src = getOptimizedVideoUrl(videoUrl);
 
     // Requirement 1: Proportional container aspect ratio based on video metadata
     video.onloadedmetadata = () => {
