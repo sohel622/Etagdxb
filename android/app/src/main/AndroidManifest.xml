@@ -105,6 +105,18 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@android:color/white" />
+
+        <!-- Quick Settings Tile Service for Flashgram Reels -->
+        <service
+            android:name=".FlashgramTileService"
+            android:exported="true"
+            android:label="Flashgram"
+            android:icon="@drawable/ic_stat_flashgram"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
     </application>
 
     <!-- Permissions -->

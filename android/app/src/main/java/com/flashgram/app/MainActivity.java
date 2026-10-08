@@ -76,6 +76,33 @@ public class MainActivity extends BridgeActivity {
         } else {
             registerReceiver(pipReceiver, filter);
         }
+
+        handleIncomingIntent(getIntent());
+    }
+
+    private void handleIncomingIntent(Intent intent) {
+        if (intent == null) return;
+        String route = intent.getStringExtra("route");
+        if (route == null && intent.getData() != null) {
+            route = intent.getData().toString();
+        }
+        if (route != null && !route.isEmpty() && bridge != null && bridge.getWebView() != null) {
+            final String targetRoute = route;
+            bridge.getWebView().post(new Runnable() {
+                @Override
+                public void run() {
+                    bridge.getWebView().evaluateJavascript(
+                        "(function() { " +
+                        "  var r = '" + targetRoute + "'; " +
+                        "  if (typeof window.handleDeepLink === 'function') { window.handleDeepLink(r); } " +
+                        "  else if (typeof window.switchTab === 'function') { window.switchTab('reels'); } " +
+                        "  else { setTimeout(function() { if (typeof window.handleDeepLink === 'function') window.handleDeepLink(r); }, 500); } " +
+                        "})();",
+                        null
+                    );
+                }
+            });
+        }
     }
 
     @Override
@@ -150,6 +177,7 @@ public class MainActivity extends BridgeActivity {
     public void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        handleIncomingIntent(intent);
     }
 
     @Override
