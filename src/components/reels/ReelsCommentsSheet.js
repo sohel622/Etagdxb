@@ -5,6 +5,7 @@ import { UserProfileStore, showInstagramToast } from "../../utils/storage.js";
 let activeReelId = null;
 let activeReelData = null;
 let currentComments = [];
+let isCommentsOpen = false;
 
 function getStoredComments(reelId) {
   if (!reelId) return [];
@@ -371,6 +372,10 @@ function renderCommentsList() {
 function openReelsCommentsSheet(reelId, reelData = null) {
   activeReelId = reelId;
   activeReelData = reelData;
+  isCommentsOpen = true;
+  if (typeof window !== "undefined") {
+    window.isCommentsOpen = true;
+  }
   const backdrop = createCommentsSheetDOM();
 
   currentComments = getStoredComments(reelId);
@@ -386,7 +391,7 @@ function openReelsCommentsSheet(reelId, reelData = null) {
     avatarImg.src = UserProfileStore.state.avatar;
   }
 
-  // Smoothly translate active reel video to upper half without cropping if on Reels view
+  // Instagram-style video sizing: video stays full-width edge-to-edge, dynamic upper height
   const reelsView = document.getElementById("reelsView");
   if (reelsView && reelsView.classList.contains("active")) {
     reelsView.classList.add("comments-sheet-open");
@@ -414,7 +419,24 @@ function openReelsCommentsSheet(reelId, reelData = null) {
     }
     if (currentItem) {
       currentItem.classList.add("active-comment-reel");
+      try {
+        currentItem.scrollIntoView({ behavior: "instant", block: "start" });
+      } catch (_) {}
       const activeVideo = currentItem.querySelector("video");
+      if (activeVideo && activeVideo.paused) {
+        activeVideo.play().catch(() => {});
+      }
+    }
+  }
+
+  // Support Chat Reels modal if active
+  const chatModal = document.getElementById("chatReelsModal");
+  if (chatModal && (chatModal.classList.contains("active") || chatModal.style.display !== "none")) {
+    chatModal.classList.add("comments-sheet-open");
+    const activeItem = chatModal.querySelector(".reel-item");
+    if (activeItem) {
+      activeItem.classList.add("active-comment-reel");
+      const activeVideo = activeItem.querySelector("video");
       if (activeVideo && activeVideo.paused) {
         activeVideo.play().catch(() => {});
       }
@@ -425,7 +447,6 @@ function openReelsCommentsSheet(reelId, reelData = null) {
   const homeView = document.getElementById("homeView");
   if (homeView && homeView.classList.contains("active")) {
     homeView.classList.add("comments-sheet-open");
-    // Feed video remains active and unblurred in background
   }
 
   backdrop.style.display = "flex";
@@ -438,6 +459,11 @@ function closeReelsCommentsSheet() {
   const backdrop = document.getElementById("reelsCommentsSheetBackdrop");
   if (!backdrop) return;
 
+  isCommentsOpen = false;
+  if (typeof window !== "undefined") {
+    window.isCommentsOpen = false;
+  }
+
   const reelsView = document.getElementById("reelsView");
   if (reelsView) {
     reelsView.classList.remove("comments-sheet-open");
@@ -448,13 +474,18 @@ function closeReelsCommentsSheet() {
     homeView.classList.remove("comments-sheet-open");
   }
 
-  const allReelItems = document.querySelectorAll("#reelsFeedWrapper .reel-item");
+  const chatModal = document.getElementById("chatReelsModal");
+  if (chatModal) {
+    chatModal.classList.remove("comments-sheet-open");
+  }
+
+  const allReelItems = document.querySelectorAll(".reel-item");
   allReelItems.forEach(item => item.classList.remove("active-comment-reel"));
 
   backdrop.classList.remove("active");
   setTimeout(() => {
     backdrop.style.display = "none";
-  }, 260);
+  }, 280);
 }
 
 if (typeof window !== "undefined") {
@@ -467,5 +498,6 @@ export {
   openReelsCommentsSheet,
   closeReelsCommentsSheet,
   getStoredComments,
-  updateReelItemCommentCount
+  updateReelItemCommentCount,
+  isCommentsOpen
 };

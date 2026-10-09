@@ -483,14 +483,28 @@ function mountAndPlayVideo(container) {
   let video = container.querySelector("video");
   if (!video) {
     video = document.createElement("video");
-    video.className = "home-video-player";
+    video.className = "home-video-player w-full h-auto max-h-[500px] object-cover bg-black";
     video.loop = true;
+    video.autoplay = true;
     video.playsInline = true;
     video.setAttribute("playsinline", "");
-    video.setAttribute("webkit-playsinline", "");
+    video.setAttribute("webkit-playsinline", "true");
+    video.setAttribute("autoplay", "");
+    video.setAttribute("loop", "");
     video.crossOrigin = "anonymous";
     video.setAttribute("crossorigin", "anonymous");
     video.preload = "metadata";
+
+    // Forces GPU composite layer so Android WebView does not render an empty black surface
+    video.style.transform = "translateZ(0)";
+    video.style.webkitTransform = "translateZ(0)";
+    video.style.willChange = "transform";
+
+    video.onloadeddata = (e) => {
+      if (e.target) {
+        e.target.play().catch(() => {});
+      }
+    };
 
     // Requirement 2: Attach crisp first-frame poster on video element (valid image or #t=0.001)
     if (posterUrl && !posterUrl.includes(".mp4") && !posterUrl.includes(".webm") && !String(posterUrl).startsWith("blob:")) {

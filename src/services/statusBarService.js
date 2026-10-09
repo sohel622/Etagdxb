@@ -95,6 +95,17 @@ export const setReelsStatusBar = async () => {
   currentActiveScreen = 'reels';
   updateWebThemeColor(true, true);
 
+  // Directly inform Android native host controller
+  if (typeof window !== 'undefined' && window.NativeReelsBridge) {
+    try {
+      if (typeof window.NativeReelsBridge.setStatusBarTheme === 'function') {
+        window.NativeReelsBridge.setStatusBarTheme(true, true);
+      } else if (typeof window.NativeReelsBridge.setReelsActive === 'function') {
+        window.NativeReelsBridge.setReelsActive(true);
+      }
+    } catch (_) {}
+  }
+
   if (typeof Capacitor !== 'undefined' && !Capacitor.isNativePlatform()) {
     return;
   }
@@ -116,6 +127,17 @@ export const setReelsStatusBar = async () => {
  */
 export const setDefaultStatusBar = async (isDark = true) => {
   updateWebThemeColor(false, isDark);
+
+  // Directly inform Android native host controller
+  if (typeof window !== 'undefined' && window.NativeReelsBridge) {
+    try {
+      if (typeof window.NativeReelsBridge.setStatusBarTheme === 'function') {
+        window.NativeReelsBridge.setStatusBarTheme(false, isDark);
+      } else if (typeof window.NativeReelsBridge.setReelsActive === 'function') {
+        window.NativeReelsBridge.setReelsActive(false);
+      }
+    } catch (_) {}
+  }
 
   if (typeof Capacitor !== 'undefined' && !Capacitor.isNativePlatform()) {
     return;

@@ -175,6 +175,24 @@ export function initReelsPipHandler() {
   // 1. Hardware Back Button Listener via @capacitor/app
   try {
     CapApp.addListener('backButton', async (data) => {
+      // 1. Check if comments sheet is open first
+      const commentsBackdrop = document.getElementById("reelsCommentsSheetBackdrop");
+      if (commentsBackdrop && (commentsBackdrop.classList.contains("active") || window.isCommentsOpen)) {
+        if (typeof window.closeReelsCommentsSheet === 'function') {
+          window.closeReelsCommentsSheet();
+          return;
+        }
+      }
+
+      // 2. Check if any modal or bottom sheet is open
+      const openModal = document.querySelector('.modal-overlay.active, .sheet-overlay.active, #permissionOnboardingModal[style*="display: flex"]');
+      if (openModal) {
+        if (typeof window.closeAllModals === 'function') {
+          window.closeAllModals();
+          return;
+        }
+      }
+
       const currentVideo = document.querySelector('video.active-reel') || getActiveReelVideo();
 
       // If a reel is playing, trigger native PiP or floating window instead of closing immediately
@@ -187,15 +205,6 @@ export function initReelsPipHandler() {
           } catch (err) {
             console.log('Web PiP fallback:', err);
           }
-        }
-      }
-
-      // Check if any modal or bottom sheet is open first
-      const openModal = document.querySelector('.modal-overlay.active, .sheet-overlay.active, #permissionOnboardingModal[style*="display: flex"]');
-      if (openModal) {
-        if (typeof window.closeAllModals === 'function') {
-          window.closeAllModals();
-          return;
         }
       }
 

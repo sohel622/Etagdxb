@@ -263,6 +263,9 @@
       left: 0;
       background: #000000;
       z-index: 3;
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
+      will-change: transform;
     }
 
     /* Feed Error Boundary Fallback */

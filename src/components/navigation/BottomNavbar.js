@@ -3,7 +3,7 @@ import { DEFAULT_NAV } from "../../utils/mockData.js";
 import { UserProfileStore } from "../../utils/storage.js";
 import { setupProfileIconLongPress } from "../AccountSwitcher.js";
 import { updateChatNavUnreadBadge } from "../../services/chatService.js";
-import { updateStatusBar } from "../../services/statusBarService.js";
+import { updateStatusBar, isAppDarkMode } from "../../services/statusBarService.js";
 
 let currentNav = [...DEFAULT_NAV];
 try {
@@ -223,9 +223,14 @@ export function setReelsActiveState(isActive) {
       window.dispatchEvent(new CustomEvent("reelsActiveStateChange", { detail: { isActive: Boolean(isActive) } }));
     } catch (_) {}
   }
-  if (window.NativeReelsBridge && typeof window.NativeReelsBridge.setReelsActive === "function") {
+  if (window.NativeReelsBridge) {
     try {
-      window.NativeReelsBridge.setReelsActive(Boolean(isActive));
+      if (typeof window.NativeReelsBridge.setStatusBarTheme === "function") {
+        window.NativeReelsBridge.setStatusBarTheme(Boolean(isActive), Boolean(isAppDarkMode()));
+      }
+      if (typeof window.NativeReelsBridge.setReelsActive === "function") {
+        window.NativeReelsBridge.setReelsActive(Boolean(isActive));
+      }
     } catch (_) {}
   }
 }

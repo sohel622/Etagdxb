@@ -550,36 +550,87 @@
   transition: opacity 0.2s ease, visibility 0.2s ease;
 }
 
-/* 4. Seamless Video Frame Scaling (fits cleanly into top ~42vh viewport area, uncropped, 100% sharp) */
-#reelsView.comments-sheet-open .reel-item.active-comment-reel .reel-video-wrapper {
-  transform: translateY(8px) scale(0.44);
-  transform-origin: center top;
-  border-radius: 18px;
-  overflow: hidden;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7);
+/* 4. Instagram-Style Dynamic Video Sizing on Comments Open (Image 2 & 3: edge-to-edge width, dynamic upper height ~44vh, object-fit cover, rounded bottom corners) */
+#reelsView.comments-sheet-open .reel-item.active-comment-reel,
+#chatReelsModal.comments-sheet-open .reel-item.active-comment-reel {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  width: 100% !important;
+  overflow: hidden !important;
+}
+
+#reelsView.comments-sheet-open .reel-item.active-comment-reel .reel-video-wrapper,
+#chatReelsModal.comments-sheet-open .reel-item.active-comment-reel .reel-video-wrapper {
+  width: 100% !important;
+  width: 100vw !important;
+  max-width: 100% !important;
+  height: 44vh !important;
+  max-height: 44vh !important;
+  min-height: 44vh !important;
+  flex: none !important;
+  transform: translateZ(0) !important;
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+  border-bottom-left-radius: 16px !important;
+  border-bottom-right-radius: 16px !important;
+  overflow: hidden !important;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.7);
+  background: #000000 !important;
   filter: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1), border-radius 0.3s cubic-bezier(0.2, 0.9, 0.3, 1), box-shadow 0.3s ease;
+  transition: height 0.3s cubic-bezier(0.25, 1, 0.5, 1), transform 0.3s ease, border-radius 0.3s ease, box-shadow 0.3s ease;
 }
 
 #reelsView.comments-sheet-open .reel-item.active-comment-reel video,
-#reelsView.comments-sheet-open .reel-item.active-comment-reel .reel-video {
-  object-fit: contain !important;
-  border-radius: 18px;
+#reelsView.comments-sheet-open .reel-item.active-comment-reel .reel-video,
+#chatReelsModal.comments-sheet-open .reel-item.active-comment-reel video,
+#chatReelsModal.comments-sheet-open .reel-item.active-comment-reel .reel-video {
+  width: 100% !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  aspect-ratio: auto !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+  border-bottom-left-radius: 16px !important;
+  border-bottom-right-radius: 16px !important;
+  overflow: hidden !important;
   filter: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   image-rendering: -webkit-optimize-contrast;
   image-rendering: crisp-edges;
   transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: transform;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+  transition: border-radius 0.3s cubic-bezier(0.25, 1, 0.5, 1), object-fit 0.3s ease;
 }
 
-/* 5. Smooth default transitions when restoring from comments */
+/* 5. Smooth default transitions when restoring from comments (back to full screen 100% / 100vh) */
 .reel-item .reel-video-wrapper {
-  transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1), border-radius 0.3s cubic-bezier(0.2, 0.9, 0.3, 1), box-shadow 0.3s ease;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  border-radius: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  transform: translateZ(0);
+  transition: height 0.3s cubic-bezier(0.25, 1, 0.5, 1), transform 0.3s ease, border-radius 0.3s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.3s ease;
+}
+
+.reel-item .reel-video-wrapper video,
+.reel-item .reel-video-wrapper .reel-video {
+  border-radius: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  transition: border-radius 0.3s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .reel-item .reels-sidebar,
