@@ -47,14 +47,25 @@ export function isReelsRoute(routeOrTab) {
  */
 export function isAppDarkMode() {
   if (typeof document === 'undefined') return true;
+  try {
+    const savedTheme = localStorage.getItem('app_theme');
+    if (savedTheme === 'dark') return true;
+    if (savedTheme === 'light') return false;
+  } catch (_) {}
+
+  const homeView = document.getElementById('homeView');
+  const profileView = document.getElementById('profileView');
   const appContainer = document.getElementById('appContainer');
-  const isDark =
+
+  const hasDarkClass =
     document.documentElement.classList.contains('dark') ||
     document.body.classList.contains('dark') ||
-    (appContainer && (appContainer.classList.contains('dark') || appContainer.classList.contains('dark-mode-active'))) ||
-    (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    (homeView && homeView.classList.contains('dark')) ||
+    (profileView && profileView.classList.contains('dark')) ||
+    (appContainer && appContainer.classList.contains('dark'));
 
-  return Boolean(isDark);
+  const isNightTime = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  return Boolean(hasDarkClass || isNightTime);
 }
 
 /**
@@ -75,21 +86,59 @@ function updateWebThemeColor(isReels, isDark) {
 }
 
 /**
- * Dynamic Status Bar styling based on current route/screen:
- * 1. When entering Reels:
- *    - Status bar completely transparent (overlays the webview):
- *      await StatusBar.setOverlaysWebView({ overlay: true });
- *      await StatusBar.setStyle({ style: Style.Dark }); // White text/icons over video
- *      await StatusBar.setBackgroundColor({ color: '#00000000' }); // Transparent
- * 2. When on Home, Profile, Explore, Messages (any non-Reels page):
- *    - Disable overlay and match the app theme background:
- *      await StatusBar.setOverlaysWebView({ overlay: false });
- *      For dark mode:
- *        await StatusBar.setBackgroundColor({ color: '#000000' });
- *        await StatusBar.setStyle({ style: Style.Dark }); // White icons for dark background
- *      For light mode:
- *        await StatusBar.setBackgroundColor({ color: '#ffffff' });
- *        await StatusBar.setStyle({ style: Style.Light }); // Dark icons for light background
+ * Configure Reels Status Bar:
+ * - Full overlay so the video spans edge-to-edge behind the status bar
+ * - Light icon/text style (white text/icons over video via Style.Dark in Capacitor)
+ * - Status bar background color fully transparent (#00000000)
+ */
+export const setReelsStatusBar = async () => {
+  currentActiveScreen = 'reels';
+  updateWebThemeColor(true, true);
+
+  if (typeof Capacitor !== 'undefined' && !Capacitor.isNativePlatform()) {
+    return;
+  }
+
+  try {
+    await StatusBar.setOverlaysWebView({ overlay: true });
+    await StatusBar.setStyle({ style: Style.Dark }); // White status bar text/icons over video
+    await StatusBar.setBackgroundColor({ color: '#00000000' }); // Transparent
+  } catch (err) {
+    console.warn('[StatusBar] setReelsStatusBar failed:', err);
+  }
+};
+
+/**
+ * Configure Default Status Bar for Home, Profile, Explore, Messages:
+ * - Disable overlay so content does not collide with the status bar
+ * - Dark Mode: Solid pure black #000000 with white icons (Style.Dark)
+ * - Light Mode: Pure white #ffffff with dark icons (Style.Light)
+ */
+export const setDefaultStatusBar = async (isDark = true) => {
+  updateWebThemeColor(false, isDark);
+
+  if (typeof Capacitor !== 'undefined' && !Capacitor.isNativePlatform()) {
+    return;
+  }
+
+  try {
+    await StatusBar.setOverlaysWebView({ overlay: false });
+    if (isDark) {
+      await StatusBar.setBackgroundColor({ color: '#000000' });
+      await StatusBar.setStyle({ style: Style.Dark }); // White icons for dark background
+    } else {
+      await StatusBar.setBackgroundColor({ color: '#ffffff' });
+      await StatusBar.setStyle({ style: Style.Light }); // Dark icons for light background
+    }
+  } catch (err) {
+    console.warn('[StatusBar] setDefaultStatusBar failed:', err);
+  }
+};
+
+/**
+ * Dynamic Status Bar update router:
+ * 1. When entering Reels: sets transparent overlay status bar
+ * 2. When on Home, Profile, Explore, Messages: sets default themed status bar without overlay
  */
 export async function updateStatusBar(tabOrRoute) {
   if (tabOrRoute) {
@@ -99,38 +148,10 @@ export async function updateStatusBar(tabOrRoute) {
   const isReels = isReelsRoute(currentActiveScreen);
   const isDark = isAppDarkMode();
 
-  // Always keep browser meta theme-color in sync
-  updateWebThemeColor(isReels, isDark);
-
-  // Safe guard: only execute native Capacitor StatusBar commands if native platform
-  if (typeof Capacitor !== 'undefined' && !Capacitor.isNativePlatform()) {
-    return;
-  }
-
-  try {
-    if (isReels) {
-      // When entering Reels:
-      // Make the status bar completely transparent (overlays the webview)
-      await StatusBar.setOverlaysWebView({ overlay: true });
-      await StatusBar.setStyle({ style: Style.Dark }); // White text/icons over video
-      await StatusBar.setBackgroundColor({ color: '#00000000' }); // Transparent
-    } else {
-      // When leaving Reels (e.g. Home / Profile / Explore / Messages):
-      // Disable overlay and match the app theme background
-      await StatusBar.setOverlaysWebView({ overlay: false });
-
-      if (isDark) {
-        // For dark mode:
-        await StatusBar.setBackgroundColor({ color: '#000000' });
-        await StatusBar.setStyle({ style: Style.Dark }); // White icons for dark background
-      } else {
-        // For light mode:
-        await StatusBar.setBackgroundColor({ color: '#ffffff' });
-        await StatusBar.setStyle({ style: Style.Light }); // Dark icons for light background
-      }
-    }
-  } catch (err) {
-    console.warn('[StatusBar] Dynamic update failed:', err);
+  if (isReels) {
+    await setReelsStatusBar();
+  } else {
+    await setDefaultStatusBar(isDark);
   }
 }
 
@@ -159,6 +180,8 @@ export function initStatusBarListener() {
 
   // Expose globally for convenience
   window.updateStatusBar = updateStatusBar;
+  window.setReelsStatusBar = setReelsStatusBar;
+  window.setDefaultStatusBar = setDefaultStatusBar;
 
   // 1. Popstate navigation listener (hardware back / browser back & forward)
   window.addEventListener('popstate', () => {
