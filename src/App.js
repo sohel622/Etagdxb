@@ -19,6 +19,7 @@ import { initReelsPipHandler } from "./services/pipService.js";
 import { initDeepLinkListener } from "./services/deepLinkService.js";
 import { initReelsVolumeHUD } from "./components/reels/ReelsVolumeHUD.js";
 import { setupHeaderLogoEasterEgg, openAppIconChanger, closeAppIconChanger } from "./components/AppIconChangerModal.js";
+import { openOfflineDB, initNetworkListener } from "./services/offlineCacheService.js";
 
 export const App = {
   async init() {

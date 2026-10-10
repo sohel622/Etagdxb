@@ -9,6 +9,12 @@ import { getCurrentUserId } from "../services/avatarService.js";
 import { supabase } from "../supabaseClient.js";
 import { setActiveReelVideo, initReelsPipHandler, triggerReelPiP } from "../services/pipService.js";
 import { initReelsVolumeHUD } from "./reels/ReelsVolumeHUD.js";
+import {
+  getCachedVideoBlobUrl,
+  getOfflineWatchedPosts,
+  isOffline,
+  trackVideoProgressForCaching
+} from "../services/offlineCacheService.js";
 
     /* =======================================================
        Web Video Picture-in-Picture (PiP) Helper
@@ -194,8 +200,18 @@ import { initReelsVolumeHUD } from "./reels/ReelsVolumeHUD.js";
     async function loadReels() {
       reelsFeedWrapper.innerHTML = "";
       let livePosts = null;
+      let isOfflineReelsMode = isOffline();
 
-      if (supabase) {
+      // 1. If device is offline, strictly populate reels with cached fully-watched posts from offline_watched_posts
+      if (isOfflineReelsMode) {
+        console.log("[Reels] Offline mode detected. Retrieving cached reels from offline_watched_posts...");
+        const offlinePosts = await getOfflineWatchedPosts();
+        if (offlinePosts && offlinePosts.length > 0) {
+          livePosts = offlinePosts.map(p => ({ ...p, isOfflineCached: true }));
+        }
+      }
+
+      if (!livePosts && !isOfflineReelsMode && supabase) {
         try {
           const { data, error } = await supabase
             .from('posts')
@@ -209,16 +225,26 @@ import { initReelsVolumeHUD } from "./reels/ReelsVolumeHUD.js";
       }
 
       if (!livePosts || livePosts.length === 0) {
-        livePosts = await fetchSupabasePosts();
+        if (!isOffline()) {
+          livePosts = await fetchSupabasePosts();
+        }
+        if (!livePosts || livePosts.length === 0) {
+          // Fallback to offline watched posts if network returned zero posts or timed out
+          const offlinePosts = await getOfflineWatchedPosts();
+          if (offlinePosts && offlinePosts.length > 0) {
+            livePosts = offlinePosts.map(p => ({ ...p, isOfflineCached: true }));
+            isOfflineReelsMode = true;
+          }
+        }
       }
 
       if (!livePosts || livePosts.length === 0) {
         reelsFeedWrapper.innerHTML = `
           <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#888; padding: 24px; text-align: center;">
             <i class="fa-solid fa-film" style="font-size:48px; margin-bottom:12px; color:#555;"></i>
-            <p style="font-size:16px; font-weight:600; color:#eee;">No Reels Posted Yet</p>
-            <p style="font-size:13px; margin-top:6px; color:#888; max-width: 260px;">Upload a video to Cloudinary & Supabase to watch it in fullscreen Reels!</p>
-            <button type="button" onclick="openMediaCreationPrompt()" style="margin-top: 16px; background: #0095f6; color: white; border: none; padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">Upload a Video</button>
+            <p style="font-size:16px; font-weight:600; color:#eee;">${isOffline() ? 'No Cached Reels Yet' : 'No Reels Posted Yet'}</p>
+            <p style="font-size:13px; margin-top:6px; color:#888; max-width: 260px;">${isOffline() ? 'When online, fully watching any reel (100%) saves it automatically for offline playback.' : 'Upload a video to Cloudinary & Supabase to watch it in fullscreen Reels!'}</p>
+            ${isOffline() ? '' : '<button type="button" onclick="openMediaCreationPrompt()" style="margin-top: 16px; background: #0095f6; color: white; border: none; padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">Upload a Video</button>'}
           </div>
         `;
         return;
@@ -254,6 +280,7 @@ import { initReelsVolumeHUD } from "./reels/ReelsVolumeHUD.js";
         item.dataset.id = String(reel.id || index);
         item.dataset.userId = reel.user_id || '';
         item.dataset.url = vidUrl;
+        item._reelData = reel;
         if (isCurrentUserReel) item.dataset.isCurrentUser = "true";
 
         const targetUserId = reel.user_id || profile.id;
@@ -783,10 +810,30 @@ import { initReelsVolumeHUD } from "./reels/ReelsVolumeHUD.js";
             pauseAllReels(video);
             video.currentTime = 0;
             video.muted = isGlobalAudioMuted;
-            video.play().catch(() => {});
+
+            const reelItem = entry.target;
+            const reelData = reelItem._reelData || {
+              id: reelItem.dataset.id,
+              video_url: reelItem.dataset.url || video.src
+            };
+
+            // Video Source Resolver: check if cached blob exists in IndexedDB
+            const reelId = reelItem.dataset.id;
+            getCachedVideoBlobUrl(reelId).then(cachedBlobUrl => {
+              if (cachedBlobUrl && video.src !== cachedBlobUrl) {
+                video.src = cachedBlobUrl;
+              } else if (isOffline() && !cachedBlobUrl && !video.src.startsWith("blob:")) {
+                // If device is offline and no cached blob exists, do not attempt network fetch
+                video.pause();
+                return;
+              }
+              video.play().catch(() => {});
+            });
+
             currentActiveReelVideo = video;
             setActiveReelVideo(video);
             attachVideoProgressTracker(video);
+            trackVideoProgressForCaching(video, reelData);
           } else {
             video.pause();
           }

@@ -11,6 +11,12 @@ import { deriveCloudinaryThumbnailUrl, fetchSupabasePosts, getOptimizedVideoUrl 
 import { isFollowingUser, toggleFollowUser } from "../services/followService.js";
 import { getCurrentUserId } from "../services/avatarService.js";
 import { supabase } from "../supabaseClient.js";
+import {
+  getCachedVideoBlobUrl,
+  getOfflineWatchedPosts,
+  isOffline,
+  trackVideoProgressForCaching
+} from "../services/offlineCacheService.js";
 
 /* =======================================================
    ১. হোম ফিড এরর বাউন্ডারি (Error Boundary Fallback)
@@ -144,9 +150,14 @@ function createPostCardElement(post, index = 0) {
       </div>
       <i class="fa-solid fa-ellipsis post-more-btn cursor-pointer" title="Post options"></i>
     </div>
-    <div class="home-video-container" data-post-id="${post.id}" data-video-url="${getOptimizedVideoUrl(post.url || post.video_url)}" data-poster-url="${posterImg}" style="cursor: pointer;" title="Watch Reel">
+    <div class="home-video-container relative" data-post-id="${post.id}" data-video-url="${getOptimizedVideoUrl(post.url || post.video_url)}" data-poster-url="${posterImg}" style="cursor: pointer;" title="Watch Reel">
       <div class="home-video-skeleton"></div>
       <img class="home-video-poster" src="${posterImg}" alt="${displayUser} video" loading="lazy" crossorigin="anonymous" onerror="this.style.display='none';" />
+      ${Boolean(post.isOfflineCached) 
+        ? `<div class="offline-item-badge absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white text-[10.5px] font-semibold border border-white/10 shadow-sm"><i class="fa-solid fa-circle-check text-sky-400 text-[10px]"></i><span>Cached</span></div>`
+        : (isOffline() 
+            ? `<div class="offline-item-badge absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/75 backdrop-blur-md text-neutral-300 text-[10.5px] font-medium border border-white/10"><i class="fa-solid fa-wifi-slash text-amber-400 text-[10px]"></i><span>Offline</span></div>`
+            : '')}
       <div class="home-play-badge"><i class="fa-solid fa-play ml-0.5"></i></div>
       <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
     </div>
@@ -196,6 +207,9 @@ function createPostCardElement(post, index = 0) {
       }
     };
   }
+
+  videoBox._postData = post;
+  card._postData = post;
 
   // Single tap immediately navigates to the full-screen Reels viewer with this video active
   videoBox.addEventListener("click", (e) => {
@@ -267,10 +281,20 @@ async function renderHomeFeed() {
       localStorage.removeItem("cached_posts");
     } catch (_) {}
 
-    console.log("[Feed] Fetching all live posts from Supabase posts table...");
+    console.log("[Feed] Fetching posts for Home Feed...");
     let livePosts = null;
+    let isOfflineFeedMode = isOffline();
 
-    if (supabase) {
+    // 1. If device is offline, retrieve fully-watched posts from offline_watched_posts
+    if (isOfflineFeedMode) {
+      console.log("[Feed] Offline status detected. Loading cached watched posts from offline_watched_posts...");
+      const offlinePosts = await getOfflineWatchedPosts();
+      if (offlinePosts && offlinePosts.length > 0) {
+        livePosts = offlinePosts.map(p => ({ ...p, isOfflineCached: true }));
+      }
+    }
+
+    if (!livePosts && !isOfflineFeedMode && supabase) {
       try {
         console.log("[Feed] Executing Supabase query: posts joined with author profiles...");
         let { data: posts, error } = await supabase
@@ -326,11 +350,21 @@ async function renderHomeFeed() {
     }
 
     if (!livePosts || livePosts.length === 0) {
-      console.log("[Feed] Using fetchSupabasePosts fallback controller...");
-      livePosts = await fetchSupabasePosts();
+      if (!isOffline()) {
+        console.log("[Feed] Using fetchSupabasePosts fallback controller...");
+        livePosts = await fetchSupabasePosts();
+      }
+      if (!livePosts || livePosts.length === 0) {
+        // Fallback to offline watched posts if network returned zero posts or device lost connection
+        const offlinePosts = await getOfflineWatchedPosts();
+        if (offlinePosts && offlinePosts.length > 0) {
+          livePosts = offlinePosts.map(p => ({ ...p, isOfflineCached: true }));
+          isOfflineFeedMode = true;
+        }
+      }
     }
 
-    console.log(`[Feed] Total live posts ready to render: ${livePosts ? livePosts.length : 0}`);
+    console.log(`[Feed] Total posts ready to render: ${livePosts ? livePosts.length : 0} (Offline: ${isOfflineFeedMode})`);
 
     const defaultAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
     const currentUserId = typeof getCurrentUserId === "function" ? getCurrentUserId() : null;
@@ -377,7 +411,32 @@ async function renderHomeFeed() {
     pauseAllHomeVideos();
     feedContainer.innerHTML = "";
 
+    if (isOfflineFeedMode && formattedUserPosts.length > 0) {
+      const offlineBanner = document.createElement("div");
+      offlineBanner.className = "offline-feed-banner mx-3.5 my-3 px-3.5 py-2.5 rounded-xl bg-neutral-100/90 dark:bg-neutral-900/90 border border-neutral-200/80 dark:border-neutral-800 flex items-center justify-between text-[12px] select-none shadow-sm";
+      offlineBanner.innerHTML = `
+        <div class="flex items-center gap-2.5 text-neutral-800 dark:text-neutral-200 min-w-0">
+          <i class="fa-solid fa-cloud-arrow-down text-sky-500 text-sm shrink-0"></i>
+          <span class="truncate">Offline Mode • <strong>${formattedUserPosts.length}</strong> saved posts ready</span>
+        </div>
+        <span class="shrink-0 text-[10px] font-bold text-sky-600 dark:text-sky-400 bg-sky-500/10 dark:bg-sky-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Cached</span>
+      `;
+      feedContainer.appendChild(offlineBanner);
+    }
+
     if (formattedUserPosts.length === 0) {
+      if (isOffline() || isOfflineFeedMode) {
+        feedContainer.innerHTML = `
+          <div style="padding: 60px 24px; text-align: center; color: #8e8e8e;">
+            <div style="width: 68px; height: 68px; border-radius: 50%; border: 1.5px solid currentColor; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; opacity: 0.85;">
+              <i class="fa-solid fa-cloud-arrow-down" style="font-size: 28px; color: #0095f6;"></i>
+            </div>
+            <div style="font-weight: 700; font-size: 17px; color: currentColor; margin-bottom: 6px;">No Cached Posts Yet</div>
+            <div style="font-size: 13.5px; opacity: 0.75; max-width: 280px; margin: 0 auto; line-height: 1.4;">When online, fully watching any post or reel (100%) automatically saves it here for offline viewing.</div>
+          </div>
+        `;
+        return;
+      }
       feedContainer.innerHTML = `
         <div style="padding: 60px 24px; text-align: center; color: #8e8e8e;">
           <div style="width: 68px; height: 68px; border-radius: 50%; border: 1.5px solid currentColor; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; opacity: 0.85;">
@@ -447,7 +506,7 @@ let currentlyPlayingHomeVideo = null;
 let isScrollScheduled = false;
 let scrollListenerCleanup = null;
 
-function mountAndPlayVideo(container) {
+async function mountAndPlayVideo(container) {
   if (!container) return;
   const postId = String(container.dataset.postId || "");
 
@@ -478,7 +537,34 @@ function mountAndPlayVideo(container) {
   currentlyPlayingBox = container;
   const videoUrl = container.dataset.videoUrl;
   const posterUrl = container.dataset.posterUrl || (videoUrl ? videoUrl + '#t=0.001' : '');
-  if (!videoUrl) return;
+  if (!videoUrl && !container._postData) return;
+
+  const postData = container._postData || {
+    id: postId,
+    video_url: videoUrl,
+    thumbnail_url: posterUrl
+  };
+
+  // Video Source Resolver: Check if cached blob exists in IndexedDB/CacheStorage
+  let resolvedVideoSrc = "";
+  const cachedBlobUrl = await getCachedVideoBlobUrl(postId);
+
+  if (cachedBlobUrl) {
+    resolvedVideoSrc = cachedBlobUrl;
+  } else if (isOffline()) {
+    // If device is offline and no cached blob exists for that item, show the preview poster thumbnail with a subtle offline badge, without attempting failed network fetch
+    console.log(`[Feed] Post ${postId} not cached and offline. Rendering poster thumbnail only.`);
+    let offlineBadge = container.querySelector(".offline-item-badge");
+    if (!offlineBadge) {
+      offlineBadge = document.createElement("div");
+      offlineBadge.className = "offline-item-badge absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/80 backdrop-blur-md text-neutral-300 text-[10.5px] font-medium border border-white/10 shadow-sm";
+      offlineBadge.innerHTML = '<i class="fa-solid fa-wifi-slash text-amber-400 text-[10px]"></i><span>Offline • Not Cached</span>';
+      container.appendChild(offlineBadge);
+    }
+    return;
+  } else {
+    resolvedVideoSrc = getOptimizedVideoUrl(videoUrl);
+  }
 
   let video = container.querySelector("video");
   if (!video) {
@@ -506,14 +592,17 @@ function mountAndPlayVideo(container) {
       }
     };
 
-    // Requirement 2: Attach crisp first-frame poster on video element (valid image or #t=0.001)
+    // Attach poster
     if (posterUrl && !posterUrl.includes(".mp4") && !posterUrl.includes(".webm") && !String(posterUrl).startsWith("blob:")) {
       video.poster = posterUrl;
       video.setAttribute("poster", posterUrl);
     }
-    video.src = getOptimizedVideoUrl(videoUrl);
+    video.src = resolvedVideoSrc;
 
-    // Requirement 1: Proportional container aspect ratio based on video metadata
+    // Automatic Cache on 100% Watched (timeupdate >= 0.95 or ended)
+    trackVideoProgressForCaching(video, postData);
+
+    // Container aspect ratio
     video.onloadedmetadata = () => {
       const w = video.videoWidth;
       const h = video.videoHeight;
