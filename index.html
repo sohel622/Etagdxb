@@ -85,6 +85,23 @@
           return window.openNotificationsModal();
         }
       };
+      window.openAppIconChanger = function() {
+        if (typeof window.__realOpenAppIconChanger === 'function') {
+          return window.__realOpenAppIconChanger();
+        }
+        setTimeout(function() {
+          if (typeof window.openAppIconChanger === 'function' && window.openAppIconChanger !== arguments.callee) {
+            window.openAppIconChanger();
+          }
+        }, 150);
+      };
+      window.closeAppIconChanger = function() {
+        const modal = document.getElementById('appIconChangerModal');
+        if (modal) {
+          modal.classList.add('hidden');
+          modal.style.display = 'none';
+        }
+      };
     })();
   </script>
   <!-- Google Identity Services Script -->

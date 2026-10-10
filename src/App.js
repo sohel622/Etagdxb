@@ -18,6 +18,7 @@ import { checkAndPromptPermissionsOnLaunch } from "./services/notificationServic
 import { initReelsPipHandler } from "./services/pipService.js";
 import { initDeepLinkListener } from "./services/deepLinkService.js";
 import { initReelsVolumeHUD } from "./components/reels/ReelsVolumeHUD.js";
+import { setupHeaderLogoEasterEgg, openAppIconChanger, closeAppIconChanger } from "./components/AppIconChangerModal.js";
 
 export const App = {
   async init() {
@@ -99,6 +100,21 @@ export const App = {
 
     // 14. Instagram-style Custom Reels Volume HUD
     initReelsVolumeHUD();
+
+    // 15. Header Logo Long-Press Easter Egg (App Icon Changer)
+    setupHeaderLogoEasterEgg();
+    if (typeof window !== "undefined") {
+      if (window.location.pathname === "/change-app-icon") {
+        setTimeout(openAppIconChanger, 350);
+      }
+      window.addEventListener("popstate", () => {
+        if (window.location.pathname === "/change-app-icon") {
+          openAppIconChanger();
+        } else {
+          closeAppIconChanger();
+        }
+      });
+    }
   }
 };
 

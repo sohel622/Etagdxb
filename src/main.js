@@ -30,6 +30,7 @@ import * as NotificationService from './services/notificationService.js';
 import * as PipService from './services/pipService.js';
 import * as DeepLinkService from './services/deepLinkService.js';
 import * as ReelsVolumeHUD from './components/reels/ReelsVolumeHUD.js';
+import * as AppIconChanger from './components/AppIconChangerModal.js';
 
 // App Controller
 import { App } from './App.js';
@@ -61,6 +62,7 @@ Object.assign(window, {
   ...PipService,
   ...DeepLinkService,
   ...ReelsVolumeHUD,
+  ...AppIconChanger,
   supabase,
   App
 });

@@ -1,5 +1,6 @@
 // TopNavbar Component (Modular Top Header & Audio State Controller)
 import { switchTab } from "./BottomNavbar.js";
+import { setupHeaderLogoEasterEgg } from "../AppIconChangerModal.js";
 
 /* =======================================================
    ১.১ গ্লোবাল অডিও স্টেট (Global Audio State & Status Badge)
@@ -183,6 +184,7 @@ function renderTopNavbar() {
   const logoElem = topBar.querySelector("#topNavLogo");
   if (logoElem) {
     logoElem.onclick = handleLogoClick;
+    setupHeaderLogoEasterEgg();
   }
 
   const notifBtn = topBar.querySelector("#topNavNotificationsBtn");
@@ -193,6 +195,7 @@ function renderTopNavbar() {
 
 function initTopNavbar() {
   renderTopNavbar();
+  setupHeaderLogoEasterEgg();
 }
 
 if (typeof window !== "undefined") {

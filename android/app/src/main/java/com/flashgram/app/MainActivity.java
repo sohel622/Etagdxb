@@ -6,9 +6,11 @@ import android.app.PendingIntent;
 import android.app.PictureInPictureParams;
 import android.app.RemoteAction;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.drawable.Icon;
@@ -94,6 +96,25 @@ public class MainActivity extends BridgeActivity {
                     });
                 }
             }, "NativeReelsBridge");
+
+            bridge.getWebView().addJavascriptInterface(new Object() {
+                @android.webkit.JavascriptInterface
+                public boolean changeAppIcon(final String iconKey) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            setLauncherAppIcon(iconKey);
+                        }
+                    });
+                    return true;
+                }
+
+                @android.webkit.JavascriptInterface
+                public String getActiveAppIcon() {
+                    return getSharedPreferences("flashgram_prefs", Context.MODE_PRIVATE)
+                        .getString("active_app_icon", "default");
+                }
+            }, "NativeAppIconBridge");
         }
 
         IntentFilter filter = new IntentFilter();
@@ -327,5 +348,79 @@ public class MainActivity extends BridgeActivity {
         }
 
         updateNativeStatusBar(isReelsActive, isDarkModeActive);
+    }
+
+    public void setLauncherAppIcon(String iconKey) {
+        try {
+            Context context = getApplicationContext();
+            PackageManager pm = context.getPackageManager();
+            String packageName = context.getPackageName();
+
+            String[] allAliases = new String[]{
+                packageName + ".MainActivityDefault",
+                packageName + ".MainActivityRetro",
+                packageName + ".MainActivitySketch",
+                packageName + ".MainActivityNeon",
+                packageName + ".MainActivityDark",
+                packageName + ".MainActivityGold"
+            };
+
+            String targetAlias;
+            if (iconKey == null) iconKey = "default";
+            switch (iconKey.toLowerCase().trim()) {
+                case "retro":
+                    targetAlias = packageName + ".MainActivityRetro";
+                    break;
+                case "sketch":
+                    targetAlias = packageName + ".MainActivitySketch";
+                    break;
+                case "neon":
+                case "ultragram":
+                    targetAlias = packageName + ".MainActivityNeon";
+                    break;
+                case "dark":
+                case "midnight":
+                    targetAlias = packageName + ".MainActivityDark";
+                    break;
+                case "gold":
+                case "golden":
+                    targetAlias = packageName + ".MainActivityGold";
+                    break;
+                case "default":
+                default:
+                    targetAlias = packageName + ".MainActivityDefault";
+                    break;
+            }
+
+            // Disable base MainActivity as launcher if it was active
+            try {
+                ComponentName mainComp = new ComponentName(packageName, packageName + ".MainActivity");
+                int mainState = pm.getComponentEnabledSetting(mainComp);
+                if (mainState != PackageManager.COMPONENT_ENABLED_STATE_DISABLED) {
+                    pm.setComponentEnabledSetting(mainComp, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
+                }
+            } catch (Exception ignored) {}
+
+            for (String alias : allAliases) {
+                ComponentName comp = new ComponentName(packageName, alias);
+                int desiredState = alias.equals(targetAlias)
+                    ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                    : PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
+
+                try {
+                    pm.setComponentEnabledSetting(comp, desiredState, PackageManager.DONT_KILL_APP);
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+
+            // Save in SharedPreferences
+            getSharedPreferences("flashgram_prefs", Context.MODE_PRIVATE)
+                .edit()
+                .putString("active_app_icon", iconKey.toLowerCase().trim())
+                .apply();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

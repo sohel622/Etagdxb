@@ -175,6 +175,15 @@ export function initReelsPipHandler() {
   // 1. Hardware Back Button Listener via @capacitor/app
   try {
     CapApp.addListener('backButton', async (data) => {
+      // 0. Check if App Icon Changer Easter Egg screen is open
+      const iconModal = document.getElementById("appIconChangerModal");
+      if (iconModal && iconModal.style.display !== "none" && !iconModal.classList.contains("hidden")) {
+        if (typeof window.closeAppIconChanger === 'function') {
+          window.closeAppIconChanger();
+          return;
+        }
+      }
+
       // 1. Check if comments sheet is open first
       const commentsBackdrop = document.getElementById("reelsCommentsSheetBackdrop");
       if (commentsBackdrop && (commentsBackdrop.classList.contains("active") || window.isCommentsOpen)) {
