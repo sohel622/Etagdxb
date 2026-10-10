@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { execSync } from 'child_process';
 import { GoogleGenAI } from '@google/genai';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -261,10 +262,19 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// Ensure production build exists for reliable module resolution
+const distDir = path.join(__dirname, 'dist');
+if (!fs.existsSync(distDir) || !fs.existsSync(path.join(distDir, 'index.html'))) {
+  try {
+    console.log('[Server] Building frontend assets (Vite)...');
+    execSync('npm run build', { stdio: 'inherit' });
+  } catch (buildErr) {
+    console.error('[Server] Frontend build note:', buildErr);
+  }
+}
+
 // Serve static files
-const staticDir = fs.existsSync(path.join(__dirname, 'dist'))
-  ? path.join(__dirname, 'dist')
-  : __dirname;
+const staticDir = fs.existsSync(distDir) ? distDir : __dirname;
 
 app.use(express.static(staticDir));
 app.use(express.static(__dirname));

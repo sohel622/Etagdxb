@@ -92,11 +92,11 @@ function createPostCardElement(post, index = 0) {
 
   let userClickAttr = "";
   if (isCurrentUser) {
-    userClickAttr = 'onclick="openMyProfileTab()" style="cursor: pointer;" title="View My Profile"';
+    userClickAttr = 'onclick="if (typeof openMyProfileTab===\'function\') openMyProfileTab(); else if (window.openMyProfileTab) window.openMyProfileTab();" style="cursor: pointer;" title="View My Profile"';
   } else if (isShabnam) {
-    userClickAttr = 'onclick="openProfile(\'shabnam_ai\')" style="cursor: pointer;" title="View Shabnam AI Profile"';
+    userClickAttr = 'onclick="if (typeof openProfile===\'function\') openProfile(\'shabnam_ai\'); else if (window.openProfile) window.openProfile(\'shabnam_ai\');" style="cursor: pointer;" title="View Shabnam AI Profile"';
   } else if (targetUserId) {
-    userClickAttr = `onclick="openProfile('${targetUserId}', '${displayUser}', '${displayAvatar}')" style="cursor: pointer;" title="View ${displayUser}'s Profile"`;
+    userClickAttr = `onclick="if (typeof openProfile===\'function\') openProfile('${targetUserId}', '${displayUser}', '${displayAvatar}'); else if (window.openProfile) window.openProfile('${targetUserId}', '${displayUser}', '${displayAvatar}');" style="cursor: pointer;" title="View ${displayUser}'s Profile"`;
   }
 
   // Follow button for other creators on post card

@@ -295,6 +295,16 @@ function openProfile(userId, fallbackUsername, fallbackAvatar) {
   }
 }
 window.openProfile = openProfile;
+if (typeof window !== "undefined") {
+  window.__realOpenProfile = openProfile;
+  if (window.__pendingProfileTarget) {
+    const pending = window.__pendingProfileTarget;
+    window.__pendingProfileTarget = null;
+    setTimeout(() => {
+      openProfile(pending.userId, pending.fallbackUsername, pending.fallbackAvatar);
+    }, 50);
+  }
+}
 
 export async function syncCurrentLoggedInUserProfile() {
   let currentAuthUser = null;
