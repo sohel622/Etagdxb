@@ -124,12 +124,12 @@ export function syncSafeAreaTop() {
     test.remove();
 
     if (!measured || measured < 10) {
-      document.documentElement.style.setProperty('--safe-area-top', '32px');
+      document.documentElement.style.setProperty('--safe-area-top', '24px');
     } else {
       document.documentElement.style.setProperty('--safe-area-top', `${measured}px`);
     }
   } catch (_) {
-    document.documentElement.style.setProperty('--safe-area-top', '32px');
+    document.documentElement.style.setProperty('--safe-area-top', '24px');
   }
 }
 
@@ -146,6 +146,7 @@ export const setReelsStatusBar = async () => {
   updateStatusBarCurtain(true, true);
   if (typeof document !== 'undefined') {
     document.documentElement.style.setProperty('--bg-header', '#000000');
+    document.documentElement.style.setProperty('--header-bg', '#000000');
   }
 
   // Directly inform Android native host controller
@@ -182,7 +183,9 @@ export const setDefaultStatusBar = async (isDark = true) => {
   updateWebThemeColor(false, isDark);
   updateStatusBarCurtain(false, isDark);
   if (typeof document !== 'undefined') {
-    document.documentElement.style.setProperty('--bg-header', isDark ? '#000000' : '#ffffff');
+    const headerColor = isDark ? '#000000' : '#ffffff';
+    document.documentElement.style.setProperty('--bg-header', headerColor);
+    document.documentElement.style.setProperty('--header-bg', headerColor);
   }
 
   // Directly inform Android native host controller

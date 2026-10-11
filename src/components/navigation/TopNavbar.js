@@ -172,21 +172,20 @@ function renderTopNavbar() {
   }
 
   topBar.id = "topNavbarHeader";
-  topBar.className = "top-bar app-header sticky top-0 left-0 right-0 z-50 transition-colors duration-200 border-b border-black/[0.06] dark:border-white/[0.08] select-none";
-  topBar.style.backgroundColor = "var(--bg-header, inherit)";
-  topBar.style.paddingTop = "var(--safe-area-top, env(safe-area-inset-top, 32px))";
+  topBar.className = "fixed top-0 left-0 right-0 z-50 bg-white dark:bg-black transition-colors fixed-top-header top-bar app-header select-none";
+  topBar.style.backgroundColor = "var(--header-bg, #ffffff)";
+  topBar.style.paddingTop = "max(env(safe-area-inset-top, 0px), 36px)";
+  topBar.style.paddingBottom = "8px";
+  topBar.style.borderBottom = "1px solid rgba(0, 0, 0, 0.05)";
 
   topBar.innerHTML = `
-    <div class="flex items-center justify-between px-4 h-12 w-full">
-      <!-- Flashgram Logo -->
-      <h1 class="logo font-bold text-2xl tracking-tight select-none cursor-pointer" id="topNavLogo" title="Flashgram">Flashgram</h1>
-      <!-- Right Action Icons (Notifications / Messages) -->
-      <div class="top-bar-actions flex items-center space-x-4">
-        <button type="button" class="icon-btn top-nav-btn cursor-pointer" id="topNavNotificationsBtn" title="Notifications" aria-label="Notifications">
-          <i class="fa-regular fa-heart text-2xl"></i>
-        </button>
-        <button type="button" class="icon-btn top-nav-btn cursor-pointer" id="topNavDirectBtn" title="Messages" aria-label="Direct Messages">
-          <i class="fa-regular fa-paper-plane text-2xl"></i>
+    <div class="flex items-center justify-between px-4 h-11 w-full">
+      <!-- Flashgram Brand Logo / Name -->
+      <h1 class="logo text-2xl font-bold tracking-tight text-neutral-900 dark:text-white select-none leading-none cursor-pointer" id="topNavLogo" title="Flashgram">Flashgram</h1>
+      <!-- Heart / Notification Icon -->
+      <div class="top-bar-actions flex items-center justify-center p-1">
+        <button type="button" class="icon-btn top-nav-btn cursor-pointer flex items-center justify-center p-1" id="topNavNotificationsBtn" title="Notifications" aria-label="Notifications">
+          <i class="fa-regular fa-heart text-2xl text-neutral-900 dark:text-white stroke-[2]"></i>
         </button>
       </div>
     </div>
@@ -201,11 +200,6 @@ function renderTopNavbar() {
   const notifBtn = topBar.querySelector("#topNavNotificationsBtn");
   if (notifBtn) {
     notifBtn.onclick = handleNotificationsClick;
-  }
-
-  const directBtn = topBar.querySelector("#topNavDirectBtn");
-  if (directBtn) {
-    directBtn.onclick = handleDirectMessagesClick;
   }
 }
 

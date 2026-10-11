@@ -4,6 +4,16 @@
       padding-bottom: 60px;
     }
 
+    /* ফীড স্ক্রল কন্টেইনার */
+    .feed-scroll-container {
+      padding-top: calc(max(env(safe-area-inset-top, 0px), 36px) + 52px);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+    }
+
     /* স্টোরি বার */
     .stories-container {
       display: flex;

@@ -471,6 +471,7 @@ export function trackVideoProgressForCaching(videoElement, postData) {
 
 /**
  * Non-disruptive micro notification when a video is saved for offline
+ * Positioned floating above bottom navigation bar, auto-dismissing after 2s
  */
 function showCacheMicroToast(caption) {
   if (typeof document === 'undefined') return;
@@ -480,16 +481,16 @@ function showCacheMicroToast(caption) {
 
   const toast = document.createElement('div');
   toast.id = 'offlineSaveMicroBadge';
-  toast.className = 'fixed top-14 left-1/2 -translate-x-1/2 z-[105] flex items-center gap-2 px-3 py-1.5 rounded-full bg-neutral-900/90 dark:bg-neutral-100/90 text-white dark:text-neutral-900 shadow-lg backdrop-blur border border-white/10 dark:border-black/10 text-[11.5px] font-medium pointer-events-none transition-all duration-300';
+  toast.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-3.5 py-2 rounded-full bg-neutral-900/90 dark:bg-neutral-100/95 text-white dark:text-neutral-900 shadow-xl backdrop-blur border border-white/10 dark:border-black/10 text-xs font-medium pointer-events-none transition-all duration-300';
   toast.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-400 dark:text-emerald-600"></i><span>Saved for offline watching ⚡</span>';
 
   document.body.appendChild(toast);
 
   setTimeout(() => {
     toast.style.opacity = '0';
-    toast.style.transform = 'translate(-50%, -6px)';
+    toast.style.transform = 'translate(-50%, 8px)';
     setTimeout(() => toast.remove(), 300);
-  }, 2200);
+  }, 2000);
 }
 
 // Global exposure for window & backwards compatibility
