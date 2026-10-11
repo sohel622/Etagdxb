@@ -30,11 +30,30 @@ function showGlobalSoundBadge() {
 ======================================================= */
 function handleLogoClick() {
   const homeView = document.getElementById("homeView");
+  const feedScrollContainer = document.getElementById("feedScrollContainer");
+  if (feedScrollContainer) {
+    feedScrollContainer.scrollTo({ top: 0, behavior: "smooth" });
+  }
   if (homeView) {
     homeView.scrollTo({ top: 0, behavior: "smooth" });
   } else {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
+  showTopNavbar();
+}
+
+function hideTopNavbar() {
+  const header = document.getElementById("topNavbarHeader") || document.querySelector(".top-bar");
+  if (!header) return;
+  header.classList.remove("translate-y-0");
+  header.classList.add("header-hidden", "-translate-y-full");
+}
+
+function showTopNavbar() {
+  const header = document.getElementById("topNavbarHeader") || document.querySelector(".top-bar");
+  if (!header) return;
+  header.classList.remove("header-hidden", "-translate-y-full");
+  header.classList.add("translate-y-0");
 }
 
 function handleDirectMessagesClick() {
@@ -173,6 +192,7 @@ function renderTopNavbar() {
 
   topBar.id = "topNavbarHeader";
   topBar.className = "fixed top-0 left-0 right-0 z-50 bg-white dark:bg-black transition-colors fixed-top-header top-bar app-header select-none";
+  topBar.style.display = "";
   topBar.style.backgroundColor = "var(--header-bg, #ffffff)";
   topBar.style.paddingTop = "max(env(safe-area-inset-top, 0px), 36px)";
   topBar.style.paddingBottom = "8px";
@@ -218,6 +238,8 @@ if (typeof window !== "undefined") {
   window.initTopNavbar = initTopNavbar;
   window.toggleGlobalAudio = toggleGlobalAudio;
   window.showGlobalSoundBadge = showGlobalSoundBadge;
+  window.hideTopNavbar = hideTopNavbar;
+  window.showTopNavbar = showTopNavbar;
 }
 
 export {
@@ -230,5 +252,7 @@ export {
   closeNotificationsModal,
   toggleGlobalAudio,
   showGlobalSoundBadge,
-  isGlobalAudioMuted
+  isGlobalAudioMuted,
+  hideTopNavbar,
+  showTopNavbar
 };

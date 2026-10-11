@@ -1,15 +1,38 @@
-    /* Auto-Hide Standard Bottom Navigation Bar on Home Feed Scroll Down */
-    .bottom-bar:not(.liquid-glass-mode).nav-hidden,
-    .bottom-bar:not(.liquid-glass-mode).translate-y-full {
-      transform: translateY(100%);
-      opacity: 0;
-      pointer-events: none;
+    /* Auto-Hide Bottom Navigation Bar on Home Feed Scroll Down */
+    .bottom-bar {
+      position: absolute !important;
+      bottom: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      width: 100% !important;
+      height: calc(52px + env(safe-area-inset-bottom, 0px)) !important;
+      padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+      z-index: 50 !important;
+      transform: translateY(0);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+      will-change: transform;
     }
 
-    .bottom-bar:not(.liquid-glass-mode).translate-y-0 {
-      transform: translateY(0);
-      opacity: 1;
-      pointer-events: auto;
+    .bottom-bar.nav-hidden,
+    .bottom-bar.translate-y-full {
+      transform: translateY(100%) !important;
+      pointer-events: none !important;
+    }
+
+    .bottom-bar.translate-y-0 {
+      transform: translateY(0) !important;
+      pointer-events: auto !important;
+    }
+
+    .bottom-bar.liquid-glass-mode.translate-y-0 {
+      transform: translateX(-50%) translateY(0) !important;
+      pointer-events: auto !important;
+    }
+
+    .bottom-bar.liquid-glass-mode.nav-hidden,
+    .bottom-bar.liquid-glass-mode.translate-y-full {
+      transform: translateX(-50%) translateY(200%) !important;
+      pointer-events: none !important;
     }
 
     /* Hide Bottom Navigation Bar entirely when the user is inside the Conversations/Chat view */

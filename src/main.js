@@ -31,6 +31,8 @@ import * as PipService from './services/pipService.js';
 import * as DeepLinkService from './services/deepLinkService.js';
 import * as ReelsVolumeHUD from './components/reels/ReelsVolumeHUD.js';
 import * as AppIconChanger from './components/AppIconChangerModal.js';
+import * as YouTubeMusicService from './services/youtubeMusicService.js';
+import * as MusicView from './components/music/MusicView.js';
 
 // App Controller
 import { App } from './App.js';
@@ -63,6 +65,8 @@ Object.assign(window, {
   ...DeepLinkService,
   ...ReelsVolumeHUD,
   ...AppIconChanger,
+  ...YouTubeMusicService,
+  ...MusicView,
   supabase,
   App
 });

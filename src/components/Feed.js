@@ -783,8 +783,15 @@ function setupHomeFeedObserver() {
   };
 
   homeView.addEventListener("scroll", onHomeScroll, { passive: true });
+  const feedScrollContainer = document.getElementById("feedScrollContainer");
+  if (feedScrollContainer) {
+    feedScrollContainer.addEventListener("scroll", onHomeScroll, { passive: true });
+  }
   scrollListenerCleanup = () => {
     homeView.removeEventListener("scroll", onHomeScroll);
+    if (feedScrollContainer) {
+      feedScrollContainer.removeEventListener("scroll", onHomeScroll);
+    }
   };
 
   // Initial evaluation after DOM paint

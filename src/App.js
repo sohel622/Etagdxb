@@ -20,6 +20,7 @@ import { initDeepLinkListener } from "./services/deepLinkService.js";
 import { initReelsVolumeHUD } from "./components/reels/ReelsVolumeHUD.js";
 import { setupHeaderLogoEasterEgg, openAppIconChanger, closeAppIconChanger } from "./components/AppIconChangerModal.js";
 import { openOfflineDB, initNetworkListener } from "./services/offlineCacheService.js";
+import { initMusicView } from "./components/music/MusicView.js";
 
 export const App = {
   async init() {
@@ -67,6 +68,7 @@ export const App = {
     renderProfileGrid();
     initStories();
     initAccountSwitcher();
+    initMusicView();
 
     // 5. Browser notifications
     requestInitialBrowserNotificationPermission();

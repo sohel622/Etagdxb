@@ -1,12 +1,13 @@
     /* হোম ভিউ */
     #homeView {
       background: #fff;
-      padding-bottom: 60px;
+      padding-bottom: 0 !important;
     }
 
     /* ফীড স্ক্রল কন্টেইনার */
     .feed-scroll-container {
       padding-top: calc(max(env(safe-area-inset-top, 0px), 36px) + 52px);
+      padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       width: 100%;

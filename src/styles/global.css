@@ -5,6 +5,7 @@
 @import "./profile.css";
 @import "./shabnam.css";
 @import "./reelsSheets.css";
+@import "./music.css";
 
     @font-face {
       font-family: 'Billabong';
@@ -101,7 +102,7 @@
       }
     }
 
-    /* টপ বার (Permanently Frozen Fixed Header: No Scroll/Translate Animations) */
+    /* টপ বার (Restore Fixed Top Header Bar with Smooth Transition) */
     .fixed-top-header,
     .app-header,
     .top-bar {
@@ -122,10 +123,28 @@
       display: flex;
       flex-direction: column;
       flex-shrink: 0;
-      transform: none !important;
       box-sizing: border-box;
       overflow: visible !important;
-      transition: background-color 0.2s ease, border-color 0.2s ease;
+      transform: translateY(0);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+      will-change: transform;
+    }
+
+    .fixed-top-header.header-hidden,
+    .fixed-top-header.-translate-y-full,
+    .app-header.header-hidden,
+    .app-header.-translate-y-full,
+    .top-bar.header-hidden,
+    .top-bar.-translate-y-full {
+      transform: translateY(-100%) !important;
+      pointer-events: none !important;
+    }
+
+    .fixed-top-header.translate-y-0,
+    .app-header.translate-y-0,
+    .top-bar.translate-y-0 {
+      transform: translateY(0) !important;
+      pointer-events: auto !important;
     }
 
     @media (max-width: 480px) {
@@ -149,12 +168,19 @@
       box-sizing: border-box;
     }
 
-    /* Content Scroll Container (Prevent Content Jump & Clean Pass Underneath) */
+    /* Content Scroll Container (Clean Pass Underneath Fixed Header) */
     .feed-scroll-container {
-      padding-top: calc(max(env(safe-area-inset-top, 0px), 36px) + 52px);
+      padding-top: calc(max(env(safe-area-inset-top, 0px), 36px) + 52px) !important;
+      padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)) !important;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+    }
+
+    #homeView {
+      padding-bottom: 0 !important;
     }
 
     /* Safe Area Top for Android Status Bar on All View Headers */

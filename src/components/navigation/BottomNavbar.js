@@ -300,48 +300,80 @@ if (typeof window !== "undefined") {
   });
 }
 
+function hideTopNavbar() {
+  const topBar = document.getElementById("topNavbarHeader") || document.querySelector(".top-bar");
+  if (topBar) {
+    topBar.classList.remove("translate-y-0");
+    topBar.classList.add("header-hidden", "-translate-y-full");
+  }
+}
+
+function showTopNavbar() {
+  const topBar = document.getElementById("topNavbarHeader") || document.querySelector(".top-bar");
+  if (topBar) {
+    topBar.classList.remove("header-hidden", "-translate-y-full");
+    topBar.classList.add("translate-y-0");
+  }
+}
+
 function hideStandardNavBar() {
   const navBar = document.getElementById("bottomNavBar") || bottomNavBar;
-  if (!navBar || navBar.classList.contains("liquid-glass-mode")) return;
-  navBar.classList.remove("translate-y-0");
-  navBar.classList.add("nav-hidden", "translate-y-full", "opacity-0");
+  if (navBar) {
+    navBar.classList.remove("translate-y-0");
+    navBar.classList.add("nav-hidden", "translate-y-full");
+  }
 }
 
 function showStandardNavBar() {
   const navBar = document.getElementById("bottomNavBar") || bottomNavBar;
-  if (!navBar) return;
-  navBar.classList.remove("nav-hidden", "translate-y-full", "opacity-0");
-  navBar.classList.add("translate-y-0");
+  if (navBar) {
+    navBar.classList.remove("nav-hidden", "translate-y-full");
+    navBar.classList.add("translate-y-0");
+  }
 }
 
 let lastHomeScrollTop = 0;
 let homeScrollTicking = false;
-const HOME_SCROLL_THRESHOLD = 8;
+const HOME_SCROLL_DELTA_THRESHOLD = 5;
 
 function handleHomeFeedScroll() {
   const hView = document.getElementById("homeView") || homeView;
-  const navBar = document.getElementById("bottomNavBar") || bottomNavBar;
-  if (!hView || !hView.classList.contains("active")) return;
-  if (navBar && navBar.classList.contains("liquid-glass-mode")) return;
-
-  const currentScrollTop = hView.scrollTop;
-
-  // Always restore navigation bar when near the top of the feed
-  if (currentScrollTop <= 15) {
-    showStandardNavBar();
-    lastHomeScrollTop = Math.max(0, currentScrollTop);
+  const feedScroll = document.getElementById("feedScrollContainer");
+  if (!hView || !hView.classList.contains("active")) {
     homeScrollTicking = false;
     return;
   }
 
+  // Support both scroll containers and window scroll
+  const currentScrollTop = (feedScroll && feedScroll.scrollTop > 0)
+    ? feedScroll.scrollTop
+    : (hView.scrollTop > 0 ? hView.scrollTop : (window.scrollY || 0));
+
+  // Requirement 2: Top Header Bar Logic (Only at the Very Top)
+  // - Hide on scroll: The Top Header must hide (translateY(-100%)) as soon as the user scrolls down
+  // - Show condition: Do NOT show the Top Header during scroll-up in the middle of the feed.
+  //   The Top Header must ONLY reappear (translateY(0)) when the user reaches the absolute top of the page (scrollTop <= 15).
+  if (currentScrollTop <= 15) {
+    showTopNavbar();
+    showStandardNavBar();
+    lastHomeScrollTop = Math.max(0, currentScrollTop);
+    homeScrollTicking = false;
+    return;
+  } else {
+    hideTopNavbar();
+  }
+
+  // Requirement 3: Bottom Navigation Bar Logic (Responsive to Scroll Direction)
+  // - Scroll Down: Smoothly slides down and hides (translateY(100%))
+  // - Scroll Up: Immediately slides back up into view (translateY(0)), even in the middle of scrolling up the feed
   const deltaY = currentScrollTop - lastHomeScrollTop;
 
-  if (Math.abs(deltaY) >= HOME_SCROLL_THRESHOLD) {
+  if (Math.abs(deltaY) >= HOME_SCROLL_DELTA_THRESHOLD) {
     if (deltaY > 0) {
-      // Scrolling DOWN: smoothly translate the standard bottom navigation bar downwards off-screen
+      // Scrolling DOWN
       hideStandardNavBar();
     } else {
-      // Scrolling UP: smoothly slide the bottom navigation bar back up into view
+      // Scrolling UP (even in the middle of the feed)
       showStandardNavBar();
     }
     lastHomeScrollTop = currentScrollTop;
@@ -351,15 +383,25 @@ function handleHomeFeedScroll() {
 }
 
 if (typeof window !== "undefined") {
+  const onScrollEvent = () => {
+    if (!homeScrollTicking) {
+      window.requestAnimationFrame(handleHomeFeedScroll);
+      homeScrollTicking = true;
+    }
+  };
+
   const hView = document.getElementById("homeView");
   if (hView) {
-    hView.addEventListener("scroll", () => {
-      if (!homeScrollTicking) {
-        window.requestAnimationFrame(handleHomeFeedScroll);
-        homeScrollTicking = true;
-      }
-    }, { passive: true });
+    hView.addEventListener("scroll", onScrollEvent, { passive: true });
   }
+
+  const feedScroll = document.getElementById("feedScrollContainer");
+  if (feedScroll) {
+    feedScroll.addEventListener("scroll", onScrollEvent, { passive: true });
+  }
+
+  window.addEventListener("scroll", onScrollEvent, { passive: true });
+  document.addEventListener("scroll", onScrollEvent, { passive: true, capture: true });
 }
 
 /* Automatic Dark / Light Mode System */
@@ -422,7 +464,16 @@ function switchTab(tabId, btnElement) {
   const navBar = document.getElementById("bottomNavBar") || bottomNavBar;
   const rProgressBarContainer = document.getElementById("reelsProgressBarContainer");
 
-  lastHomeScrollTop = hView ? hView.scrollTop : 0;
+  const feedScroll = document.getElementById("feedScrollContainer");
+  const homeScroll = (feedScroll && feedScroll.scrollTop > 0) ? feedScroll.scrollTop : (hView ? hView.scrollTop : 0);
+  lastHomeScrollTop = homeScroll;
+  if (tabId === "home") {
+    if (homeScroll <= 15) {
+      showTopNavbar();
+    } else {
+      hideTopNavbar();
+    }
+  }
   document.querySelectorAll(".nav-btn").forEach(b => {
     const bId = b.dataset.id;
     const isCurrent = bId === tabId;
@@ -663,6 +714,8 @@ if (typeof window !== "undefined") {
   window.switchTab = switchTab;
   window.hideStandardNavBar = hideStandardNavBar;
   window.showStandardNavBar = showStandardNavBar;
+  window.hideTopNavbar = hideTopNavbar;
+  window.showTopNavbar = showTopNavbar;
   window.handleHomeFeedScroll = handleHomeFeedScroll;
   window.applyCurrentDynamicTheme = applyCurrentDynamicTheme;
   window.renderDragBox = renderDragBox;
@@ -679,6 +732,8 @@ export {
   switchTab,
   hideStandardNavBar,
   showStandardNavBar,
+  hideTopNavbar,
+  showTopNavbar,
   handleHomeFeedScroll,
   applyCurrentDynamicTheme,
   renderDragBox,

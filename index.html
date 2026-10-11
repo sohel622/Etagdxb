@@ -137,7 +137,7 @@
     ></div>
 
     <div class="view-section active bg-white dark:bg-black text-neutral-900 dark:text-white transition-colors duration-200" id="homeView">
-      <!-- Permanently Locked Fixed Header Container -->
+      <!-- Fixed Top Header Container -->
       <header 
         class="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-black transition-colors fixed-top-header top-bar app-header select-none"
         id="topNavbarHeader"
@@ -233,6 +233,13 @@
           </div>
         </div>
         <div class="profile-header-actions" id="profileHeaderActions">
+          <button type="button" class="icon-btn text-rose-500 hover:text-rose-400 transition-colors" id="profileMusicBtn" title="Flashgram Music" aria-label="Flashgram Music" onclick="if (typeof openFlashgramMusicView === 'function') openFlashgramMusicView();">
+            <svg class="w-[20px] h-[20px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18V5l12-2v13"></path>
+              <circle cx="6" cy="18" r="3"></circle>
+              <circle cx="18" cy="16" r="3"></circle>
+            </svg>
+          </button>
           <button type="button" class="icon-btn" id="profileCreatePostBtn" title="Create" aria-label="Create new post" onclick="if (typeof openMediaCreationPrompt === 'function') openMediaCreationPrompt();">
             <i class="fa-solid fa-plus" style="font-size: 20px;"></i>
           </button>
@@ -695,6 +702,224 @@
       <div class="nav-active-pill" id="navActivePill"></div>
       <div id="navButtonsContainer" style="display:contents;"></div>
     </nav>
+
+    <!-- Flashgram Music Full-Screen View -->
+    <div class="music-screen" id="flashgramMusicScreen" aria-hidden="true">
+      <!-- Top Music Header -->
+      <header class="music-header">
+        <div class="flex items-center gap-3">
+          <button type="button" class="icon-btn" onclick="closeFlashgramMusicView()" title="Back to Profile" aria-label="Back">
+            <i class="fa-solid fa-arrow-left text-[17px]"></i>
+          </button>
+          <div class="music-brand">
+            <div class="music-brand-icon">
+              <i class="fa-solid fa-music text-[13px] text-white"></i>
+            </div>
+            <span class="music-brand-title">Flashgram Music</span>
+            <span class="music-brand-tag">YT V3</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button type="button" class="icon-btn" onclick="openMusicSearch()" title="Search Songs & Artists" aria-label="Search">
+            <i class="fa-solid fa-magnifying-glass text-[17px]"></i>
+          </button>
+          <button type="button" class="icon-btn" onclick="closeFlashgramMusicView()" title="Close Music View" aria-label="Close">
+            <i class="fa-solid fa-xmark text-[18px]"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- Category Filter Chips Bar -->
+      <div class="music-chips-bar" id="musicChipsBar">
+        <button type="button" class="music-chip active" data-category="Quick picks" onclick="loadMusicFeedCategory('Quick picks')">Quick picks</button>
+        <button type="button" class="music-chip" data-category="Trending Tracks" onclick="loadMusicFeedCategory('Trending Tracks')">Trending Tracks</button>
+        <button type="button" class="music-chip" data-category="Remixes" onclick="loadMusicFeedCategory('Remixes')">Remixes</button>
+        <button type="button" class="music-chip" data-category="New releases" onclick="loadMusicFeedCategory('New releases')">New releases</button>
+        <button type="button" class="music-chip" data-category="Charts" onclick="loadMusicFeedCategory('Charts')">Charts</button>
+        <button type="button" class="music-chip" data-category="Moods & genres" onclick="loadMusicFeedCategory('Moods & genres')">Moods & genres</button>
+      </div>
+
+      <!-- Music Content Scrollable -->
+      <div class="music-content-scroll">
+        <!-- Quick Picks Section -->
+        <section class="music-section">
+          <div class="music-section-header">
+            <div>
+              <h3 class="music-section-title">Quick picks</h3>
+              <p class="music-section-subtitle">Start radio with top tracks</p>
+            </div>
+            <button type="button" class="text-xs text-rose-500 font-semibold hover:underline" onclick="loadMusicFeedCategory('Quick picks')">
+              Refresh
+            </button>
+          </div>
+          <div class="space-y-1" id="musicQuickPicksContainer">
+            <!-- Populated dynamically via YouTube Data API v3 -->
+          </div>
+        </section>
+
+        <!-- Trending Tracks Section -->
+        <section class="music-section">
+          <div class="music-section-header">
+            <div>
+              <h3 class="music-section-title">Trending Tracks</h3>
+              <p class="music-section-subtitle">Most played music videos on YouTube</p>
+            </div>
+          </div>
+          <div class="music-horizontal-tray" id="musicTrendingContainer">
+            <!-- Populated dynamically via YouTube Data API v3 -->
+          </div>
+        </section>
+
+        <!-- Remixes Section -->
+        <section class="music-section">
+          <div class="music-section-header">
+            <div>
+              <h3 class="music-section-title">Remixes & Lofi</h3>
+              <p class="music-section-subtitle">Bass boosted hits & chill beats</p>
+            </div>
+          </div>
+          <div class="space-y-1" id="musicRemixesContainer">
+            <!-- Populated dynamically via YouTube Data API v3 -->
+          </div>
+        </section>
+      </div>
+
+      <!-- Search Overlay Inside Music Screen -->
+      <div class="music-search-overlay" id="musicSearchOverlay">
+        <div class="music-search-header">
+          <button type="button" class="icon-btn" onclick="closeMusicSearch()" title="Back" aria-label="Back">
+            <i class="fa-solid fa-arrow-left text-[17px]"></i>
+          </button>
+          <div class="music-search-input-box">
+            <i class="fa-solid fa-magnifying-glass text-neutral-400 text-sm"></i>
+            <input type="text" class="music-search-input" id="musicSearchInput" placeholder="Search songs, artists, remixes..." oninput="handleMusicSearchInput(event)" autocomplete="off" />
+            <button type="button" class="text-neutral-400 hover:text-white" id="musicSearchClearBtn" style="display:none;" onclick="clearMusicSearchInput()" aria-label="Clear">
+              <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter Chips in Search -->
+        <div class="music-chips-bar border-b border-white/5">
+          <button type="button" class="music-chip active" onclick="executeMusicSearch('Top Hits 2026')">All</button>
+          <button type="button" class="music-chip" onclick="executeMusicSearch('New Releases Music')">New releases</button>
+          <button type="button" class="music-chip" onclick="executeMusicSearch('Billboard Charts Top')">Charts</button>
+          <button type="button" class="music-chip" onclick="executeMusicSearch('Bass Boosted Remix')">Bass Boosted</button>
+          <button type="button" class="music-chip" onclick="executeMusicSearch('Lofi Study Beats')">Chill & Lofi</button>
+        </div>
+
+        <!-- Search Results List -->
+        <div class="music-search-results-list" id="musicSearchResultsContainer">
+          <!-- Populated dynamically on search -->
+        </div>
+      </div>
+
+      <!-- Sticky Mini Player Bar (Scoped strictly inside Flashgram Music Screen) -->
+      <div class="music-mini-player" id="musicMiniPlayer" onclick="openNowPlayingModal()" aria-label="Open Now Playing Player">
+        <!-- Top mini progress bar line -->
+        <div class="music-mini-progress-line">
+          <div class="music-mini-progress-fill" id="musicMiniProgressFill"></div>
+        </div>
+
+        <div class="music-mini-content flex items-center justify-between w-full h-full px-3">
+          <div class="flex items-center gap-3 min-w-0 flex-1">
+            <div class="music-mini-thumb-wrap relative rounded-lg w-10 h-10 overflow-hidden bg-neutral-900 shrink-0">
+              <img id="musicMiniThumb" class="music-mini-thumb w-full h-full object-cover" src="" alt="Album Artwork" />
+            </div>
+            <div class="music-mini-meta min-w-0 flex-1">
+              <div class="music-mini-title font-semibold text-sm text-white truncate" id="musicMiniTitle">Track Title</div>
+              <div class="music-mini-artist text-xs text-neutral-400 font-normal truncate" id="musicMiniArtist">Artist Name</div>
+            </div>
+          </div>
+
+          <!-- Action Controls with Close / Dismiss (X) button -->
+          <div class="music-mini-actions flex items-center gap-1 shrink-0 ml-2" onclick="event.stopPropagation()">
+            <button type="button" class="music-mini-btn w-9 h-9 rounded-full flex items-center justify-center text-white hover:bg-white/10 transition-colors" id="musicMiniPlayBtn" onclick="youtubeMusicService.togglePlayPause()" title="Play/Pause" aria-label="Play or Pause">
+              <i class="fa-solid fa-play text-sm ml-0.5" id="musicMiniPlayIcon"></i>
+            </button>
+            <button type="button" class="music-mini-close-btn w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition-colors" id="musicMiniCloseBtn" onclick="window.closeAndStopMusicPlayer()" title="Close Player" aria-label="Close and stop playback">
+              <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Full-Screen Now Playing View -->
+    <div class="music-now-playing-modal" id="musicNowPlayingModal">
+      <div class="music-now-playing-backdrop" id="musicNowPlayingBackdrop"></div>
+      <div class="music-now-playing-content">
+        <!-- Top Navigation Bar -->
+        <div class="music-now-playing-topbar">
+          <button type="button" class="music-now-playing-dismiss-btn" onclick="closeNowPlayingModal()" title="Minimize" aria-label="Minimize player">
+            <i class="fa-solid fa-chevron-down text-base"></i>
+          </button>
+          <div class="text-center">
+            <div class="music-now-playing-source">Playing from Flashgram Music</div>
+            <div class="text-[10px] text-neutral-400">YouTube Audio Engine</div>
+          </div>
+          <button type="button" class="music-now-playing-dismiss-btn" onclick="if (typeof openFlashgramShareModal === 'function' && youtubeMusicService.currentTrack) { openFlashgramShareModal({ title: youtubeMusicService.currentTrack.title }); } else if (typeof showInstagramToast === 'function') { showInstagramToast('Sharing track'); }" title="Share" aria-label="Share">
+            <i class="fa-solid fa-share-nodes text-sm"></i>
+          </button>
+        </div>
+
+        <!-- Center Album Artwork -->
+        <div class="music-now-playing-artwork-wrap">
+          <div class="music-now-playing-artwork">
+            <img id="musicNowPlayingArtworkImg" src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500" alt="Album Art" />
+          </div>
+        </div>
+
+        <!-- Track Title & Artist Metadata -->
+        <div class="music-now-playing-meta">
+          <div class="flex-1 min-w-0 mr-3">
+            <div class="music-now-playing-title" id="musicNowPlayingTitle">Track Title</div>
+            <div class="music-now-playing-artist" id="musicNowPlayingArtist">Artist Name</div>
+          </div>
+          <button type="button" class="music-now-playing-heart-btn" id="musicNowPlayingHeartBtn" onclick="if (youtubeMusicService.currentTrack) youtubeMusicService.toggleLike(youtubeMusicService.currentTrack.id)" title="Favorite" aria-label="Favorite">
+            <i class="fa-regular fa-heart"></i>
+          </button>
+        </div>
+
+        <!-- Interactive Scrubber / Seek Bar -->
+        <div class="music-scrubber-container">
+          <div class="music-scrubber-track" id="musicScrubberTrack">
+            <div class="music-scrubber-fill" id="musicScrubberFill">
+              <div class="music-scrubber-thumb"></div>
+            </div>
+          </div>
+          <div class="music-scrubber-times">
+            <span id="musicNowPlayingTimeCurrent">0:00</span>
+            <span id="musicNowPlayingTimeTotal">0:00</span>
+          </div>
+        </div>
+
+        <!-- Playback Controls -->
+        <div class="music-controls-cluster">
+          <button type="button" class="music-ctrl-btn" id="musicNowPlayingShuffleBtn" onclick="youtubeMusicService.toggleShuffle()" title="Shuffle" aria-label="Shuffle">
+            <i class="fa-solid fa-shuffle"></i>
+          </button>
+          <button type="button" class="music-ctrl-btn" onclick="youtubeMusicService.prevTrack()" title="Previous Track" aria-label="Previous">
+            <i class="fa-solid fa-backward-step"></i>
+          </button>
+          <button type="button" class="music-ctrl-play-btn" onclick="youtubeMusicService.togglePlayPause()" title="Play / Pause" aria-label="Play / Pause">
+            <i class="fa-solid fa-play ml-1" id="musicNowPlayingPlayIcon"></i>
+          </button>
+          <button type="button" class="music-ctrl-btn" onclick="youtubeMusicService.nextTrack()" title="Next Track" aria-label="Next">
+            <i class="fa-solid fa-forward-step"></i>
+          </button>
+          <button type="button" class="music-ctrl-btn" id="musicNowPlayingRepeatBtn" onclick="youtubeMusicService.toggleRepeat()" title="Repeat" aria-label="Repeat">
+            <i class="fa-solid fa-repeat"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- YouTube Music IFrame Player Background Container -->
+    <div id="youtubeMusicPlayerHost" style="position: fixed; top: -9999px; left: -9999px; width: 1px; height: 1px; opacity: 0.001; pointer-events: none; z-index: -1;">
+      <div id="youtubeMusicPlayer"></div>
+    </div>
 
     <!-- Shabnam AI Learn More Modal -->
     <div id="shabnamAiLearnMoreModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" style="display: none;" onclick="if(event.target===this) closeShabnamAiLearnMoreModal()">
