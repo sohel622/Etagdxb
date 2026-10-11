@@ -86,14 +86,67 @@ function updateWebThemeColor(isReels, isDark) {
 }
 
 /**
+ * Updates the theme-aware safe-area curtain (#statusBarCurtain)
+ * - In Dark Mode: pure #000000 (black)
+ * - In Light Mode: crisp #FFFFFF (white)
+ * - In Reels: fully transparent (bg-transparent) so video goes edge-to-edge
+ */
+export function updateStatusBarCurtain(isReels = false, isDark = true) {
+  if (typeof document === 'undefined') return;
+  const curtain = document.getElementById('statusBarCurtain');
+  if (!curtain) return;
+
+  if (isReels) {
+    curtain.style.backgroundColor = 'transparent';
+    curtain.classList.remove('bg-white', 'bg-black');
+    curtain.classList.add('bg-transparent');
+  } else if (isDark) {
+    curtain.style.backgroundColor = '#000000';
+    curtain.classList.remove('bg-transparent', 'bg-white');
+    curtain.classList.add('bg-black');
+  } else {
+    curtain.style.backgroundColor = '#ffffff';
+    curtain.classList.remove('bg-transparent', 'bg-black');
+    curtain.classList.add('bg-white');
+  }
+}
+
+/**
+ * Ensures --safe-area-top is synchronized and never leaves content colliding with status bar
+ */
+export function syncSafeAreaTop() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  try {
+    const test = document.createElement('div');
+    test.style.cssText = 'position:fixed;top:0;left:0;height:env(safe-area-inset-top, 0px);pointer-events:none;visibility:hidden;';
+    document.body.appendChild(test);
+    const measured = test.offsetHeight;
+    test.remove();
+
+    if (!measured || measured < 10) {
+      document.documentElement.style.setProperty('--safe-area-top', '32px');
+    } else {
+      document.documentElement.style.setProperty('--safe-area-top', `${measured}px`);
+    }
+  } catch (_) {
+    document.documentElement.style.setProperty('--safe-area-top', '32px');
+  }
+}
+
+/**
  * Configure Reels Status Bar:
  * - Full overlay so the video spans edge-to-edge behind the status bar
  * - Light icon/text style (white text/icons over video via Style.Dark in Capacitor)
  * - Status bar background color fully transparent (#00000000)
+ * - Theme curtain fully transparent
  */
 export const setReelsStatusBar = async () => {
   currentActiveScreen = 'reels';
   updateWebThemeColor(true, true);
+  updateStatusBarCurtain(true, true);
+  if (typeof document !== 'undefined') {
+    document.documentElement.style.setProperty('--bg-header', '#000000');
+  }
 
   // Directly inform Android native host controller
   if (typeof window !== 'undefined' && window.NativeReelsBridge) {
@@ -121,12 +174,16 @@ export const setReelsStatusBar = async () => {
 
 /**
  * Configure Default Status Bar for Home, Profile, Explore, Messages:
- * - Disable overlay so content does not collide with the status bar
- * - Dark Mode: Solid pure black #000000 with white icons (Style.Dark)
- * - Light Mode: Pure white #ffffff with dark icons (Style.Light)
+ * - Edge-to-edge with theme-aware safe-area curtain
+ * - Dark Mode: Solid pure black #000000 curtain with white icons (Style.Dark)
+ * - Light Mode: Pure crisp white #ffffff curtain with dark icons (Style.Light)
  */
 export const setDefaultStatusBar = async (isDark = true) => {
   updateWebThemeColor(false, isDark);
+  updateStatusBarCurtain(false, isDark);
+  if (typeof document !== 'undefined') {
+    document.documentElement.style.setProperty('--bg-header', isDark ? '#000000' : '#ffffff');
+  }
 
   // Directly inform Android native host controller
   if (typeof window !== 'undefined' && window.NativeReelsBridge) {
@@ -144,7 +201,7 @@ export const setDefaultStatusBar = async (isDark = true) => {
   }
 
   try {
-    await StatusBar.setOverlaysWebView({ overlay: false });
+    await StatusBar.setOverlaysWebView({ overlay: true });
     if (isDark) {
       await StatusBar.setBackgroundColor({ color: '#000000' });
       await StatusBar.setStyle({ style: Style.Dark }); // White icons for dark background
@@ -192,6 +249,11 @@ export function initStatusBarListener() {
 
   if (typeof window === 'undefined') return;
 
+  // Synchronize CSS --safe-area-top immediately
+  syncSafeAreaTop();
+  window.addEventListener('resize', syncSafeAreaTop);
+  window.addEventListener('orientationchange', syncSafeAreaTop);
+
   // Initial setup for the starting screen
   const initialPath = window.location.pathname;
   if (isReelsRoute(initialPath)) {
@@ -204,6 +266,8 @@ export function initStatusBarListener() {
   window.updateStatusBar = updateStatusBar;
   window.setReelsStatusBar = setReelsStatusBar;
   window.setDefaultStatusBar = setDefaultStatusBar;
+  window.updateStatusBarCurtain = updateStatusBarCurtain;
+  window.syncSafeAreaTop = syncSafeAreaTop;
 
   // 1. Popstate navigation listener (hardware back / browser back & forward)
   window.addEventListener('popstate', () => {

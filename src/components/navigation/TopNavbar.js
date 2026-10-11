@@ -167,17 +167,28 @@ function renderTopNavbar() {
   let topBar = homeView.querySelector(".top-bar");
   if (!topBar) {
     topBar = document.createElement("header");
-    topBar.className = "top-bar bg-white dark:bg-black text-neutral-900 dark:text-white transition-colors duration-200";
+    topBar.id = "topNavbarHeader";
     homeView.insertBefore(topBar, homeView.firstChild);
   }
 
   topBar.id = "topNavbarHeader";
+  topBar.className = "top-bar app-header sticky top-0 left-0 right-0 z-50 transition-colors duration-200 border-b border-black/[0.06] dark:border-white/[0.08] select-none";
+  topBar.style.backgroundColor = "var(--bg-header, inherit)";
+  topBar.style.paddingTop = "var(--safe-area-top, env(safe-area-inset-top, 32px))";
+
   topBar.innerHTML = `
-    <div class="logo" id="topNavLogo" title="Instagram" role="button" tabindex="0">Instagram</div>
-    <div class="top-bar-actions">
-      <button type="button" class="icon-btn top-nav-btn" id="topNavNotificationsBtn" title="Notifications" aria-label="Notifications">
-        <i class="fa-regular fa-heart"></i>
-      </button>
+    <div class="flex items-center justify-between px-4 h-12 w-full">
+      <!-- Flashgram Logo -->
+      <h1 class="logo font-bold text-2xl tracking-tight select-none cursor-pointer" id="topNavLogo" title="Flashgram">Flashgram</h1>
+      <!-- Right Action Icons (Notifications / Messages) -->
+      <div class="top-bar-actions flex items-center space-x-4">
+        <button type="button" class="icon-btn top-nav-btn cursor-pointer" id="topNavNotificationsBtn" title="Notifications" aria-label="Notifications">
+          <i class="fa-regular fa-heart text-2xl"></i>
+        </button>
+        <button type="button" class="icon-btn top-nav-btn cursor-pointer" id="topNavDirectBtn" title="Messages" aria-label="Direct Messages">
+          <i class="fa-regular fa-paper-plane text-2xl"></i>
+        </button>
+      </div>
     </div>
   `;
 
@@ -190,6 +201,11 @@ function renderTopNavbar() {
   const notifBtn = topBar.querySelector("#topNavNotificationsBtn");
   if (notifBtn) {
     notifBtn.onclick = handleNotificationsClick;
+  }
+
+  const directBtn = topBar.querySelector("#topNavDirectBtn");
+  if (directBtn) {
+    directBtn.onclick = handleDirectMessagesClick;
   }
 }
 

@@ -308,7 +308,7 @@ public class MainActivity extends BridgeActivity {
                     insetsController.setAppearanceLightStatusBars(false); // White icons
                 }
             } else {
-                WindowCompat.setDecorFitsSystemWindows(window, true);
+                WindowCompat.setDecorFitsSystemWindows(window, false);
                 if (isDark) {
                     window.setStatusBarColor(Color.BLACK);
                     if (insetsController != null) {
@@ -368,24 +368,32 @@ public class MainActivity extends BridgeActivity {
             String targetAlias;
             if (iconKey == null) iconKey = "default";
             switch (iconKey.toLowerCase().trim()) {
+                case "sunset":
                 case "retro":
                     targetAlias = packageName + ".MainActivityRetro";
                     break;
+                case "sticker":
+                case "sticker_pop":
                 case "sketch":
                     targetAlias = packageName + ".MainActivitySketch";
                     break;
+                case "cyber_neon":
                 case "neon":
                 case "ultragram":
                     targetAlias = packageName + ".MainActivityNeon";
                     break;
+                case "dark_matrix":
                 case "dark":
                 case "midnight":
                     targetAlias = packageName + ".MainActivityDark";
                     break;
+                case "golden_vip":
                 case "gold":
                 case "golden":
                     targetAlias = packageName + ".MainActivityGold";
                     break;
+                case "custom":
+                case "original":
                 case "default":
                 default:
                     targetAlias = packageName + ".MainActivityDefault";

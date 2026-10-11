@@ -129,13 +129,34 @@
   <div class="app-container" id="appContainer">
     <input type="file" id="videoFileInput" accept="video/*" style="display:none;" />
 
+    <!-- Safe-Area Status Bar Background Curtain -->
+    <div 
+      id="statusBarCurtain"
+      class="fixed top-0 left-0 right-0 z-[100] transition-colors duration-200 pointer-events-none bg-white dark:bg-black"
+      style="height: var(--safe-area-top, env(safe-area-inset-top, 32px));"
+    ></div>
+
     <div class="view-section active bg-white dark:bg-black text-neutral-900 dark:text-white transition-colors duration-200" id="homeView">
-      <header class="top-bar bg-white dark:bg-black text-neutral-900 dark:text-white transition-colors duration-200" id="topNavbarHeader">
-        <div class="logo" id="topNavLogo" onclick="handleLogoClick()" title="Instagram" role="button" tabindex="0">Instagram</div>
-        <div class="top-bar-actions">
-          <button type="button" class="icon-btn top-nav-btn" id="topNavNotificationsBtn" onclick="handleNotificationsClick()" title="Notifications" aria-label="Notifications">
-            <i class="fa-regular fa-heart"></i>
-          </button>
+      <!-- Sticky Header Container -->
+      <header 
+        class="top-bar app-header sticky top-0 left-0 right-0 z-50 transition-colors duration-200 border-b border-black/[0.06] dark:border-white/[0.08] select-none"
+        id="topNavbarHeader"
+        style="background-color: var(--bg-header, inherit); padding-top: var(--safe-area-top, env(safe-area-inset-top, 32px));"
+      >
+        <div class="flex items-center justify-between px-4 h-12 w-full">
+          <!-- Flashgram Logo -->
+          <h1 class="logo font-bold text-2xl tracking-tight select-none cursor-pointer" id="topNavLogo" onclick="handleLogoClick()" title="Flashgram">
+            Flashgram
+          </h1>
+          <!-- Right Action Icons (Notifications / Messages) -->
+          <div class="top-bar-actions flex items-center space-x-4">
+            <button type="button" class="icon-btn top-nav-btn cursor-pointer" id="topNavNotificationsBtn" onclick="handleNotificationsClick()" title="Notifications" aria-label="Notifications">
+              <i class="fa-regular fa-heart text-2xl"></i>
+            </button>
+            <button type="button" class="icon-btn top-nav-btn cursor-pointer" id="topNavDirectBtn" onclick="handleDirectMessagesClick()" title="Messages" aria-label="Direct Messages">
+              <i class="fa-regular fa-paper-plane text-2xl"></i>
+            </button>
+          </div>
         </div>
       </header>
 
