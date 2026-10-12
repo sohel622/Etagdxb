@@ -6,8 +6,8 @@
 
     /* ফীড স্ক্রল কন্টেইনার */
     .feed-scroll-container {
-      padding-top: calc(max(env(safe-area-inset-top, 0px), 36px) + 52px);
-      padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+      padding-top: calc(max(env(safe-area-inset-top, 0px), 24px) + 52px);
+      padding-bottom: calc(56px + max(env(safe-area-inset-bottom, 0px), 12px));
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       width: 100%;
@@ -170,54 +170,109 @@
       cursor: pointer;
     }
 
-    /* Video Dimensions & Scaling: Exact Instagram Home Feed (4:5 / 16:9) */
-    .home-video-container {
+    /* Video Dimensions & Scaling: Exact Instagram Home Feed (aspect-[4/5] or aspect-square with object-fit: cover) */
+    .home-video-container,
+    .post-video-container,
+    .post-media-container,
+    .aspect-\[4\/5\],
+    .aspect-4-5 {
       width: 100%;
       aspect-ratio: 4 / 5;
       max-height: 580px;
       position: relative;
       overflow: hidden;
-      background: #000000;
+      background-color: transparent !important;
       display: flex;
       align-items: center;
       justify-content: center;
       contain: layout paint;
+      margin: 0 !important;
+      padding: 0 !important;
     }
 
-    .dark .home-video-container {
-      background: #000000;
+    .dark .home-video-container,
+    .dark .post-video-container {
+      background-color: transparent !important;
     }
 
-    .home-video-container.is-landscape {
-      aspect-ratio: 16 / 9 !important;
-    }
-
-    .home-video-container.is-square {
+    .home-video-container.is-square,
+    .home-video-container.aspect-square,
+    .post-video-container.is-square,
+    .aspect-square {
       aspect-ratio: 1 / 1 !important;
     }
 
-    .home-video-container.is-landscape .home-video-player,
-    .home-video-container.is-landscape .home-video-poster {
-      object-fit: contain !important;
+    .home-video-container.is-portrait,
+    .home-video-container.aspect-\[4\/5\],
+    .post-video-container.is-portrait {
+      aspect-ratio: 4 / 5 !important;
+    }
+
+    .home-video-container .home-video-player,
+    .home-video-container .home-video-poster,
+    .home-video-container video,
+    .home-video-container img,
+    .post-video-container video,
+    .post-video-container img,
+    .post-video-player,
+    .post-media-container video,
+    .post-media-container img {
+      width: 100% !important;
+      height: 100% !important;
+      max-height: 80vh;
+      object-fit: cover !important;
+      object-position: center !important;
+      display: block !important;
+      vertical-align: bottom !important; /* Removes standard inline-block baseline gap */
+      margin: 0 !important;
+      padding: 0 !important;
+      background-color: transparent !important;
+    }
+
+    .post-video-container {
+      width: 100%;
+      position: relative;
+      background-color: transparent !important;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    .post-video-container video {
+      width: 100% !important;
+      height: auto;
+      max-height: 80vh;
+      object-fit: cover !important;
+      display: block !important;
+      vertical-align: bottom !important; /* Removes standard inline-block baseline gap */
+      margin: 0 !important;
+      padding: 0 !important;
+      background-color: transparent !important;
     }
 
     .home-video-poster {
       width: 100%;
       height: 100%;
-      object-fit: cover;
-      object-position: center;
-      display: block;
+      object-fit: cover !important;
+      object-position: center !important;
+      display: block !important;
+      vertical-align: bottom !important;
       position: absolute;
       top: 0;
       left: 0;
       z-index: 1;
       opacity: 1;
       transition: opacity 0.22s ease;
-      background: #000000;
+      background: transparent !important;
+      margin: 0 !important;
+      padding: 0 !important;
     }
 
     .dark .home-video-poster {
-      background: #000000;
+      background: transparent !important;
     }
 
     .home-video-container.is-playing .home-video-poster {
@@ -263,17 +318,21 @@
       pointer-events: none;
     }
 
-    .home-video-player {
+    .home-video-player,
+    .post-video-player {
       width: 100%;
       height: 100%;
       object-fit: cover;
       object-position: center;
       display: block;
+      vertical-align: bottom;
       position: absolute;
       top: 0;
       left: 0;
-      background: #000000;
+      background: transparent !important;
       z-index: 3;
+      margin: 0 !important;
+      padding: 0 !important;
       transform: translateZ(0);
       -webkit-transform: translateZ(0);
       will-change: transform;
@@ -317,6 +376,14 @@
       padding: 8px 12px 6px;
       font-size: 21px;
       color: #262626;
+      border-top: none !important;
+      margin-top: 0 !important;
+    }
+
+    .dark .post-actions {
+      color: #ffffff;
+      border-top: none !important;
+      margin-top: 0 !important;
     }
 
     .post-actions-left {

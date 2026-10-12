@@ -781,3 +781,24 @@ body:not(.in-music-screen) .music-mini-player {
   -webkit-overflow-scrolling: touch;
   padding-bottom: 80px;
 }
+
+/* 8. Profile Music Tray (Reference Image 2) */
+.profile-music-tray-scroll {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.profile-music-tray-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.profile-music-tray-card {
+  transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
+}
+.profile-music-tray-card:active {
+  transform: scale(0.97);
+}

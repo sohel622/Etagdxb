@@ -168,6 +168,58 @@ function ensurePipFloatingControls() {
 /**
  * Initialize back button listener & PiP auto-entry on user leave
  */
+/**
+ * Update PiP permission and state across Native Android and WebView
+ */
+export function updatePiPState(canEnterPiP) {
+  const allowed = Boolean(canEnterPiP);
+
+  // 1. Notify Android NativeReelsBridge if available
+  if (typeof window !== 'undefined' && window.NativeReelsBridge && typeof window.NativeReelsBridge.setReelsPiPState === 'function') {
+    try {
+      window.NativeReelsBridge.setReelsPiPState(allowed);
+    } catch (_) {}
+  }
+
+  // 2. Notify Capacitor App Plugin listeners if on native platform
+  if (typeof window !== 'undefined' && window.Capacitor && window.Capacitor.isNativePlatform()) {
+    try {
+      window.Capacitor.Plugins?.App?.notifyAppListeners?.('updatePiPState', { canEnterPiP: allowed });
+    } catch (_) {}
+  }
+}
+
+/**
+ * Check if the user is strictly on the Reels route and a Reel video is actively playing
+ */
+export function isReelsRouteActive() {
+  if (typeof window === 'undefined') return false;
+  const path = window.location.pathname || '';
+  const isReelsPath = path === '/reels' || path.startsWith('/reels/') || path.startsWith('/reel/');
+  const isReelsTab = Boolean(window.activeNavId === 'reels' || window.__isReelsActive);
+  return isReelsPath || isReelsTab;
+}
+
+/**
+ * Evaluates whether PiP is currently permitted (strictly Reels route + video playing)
+ */
+export function checkCanEnterPiP() {
+  if (!isReelsRouteActive()) return false;
+  const currentVideo = getActiveReelVideo();
+  return Boolean(currentVideo && !currentVideo.paused);
+}
+
+/**
+ * Sync PiP state with Native Android
+ */
+export function syncNativePiPState() {
+  const canEnter = checkCanEnterPiP();
+  updatePiPState(canEnter);
+}
+
+/**
+ * Initialize back button listener & PiP auto-entry on user leave
+ */
 export function initReelsPipHandler() {
   if (pipListenerInitialized) return;
   pipListenerInitialized = true;
@@ -202,22 +254,23 @@ export function initReelsPipHandler() {
         }
       }
 
-      const currentVideo = document.querySelector('video.active-reel') || getActiveReelVideo();
-
-      // If a reel is playing, trigger native PiP or floating window instead of closing immediately
-      if (currentVideo && !currentVideo.paused) {
-        if (document.pictureInPictureEnabled && !document.pictureInPictureElement) {
-          try {
-            await currentVideo.requestPictureInPicture();
-            setPipMode(true);
-            return; // Prevent app exit
-          } catch (err) {
-            console.log('Web PiP fallback:', err);
+      // Strict Route Guard: Only enter PiP if user is strictly on Reels feed and reel is playing
+      if (isReelsRouteActive()) {
+        const currentVideo = document.querySelector('video.active-reel') || getActiveReelVideo();
+        if (currentVideo && !currentVideo.paused) {
+          if (document.pictureInPictureEnabled && !document.pictureInPictureElement) {
+            try {
+              await currentVideo.requestPictureInPicture();
+              setPipMode(true);
+              return; // Prevent app exit
+            } catch (err) {
+              console.log('Web PiP fallback:', err);
+            }
           }
         }
       }
 
-      // Otherwise standard back navigation
+      // Otherwise standard back navigation for all other pages (Home, Camera, Profile, Search, Explore, Settings, Chat)
       if (data && data.canGoBack) {
         window.history.back();
       }
@@ -229,7 +282,8 @@ export function initReelsPipHandler() {
   // 2. Auto Picture-in-Picture on app leave / tab switch / visibility hide
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') {
+      // Strict guard: In ALL other routes PiP is completely DISABLED
+      if (document.visibilityState === 'hidden' && isReelsRouteActive()) {
         const activeVid = getActiveReelVideo();
         if (activeVid && !activeVid.paused) {
           triggerReelPiP(activeVid);
@@ -238,15 +292,18 @@ export function initReelsPipHandler() {
     });
 
     window.addEventListener('pagehide', () => {
-      const activeVid = getActiveReelVideo();
-      if (activeVid && !activeVid.paused) {
-        triggerReelPiP(activeVid);
+      // Strict guard: In ALL other routes PiP is completely DISABLED
+      if (isReelsRouteActive()) {
+        const activeVid = getActiveReelVideo();
+        if (activeVid && !activeVid.paused) {
+          triggerReelPiP(activeVid);
+        }
       }
     });
 
     // 3. Listen for Android native pipModeChange CustomEvent
     window.addEventListener('pipModeChange', (e) => {
-      const isPiP = Boolean(e?.detail?.isPiP);
+      const isPiP = Boolean(e?.detail?.isInPiP ?? e?.detail?.isPiP);
       console.log('[PiP] Native pipModeChange received:', isPiP);
       setPipMode(isPiP);
     });
@@ -267,6 +324,24 @@ export function initReelsPipHandler() {
         showPipFloatingControls(controls);
       }
     }, true);
+
+    // 6. Listen for route and video playback events to keep native PiP state in sync
+    window.addEventListener('routeChange', () => {
+      setTimeout(syncNativePiPState, 50);
+    });
+    window.addEventListener('reelsActiveStateChange', () => {
+      setTimeout(syncNativePiPState, 50);
+    });
+    document.addEventListener('play', (e) => {
+      if (e.target && e.target.tagName === 'VIDEO') {
+        setTimeout(syncNativePiPState, 50);
+      }
+    }, true);
+    document.addEventListener('pause', (e) => {
+      if (e.target && e.target.tagName === 'VIDEO') {
+        setTimeout(syncNativePiPState, 50);
+      }
+    }, true);
   }
 }
 
@@ -279,4 +354,8 @@ if (typeof window !== 'undefined') {
   window.setPipMode = setPipMode;
   window.initReelsPipHandler = initReelsPipHandler;
   window.updatePipPlayButtonIcon = updatePipPlayButtonIcon;
+  window.updatePiPState = updatePiPState;
+  window.isReelsRouteActive = isReelsRouteActive;
+  window.checkCanEnterPiP = checkCanEnterPiP;
+  window.syncNativePiPState = syncNativePiPState;
 }

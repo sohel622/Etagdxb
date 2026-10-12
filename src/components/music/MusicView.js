@@ -149,14 +149,50 @@ function renderTrackItem(track, category, isCurrent, isPlaying) {
 
 function renderQuickPicks(tracks) {
   const container = document.getElementById("musicQuickPicksContainer");
-  if (!container) return;
+  if (container) {
+    const currentTrackId = youtubeMusicService.currentTrack?.id;
+    const isPlaying = youtubeMusicService.isPlaying;
+
+    container.innerHTML = tracks.map((track) => {
+      const isCurrent = track.id === currentTrackId;
+      return renderTrackItem(track, 'quickPicks', isCurrent, isPlaying);
+    }).join("");
+  }
+
+  // Also populate Profile Music Tray (Reference Image 2)
+  renderProfileMusicTray(tracks);
+}
+
+export function renderProfileMusicTray(tracks) {
+  const container = document.getElementById("profileMusicTrayScroll");
+  if (!container || !tracks || !Array.isArray(tracks)) return;
 
   const currentTrackId = youtubeMusicService.currentTrack?.id;
   const isPlaying = youtubeMusicService.isPlaying;
 
-  container.innerHTML = tracks.map((track) => {
+  container.innerHTML = tracks.slice(0, 6).map((track) => {
     const isCurrent = track.id === currentTrackId;
-    return renderTrackItem(track, 'quickPicks', isCurrent, isPlaying);
+    return `
+      <div class="profile-music-tray-card shrink-0 flex items-center gap-2.5 bg-neutral-100 dark:bg-neutral-900 border ${isCurrent && isPlaying ? 'border-rose-500 shadow-sm shadow-rose-500/20' : 'border-neutral-200/80 dark:border-neutral-800'} rounded-xl p-2 pr-3 cursor-pointer hover:bg-neutral-200/50 dark:hover:bg-neutral-800/80" data-track-id="${track.id}" onclick="window.handlePlayTrackClick('${track.id}', 'quickPicks')">
+        <div class="relative w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-neutral-800 shadow-xs">
+          <img src="${track.thumbnail}" class="w-full h-full object-cover" alt="" loading="lazy" />
+          ${isCurrent && isPlaying ? `
+            <div class="music-track-playing-indicator absolute inset-0 bg-black/60 flex items-center justify-center gap-0.5 rounded-lg">
+              <div class="music-wave-bar !h-3"></div>
+              <div class="music-wave-bar !h-4"></div>
+              <div class="music-wave-bar !h-2.5"></div>
+            </div>
+          ` : ''}
+        </div>
+        <div class="min-w-0 max-w-[110px]">
+          <div class="font-semibold text-[12.5px] text-neutral-900 dark:text-white truncate ${isCurrent && isPlaying ? 'text-rose-500 dark:text-rose-400' : ''}">${escapeHtml(track.title)}</div>
+          <div class="text-[11px] text-neutral-500 dark:text-neutral-400 truncate mt-0.5">${escapeHtml(track.channelTitle)}</div>
+        </div>
+        <div class="w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-colors ${isCurrent && isPlaying ? 'bg-rose-500 text-white' : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300'}">
+          <i class="fa-solid ${isCurrent && isPlaying ? 'fa-pause text-[10px]' : 'fa-play text-[9px] ml-0.5'}"></i>
+        </div>
+      </div>
+    `;
   }).join("");
 }
 
@@ -430,6 +466,51 @@ function updateFeedTrackPlayingIndicators(state) {
       }
     }
   });
+
+  // Update Profile Music Tray cards
+  document.querySelectorAll(".profile-music-tray-card").forEach(card => {
+    const trackId = card.dataset.trackId || "";
+    const isThisCard = trackId === currentId;
+    card.classList.toggle("border-rose-500", isThisCard && isPlaying);
+    card.classList.toggle("shadow-sm", isThisCard && isPlaying);
+    card.classList.toggle("shadow-rose-500/20", isThisCard && isPlaying);
+
+    const titleEl = card.querySelector(".font-semibold");
+    if (titleEl) {
+      titleEl.classList.toggle("text-rose-500", isThisCard && isPlaying);
+      titleEl.classList.toggle("dark:text-rose-400", isThisCard && isPlaying);
+    }
+
+    const iconBox = card.querySelector(".w-7.h-7");
+    if (iconBox) {
+      if (isThisCard && isPlaying) {
+        iconBox.className = "w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-colors bg-rose-500 text-white";
+        iconBox.innerHTML = '<i class="fa-solid fa-pause text-[10px]"></i>';
+      } else {
+        iconBox.className = "w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-colors bg-neutral-200 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300";
+        iconBox.innerHTML = '<i class="fa-solid fa-play text-[9px] ml-0.5"></i>';
+      }
+    }
+
+    const thumbBox = card.querySelector(".relative.w-10.h-10");
+    if (thumbBox) {
+      let wave = thumbBox.querySelector(".music-track-playing-indicator");
+      if (isThisCard && isPlaying) {
+        if (!wave) {
+          wave = document.createElement("div");
+          wave.className = "music-track-playing-indicator absolute inset-0 bg-black/60 flex items-center justify-center gap-0.5 rounded-lg";
+          wave.innerHTML = `
+            <div class="music-wave-bar !h-3"></div>
+            <div class="music-wave-bar !h-4"></div>
+            <div class="music-wave-bar !h-2.5"></div>
+          `;
+          thumbBox.appendChild(wave);
+        }
+      } else if (wave) {
+        wave.remove();
+      }
+    }
+  });
 }
 
 // ========================================================
@@ -604,4 +685,5 @@ if (typeof window !== "undefined") {
   window.handleMusicSearchInput = handleMusicSearchInput;
   window.clearMusicSearchInput = clearMusicSearchInput;
   window.executeMusicSearch = executeMusicSearch;
+  window.renderProfileMusicTray = renderProfileMusicTray;
 }

@@ -1,4 +1,5 @@
 // Flashgram Main Entry Point
+import './index.css';
 import './styles/global.css';
 
 // Utilities & Services

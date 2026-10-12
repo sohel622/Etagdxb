@@ -7,21 +7,31 @@ let channelCreated = false;
 const activeUploads = new Map();
 
 // Static IDs according to specifications
-export const UPLOAD_NOTIFICATION_ID = 8888;
-export const COMPLETION_NOTIFICATION_ID = 8889;
+export const UPLOAD_NOTIFICATION_ID = 9999;
+export const COMPLETION_NOTIFICATION_ID = 10000;
 
 // Throttling state to prevent flicker and OS notification manager spam
 let lastUpdatedPercent = -1;
 let lastUpdatedTime = 0;
+let lastUpdate = 0;
 
 /**
  * Initialize Notification Channels for Android 8.0+
- * Creates "flashgram_upload_channel" with IMPORTANCE_LOW (2) so background
+ * Creates "upload_channel" with IMPORTANCE_LOW (2) so background
  * progress updates never trigger sound, vibration, or heads-up popups.
  */
 export async function initNotificationChannel() {
   if (channelCreated || !Capacitor.isNativePlatform()) return;
   try {
+    await LocalNotifications.createChannel({
+      id: 'upload_channel',
+      name: 'Upload Progress',
+      description: 'Silent background upload progress',
+      importance: 2, // IMPORTANCE_LOW (2)
+      visibility: 1, // PUBLIC
+      vibration: false,
+      sound: undefined
+    });
     await LocalNotifications.createChannel({
       id: 'flashgram_upload_channel',
       name: 'Upload Progress',
@@ -162,35 +172,26 @@ export function createUploadSession(videoThumbnailUrl) {
 }
 
 /**
- * Update Instagram-style horizontal progress notification in real-time
- * Prevents flickering, repeated sound/vibrations, and notification spam
+ * Instagram-Style Smooth Video Upload Progress Notification (Fixed ID: 9999)
+ * Prevents flickering, repeated vibrations/rings, and spamming OS notification manager.
+ * Supports background continuation via NativeUploadBridge / FOREGROUND_SERVICE_DATA_SYNC.
  */
-export async function notifyUploadProgress(notificationId, { loaded, total, percent, videoThumbnailUrl }) {
-  const session = activeUploads.get(UPLOAD_NOTIFICATION_ID) || {
-    id: UPLOAD_NOTIFICATION_ID,
-    thumbnailUrl: videoThumbnailUrl
-  };
-
-  const safePercent = Math.min(100, Math.max(0, Math.round(percent)));
-  const uploadedMB = (loaded / (1024 * 1024)).toFixed(1);
-  const totalMB = (total / (1024 * 1024)).toFixed(1);
-
-  // Update in-app progress banner
-  updateUploadProgressBanner(safePercent, { uploadedMB, totalMB });
-
-  // Throttle: avoid spamming OS notification manager
-  // Only call notification update if progress changes by at least 5% or once every 800ms
+export const updateUploadProgress = async (progressPercent, videoThumbnailUrl) => {
+  const safePercent = Math.min(100, Math.max(0, Math.round(progressPercent)));
   const now = Date.now();
-  if (safePercent < 100 && safePercent > 0) {
-    const percentDiff = safePercent - lastUpdatedPercent;
-    const timeDiff = now - lastUpdatedTime;
-    if (percentDiff < 5 && timeDiff < 800) {
-      return;
-    }
-  }
+  if (now - lastUpdate < 500 && safePercent < 100) return;
+  lastUpdate = now;
 
-  lastUpdatedPercent = safePercent;
-  lastUpdatedTime = now;
+  // Keep Android native foreground dataSync service active if available
+  if (typeof window !== 'undefined' && window.NativeUploadBridge && typeof window.NativeUploadBridge.startUploadService === 'function') {
+    try {
+      window.NativeUploadBridge.startUploadService(
+        'Posting to Flashgram...',
+        safePercent,
+        videoThumbnailUrl || ''
+      );
+    } catch (_) {}
+  }
 
   if (Capacitor.isNativePlatform()) {
     try {
@@ -198,35 +199,87 @@ export async function notifyUploadProgress(notificationId, { loaded, total, perc
       await LocalNotifications.schedule({
         notifications: [
           {
-            id: UPLOAD_NOTIFICATION_ID,
-            title: 'Flashgram',
-            body: `Reel uploading... ${uploadedMB} MB / ${totalMB} MB (${safePercent}%)`,
-            smallIcon: 'ic_stat_flashgram',
-            largeIcon: session.thumbnailUrl || videoThumbnailUrl || undefined, // Right-side thumbnail
+            id: UPLOAD_NOTIFICATION_ID, // 9999
+            title: 'Posting to Flashgram...',
+            body: `${safePercent}% uploaded`,
             iconColor: '#E1306C',
-            channelId: 'flashgram_upload_channel',
-            ongoing: true, // Non-dismissible while uploading
+            smallIcon: 'ic_stat_flashgram',
+            largeIcon: videoThumbnailUrl || undefined, // Video thumbnail on lockscreen
+            ongoing: safePercent < 100, // Persistent while uploading
             autoCancel: false,
-            silent: true, // Absolutely no repeated chime/vibration
-            onlyAlertOnce: true, // Phone only alerts the very first time; subsequent progress updates remain completely silent
-            extra: {
-              progress: safePercent,
-              max: 100,
-              indeterminate: false
-            }
-          }
-        ]
+            extra: { progress: safePercent },
+            android: {
+              channelId: 'upload_channel',
+              onlyAlertOnce: true, // Prevents notification from bouncing/vibrating repeatedly
+              progress: {
+                max: 100,
+                current: safePercent,
+                indeterminate: false,
+              },
+            },
+          },
+        ],
       });
     } catch (err) {
-      console.warn('[NotificationService] Native progress update notice:', err);
+      console.warn('[NotificationService] LocalNotifications progress error:', err);
     }
   }
+
+  if (safePercent >= 100) {
+    if (typeof window !== 'undefined' && window.NativeUploadBridge && typeof window.NativeUploadBridge.finishUploadService === 'function') {
+      try {
+        window.NativeUploadBridge.finishUploadService(true, 'Your video has been shared to Flashgram.');
+      } catch (_) {}
+    }
+
+    setTimeout(async () => {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await LocalNotifications.cancel({ notifications: [{ id: UPLOAD_NOTIFICATION_ID }] });
+          await LocalNotifications.schedule({
+            notifications: [
+              {
+                id: COMPLETION_NOTIFICATION_ID, // 10000
+                title: 'Posted!',
+                body: 'Your video has been shared to Flashgram.',
+                iconColor: '#E1306C',
+                smallIcon: 'ic_stat_flashgram',
+                largeIcon: videoThumbnailUrl || undefined,
+                autoCancel: true,
+                ongoing: false,
+                android: {
+                  channelId: 'upload_channel',
+                  autoCancel: true,
+                },
+              },
+            ],
+          });
+        } catch (_) {}
+      }
+    }, 800);
+  }
+};
+
+/**
+ * Update Instagram-style horizontal progress notification in real-time
+ * Prevents flickering, repeated sound/vibrations, and notification spam
+ */
+export async function notifyUploadProgress(notificationId, { loaded, total, percent, videoThumbnailUrl }) {
+  const safePercent = Math.min(100, Math.max(0, Math.round(percent)));
+  const uploadedMB = (loaded / (1024 * 1024)).toFixed(1);
+  const totalMB = (total / (1024 * 1024)).toFixed(1);
+
+  // Update in-app progress banner
+  updateUploadProgressBanner(safePercent, { uploadedMB, totalMB });
+
+  // Update smooth notification with fixed ID 9999 and throttling
+  await updateUploadProgress(safePercent, videoThumbnailUrl);
 }
 
 /**
  * 100% Completion Handler (Triggered Strictly Once)
- * Cancels ongoing progress notification (id: 8888) immediately and schedules
- * a single completion notification with new ID (id: 8889).
+ * Cancels ongoing progress notification (id: 9999) immediately and schedules
+ * a single completion notification with new ID (id: 10000).
  */
 export async function notifyUploadSuccess(notificationId, videoThumbnailUrl) {
   const session = activeUploads.get(UPLOAD_NOTIFICATION_ID);
@@ -235,30 +288,40 @@ export async function notifyUploadSuccess(notificationId, videoThumbnailUrl) {
 
   lastUpdatedPercent = -1;
   lastUpdatedTime = 0;
+  lastUpdate = 0;
+
+  if (typeof window !== 'undefined' && window.NativeUploadBridge && typeof window.NativeUploadBridge.finishUploadService === 'function') {
+    try {
+      window.NativeUploadBridge.finishUploadService(true, 'Your video has been shared to Flashgram.');
+    } catch (_) {}
+  }
 
   if (Capacitor.isNativePlatform()) {
     try {
       await initNotificationChannel();
 
-      // Cancel the ongoing progress notification (id: 8888) immediately
+      // Cancel the ongoing progress notification (id: 9999) immediately
       await LocalNotifications.cancel({
         notifications: [{ id: UPLOAD_NOTIFICATION_ID }]
       });
 
-      // Schedule a single completion notification with a new ID (id: 8889)
+      // Schedule a single completion notification with a new ID (id: 10000)
       await LocalNotifications.schedule({
         notifications: [
           {
             id: COMPLETION_NOTIFICATION_ID,
-            title: 'Flashgram',
-            body: 'Reel uploaded successfully! 🎉',
+            title: 'Posted!',
+            body: 'Your video has been shared to Flashgram.',
             smallIcon: 'ic_stat_flashgram',
             largeIcon: thumb || undefined,
             iconColor: '#E1306C',
-            channelId: 'flashgram_upload_channel',
             ongoing: false,
             autoCancel: true,
-            silent: false // Chime once upon success
+            silent: false,
+            android: {
+              channelId: 'upload_channel',
+              autoCancel: true,
+            }
           }
         ]
       });
@@ -267,8 +330,8 @@ export async function notifyUploadSuccess(notificationId, videoThumbnailUrl) {
     }
   } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     try {
-      new Notification('Flashgram', {
-        body: 'Reel uploaded successfully! 🎉',
+      new Notification('Posted!', {
+        body: 'Your video has been shared to Flashgram.',
         icon: thumb || '/android/app/src/main/res/drawable/splash.png'
       });
     } catch (_) {}
@@ -282,6 +345,13 @@ export async function notifyUploadError(notificationId, errorMessage) {
   activeUploads.delete(UPLOAD_NOTIFICATION_ID);
   lastUpdatedPercent = -1;
   lastUpdatedTime = 0;
+  lastUpdate = 0;
+
+  if (typeof window !== 'undefined' && window.NativeUploadBridge && typeof window.NativeUploadBridge.finishUploadService === 'function') {
+    try {
+      window.NativeUploadBridge.finishUploadService(false, errorMessage || 'Upload failed');
+    } catch (_) {}
+  }
 
   if (Capacitor.isNativePlatform()) {
     try {
@@ -298,10 +368,13 @@ export async function notifyUploadError(notificationId, errorMessage) {
             body: errorMessage || 'Could not upload reel. Please try again.',
             smallIcon: 'ic_stat_flashgram',
             iconColor: '#E1306C',
-            channelId: 'flashgram_upload_channel',
             ongoing: false,
             autoCancel: true,
-            silent: false
+            silent: false,
+            android: {
+              channelId: 'upload_channel',
+              autoCancel: true,
+            }
           }
         ]
       });
@@ -319,6 +392,7 @@ if (typeof window !== 'undefined') {
   window.handleGrantAllPermissions = handleGrantAllPermissions;
   window.initNotificationChannel = initNotificationChannel;
   window.createUploadSession = createUploadSession;
+  window.updateUploadProgress = updateUploadProgress;
   window.notifyUploadProgress = notifyUploadProgress;
   window.notifyUploadSuccess = notifyUploadSuccess;
   window.notifyUploadError = notifyUploadError;

@@ -5,8 +5,8 @@
       left: 0 !important;
       right: 0 !important;
       width: 100% !important;
-      height: calc(52px + env(safe-area-inset-bottom, 0px)) !important;
-      padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+      height: calc(52px + max(env(safe-area-inset-bottom, 0px), 12px)) !important;
+      padding-bottom: max(env(safe-area-inset-bottom, 0px), 12px) !important;
       z-index: 50 !important;
       transform: translateY(0);
       transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;

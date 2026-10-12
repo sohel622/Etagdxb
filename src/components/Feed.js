@@ -150,7 +150,7 @@ function createPostCardElement(post, index = 0) {
       </div>
       <i class="fa-solid fa-ellipsis post-more-btn cursor-pointer" title="Post options"></i>
     </div>
-    <div class="home-video-container relative" data-post-id="${post.id}" data-video-url="${getOptimizedVideoUrl(post.url || post.video_url)}" data-poster-url="${posterImg}" style="cursor: pointer;" title="Watch Reel">
+    <div class="home-video-container post-video-container relative" data-post-id="${post.id}" data-video-url="${getOptimizedVideoUrl(post.url || post.video_url)}" data-poster-url="${posterImg}" style="cursor: pointer;" title="Watch Reel">
       <div class="home-video-skeleton"></div>
       <img class="home-video-poster" src="${posterImg}" alt="${displayUser} video" loading="lazy" crossorigin="anonymous" onerror="this.style.display='none';" />
       ${Boolean(post.isOfflineCached) 
@@ -569,7 +569,7 @@ async function mountAndPlayVideo(container) {
   let video = container.querySelector("video");
   if (!video) {
     video = document.createElement("video");
-    video.className = "home-video-player w-full h-auto max-h-[500px] object-cover bg-black";
+    video.className = "home-video-player post-video-player w-full h-full object-cover";
     video.loop = true;
     video.autoplay = true;
     video.playsInline = true;

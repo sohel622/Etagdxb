@@ -10,7 +10,7 @@ import { switchTab } from "./navigation/BottomNavbar.js";
 import { uploadVideoToCloudinary, deriveCloudinaryThumbnailUrl, savePostToSupabase } from "../services/cloudinaryService.js";
 import { uploadUserAvatar, getCurrentUserId, liveSyncUserProfile, syncProfileToSupabase } from "../services/avatarService.js";
 import { showUploadProgressBanner, updateUploadProgressBanner, completeUploadProgressBanner, failUploadProgressBanner } from "./UploadProgressBanner.js";
-import { createUploadSession, notifyUploadProgress, notifyUploadSuccess, notifyUploadError } from "../services/notificationService.js";
+import { createUploadSession, updateUploadProgress, notifyUploadProgress, notifyUploadSuccess, notifyUploadError } from "../services/notificationService.js";
 
 // --- Shared State Variables ---
 let selectedAvatarFile = null;

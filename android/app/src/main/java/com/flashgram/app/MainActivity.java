@@ -34,6 +34,25 @@ public class MainActivity extends BridgeActivity {
 
     public static volatile boolean isReelsActive = false;
     public static volatile boolean isDarkModeActive = true;
+    public static volatile boolean isMusicActive = false;
+    private boolean isReelsActiveAndPlaying = false;
+    public static MainActivity instance = null;
+
+    public void setReelsPiPState(boolean allowed) {
+        this.isReelsActiveAndPlaying = allowed;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                // Android 12+ smooth auto-enter PiP
+                PictureInPictureParams params = new PictureInPictureParams.Builder()
+                        .setAspectRatio(new Rational(9, 16)) // Reels vertical aspect ratio
+                        .setAutoEnterEnabled(allowed)
+                        .build();
+                setPictureInPictureParams(params);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
 
     private static final String ACTION_PIP_PLAY_PAUSE = "com.flashgram.app.ACTION_PIP_PLAY_PAUSE";
     private static final String ACTION_PIP_NEXT = "com.flashgram.app.ACTION_PIP_NEXT";
@@ -64,6 +83,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        instance = this;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             getWindow().getAttributes().layoutInDisplayCutoutMode =
                 WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
@@ -72,6 +92,7 @@ public class MainActivity extends BridgeActivity {
         createUploadNotificationChannel();
 
         if (bridge != null && bridge.getWebView() != null) {
+            bridge.getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
             bridge.getWebView().addJavascriptInterface(new Object() {
                 @android.webkit.JavascriptInterface
                 public void setReelsActive(boolean active) {
@@ -95,6 +116,16 @@ public class MainActivity extends BridgeActivity {
                         }
                     });
                 }
+
+                @android.webkit.JavascriptInterface
+                public void setReelsPiPState(final boolean allowed) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            MainActivity.this.setReelsPiPState(allowed);
+                        }
+                    });
+                }
             }, "NativeReelsBridge");
 
             bridge.getWebView().addJavascriptInterface(new Object() {
@@ -115,6 +146,107 @@ public class MainActivity extends BridgeActivity {
                         .getString("active_app_icon", "default");
                 }
             }, "NativeAppIconBridge");
+
+            bridge.getWebView().addJavascriptInterface(new Object() {
+                @android.webkit.JavascriptInterface
+                public void updateMediaMetadata(
+                    final String title,
+                    final String artist,
+                    final String album,
+                    final String coverUrl,
+                    final boolean isPlaying,
+                    final long durationMs,
+                    final long positionMs,
+                    final boolean isLiked
+                ) {
+                    isMusicActive = isPlaying;
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Intent serviceIntent = new Intent(MainActivity.this, FlashgramMediaService.class);
+                            serviceIntent.setAction(FlashgramMediaService.ACTION_START_OR_UPDATE);
+                            serviceIntent.putExtra(FlashgramMediaService.EXTRA_TITLE, title);
+                            serviceIntent.putExtra(FlashgramMediaService.EXTRA_ARTIST, artist);
+                            serviceIntent.putExtra(FlashgramMediaService.EXTRA_ALBUM, album);
+                            serviceIntent.putExtra(FlashgramMediaService.EXTRA_COVER_URL, coverUrl);
+                            serviceIntent.putExtra(FlashgramMediaService.EXTRA_IS_PLAYING, isPlaying);
+                            serviceIntent.putExtra(FlashgramMediaService.EXTRA_DURATION, durationMs);
+                            serviceIntent.putExtra(FlashgramMediaService.EXTRA_POSITION, positionMs);
+                            serviceIntent.putExtra(FlashgramMediaService.EXTRA_IS_LIKED, isLiked);
+
+                            try {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                    startForegroundService(serviceIntent);
+                                } else {
+                                    startService(serviceIntent);
+                                }
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    });
+                }
+
+                @android.webkit.JavascriptInterface
+                public void stopMediaService() {
+                    isMusicActive = false;
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Intent serviceIntent = new Intent(MainActivity.this, FlashgramMediaService.class);
+                            serviceIntent.setAction(FlashgramMediaService.ACTION_STOP);
+                            try {
+                                startService(serviceIntent);
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    });
+                }
+            }, "NativeMediaBridge");
+
+            bridge.getWebView().addJavascriptInterface(new Object() {
+                @android.webkit.JavascriptInterface
+                public void startUploadService(final String title, final int progress, final String thumbnailUrl) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Intent serviceIntent = new Intent(MainActivity.this, FlashgramUploadService.class);
+                            serviceIntent.setAction(FlashgramUploadService.ACTION_START_OR_UPDATE);
+                            serviceIntent.putExtra(FlashgramUploadService.EXTRA_TITLE, title);
+                            serviceIntent.putExtra(FlashgramUploadService.EXTRA_PROGRESS, progress);
+                            serviceIntent.putExtra(FlashgramUploadService.EXTRA_THUMBNAIL_URL, thumbnailUrl);
+                            try {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                    startForegroundService(serviceIntent);
+                                } else {
+                                    startService(serviceIntent);
+                                }
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    });
+                }
+
+                @android.webkit.JavascriptInterface
+                public void finishUploadService(final boolean isSuccess, final String message) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Intent serviceIntent = new Intent(MainActivity.this, FlashgramUploadService.class);
+                            serviceIntent.setAction(FlashgramUploadService.ACTION_FINISH);
+                            serviceIntent.putExtra(FlashgramUploadService.EXTRA_SUCCESS, isSuccess);
+                            serviceIntent.putExtra(FlashgramUploadService.EXTRA_MESSAGE, message);
+                            try {
+                                startService(serviceIntent);
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    });
+                }
+            }, "NativeUploadBridge");
         }
 
         IntentFilter filter = new IntentFilter();
@@ -160,6 +292,67 @@ public class MainActivity extends BridgeActivity {
         try {
             unregisterReceiver(pipReceiver);
         } catch (Exception ignored) {}
+        if (instance == this) {
+            instance = null;
+        }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        if (isMusicActive && bridge != null && bridge.getWebView() != null) {
+            bridge.getWebView().resumeTimers();
+        }
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        if (isMusicActive && bridge != null && bridge.getWebView() != null) {
+            bridge.getWebView().resumeTimers();
+        }
+    }
+
+    public static void dispatchMediaCommand(final String action) {
+        if (instance == null || instance.bridge == null || instance.bridge.getWebView() == null) return;
+        instance.bridge.getWebView().post(new Runnable() {
+            @Override
+            public void run() {
+                String js = "";
+                if (FlashgramMediaService.ACTION_PLAY.equals(action)) {
+                    js = "window.youtubeMusicService && window.youtubeMusicService.play();";
+                } else if (FlashgramMediaService.ACTION_PAUSE.equals(action)) {
+                    js = "window.youtubeMusicService && window.youtubeMusicService.pause();";
+                } else if (FlashgramMediaService.ACTION_NEXT.equals(action)) {
+                    js = "window.youtubeMusicService && window.youtubeMusicService.nextTrack();";
+                } else if (FlashgramMediaService.ACTION_PREV.equals(action)) {
+                    js = "window.youtubeMusicService && window.youtubeMusicService.prevTrack();";
+                } else if (FlashgramMediaService.ACTION_LIKE.equals(action)) {
+                    js = "if (window.youtubeMusicService && window.youtubeMusicService.currentTrack) { " +
+                         "  window.youtubeMusicService.toggleLike(window.youtubeMusicService.currentTrack.id); " +
+                         "}";
+                } else if (FlashgramMediaService.ACTION_STOP.equals(action)) {
+                    js = "window.youtubeMusicService && window.youtubeMusicService.stopAndDismissPlayer();";
+                }
+                if (!js.isEmpty() && instance != null && instance.bridge != null && instance.bridge.getWebView() != null) {
+                    instance.bridge.getWebView().evaluateJavascript(js, null);
+                }
+            }
+        });
+    }
+
+    public static void dispatchMediaSeek(final long positionMs) {
+        if (instance == null || instance.bridge == null || instance.bridge.getWebView() == null) return;
+        instance.bridge.getWebView().post(new Runnable() {
+            @Override
+            public void run() {
+                long seconds = positionMs / 1000L;
+                String js = "window.youtubeMusicService && window.youtubeMusicService.seekTo(" + seconds + ");";
+                if (instance != null && instance.bridge != null && instance.bridge.getWebView() != null) {
+                    instance.bridge.getWebView().evaluateJavascript(js, null);
+                }
+            }
+        });
     }
 
     @Override
@@ -199,17 +392,27 @@ public class MainActivity extends BridgeActivity {
 
     private void createUploadNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                "flashgram_upload_channel",
-                "Upload Progress",
-                NotificationManager.IMPORTANCE_LOW
-            );
-            channel.setDescription("Silent background upload progress");
-            channel.enableVibration(false);
-            channel.setSound(null, null);
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
-                manager.createNotificationChannel(channel);
+                NotificationChannel channel1 = new NotificationChannel(
+                    "upload_channel",
+                    "Upload Progress",
+                    NotificationManager.IMPORTANCE_LOW
+                );
+                channel1.setDescription("Silent background upload progress");
+                channel1.enableVibration(false);
+                channel1.setSound(null, null);
+                manager.createNotificationChannel(channel1);
+
+                NotificationChannel channel2 = new NotificationChannel(
+                    "flashgram_upload_channel",
+                    "Upload Progress",
+                    NotificationManager.IMPORTANCE_LOW
+                );
+                channel2.setDescription("Silent background upload progress");
+                channel2.enableVibration(false);
+                channel2.setSound(null, null);
+                manager.createNotificationChannel(channel2);
             }
         }
     }
@@ -232,10 +435,16 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
-        enterAppPictureInPicture();
+        // Only enter PiP if user is on Reels and video is playing
+        if (isReelsActiveAndPlaying && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            enterAppPictureInPicture();
+        }
     }
 
     public void enterAppPictureInPicture() {
+        if (!isReelsActiveAndPlaying) {
+            return;
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             try {
                 // 9:16 vertical ratio for Reels
@@ -268,7 +477,7 @@ public class MainActivity extends BridgeActivity {
                 builder.setActions(actions);
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    builder.setAutoEnterEnabled(true);
+                    builder.setAutoEnterEnabled(isReelsActiveAndPlaying);
                 }
                 enterPictureInPictureMode(builder.build());
             } catch (Exception e) {
@@ -280,10 +489,13 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, Configuration newConfig) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
-        // Notify WebView about PiP mode change
+        // Send event to WebView to hide unnecessary controls when in floating mini-player
+        if (getBridge() != null) {
+            getBridge().triggerWindowJSEvent("pipModeChange", "{\"isInPiP\":" + isInPictureInPictureMode + ",\"isPiP\":" + isInPictureInPictureMode + "}");
+        }
         if (bridge != null && bridge.getWebView() != null) {
             bridge.getWebView().evaluateJavascript(
-                "window.dispatchEvent(new CustomEvent('pipModeChange', { detail: { isPiP: " + isInPictureInPictureMode + " } }));",
+                "window.dispatchEvent(new CustomEvent('pipModeChange', { detail: { isInPiP: " + isInPictureInPictureMode + ", isPiP: " + isInPictureInPictureMode + " } }));",
                 null
             );
         }

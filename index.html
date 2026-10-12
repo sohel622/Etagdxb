@@ -112,6 +112,7 @@
     };
   </script>
 
+  <link rel="stylesheet" href="/src/index.css" />
   <link rel="stylesheet" href="/src/styles/global.css" />
 </head>
 <body>
@@ -141,7 +142,7 @@
       <header 
         class="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-black transition-colors fixed-top-header top-bar app-header select-none"
         id="topNavbarHeader"
-        style="padding-top: max(env(safe-area-inset-top, 0px), 36px); padding-bottom: 8px; border-bottom: 1px solid rgba(0, 0, 0, 0.05); background-color: var(--header-bg, #ffffff);"
+        style="padding-top: max(env(safe-area-inset-top, 0px), 24px); padding-bottom: 8px; border-bottom: 1px solid rgba(0, 0, 0, 0.05); background-color: var(--header-bg, #ffffff);"
       >
         <div class="flex items-center justify-between px-4 h-11 w-full">
           <!-- Flashgram Brand Logo / Name -->
@@ -305,6 +306,27 @@
               Edit profile
             </button>
             <button type="button" id="editProfileBtn" style="display:none;" onclick="if (typeof openEditProfileScreen === 'function') openEditProfileScreen();"></button>
+          </div>
+
+          <!-- Profile Music Tray (Reference Image 2) -->
+          <div class="profile-music-tray-wrap px-0 py-2.5 mt-2 border-t border-neutral-100 dark:border-neutral-800/80" id="profileMusicTrayWrap">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-1.5 font-bold text-[13px] text-neutral-900 dark:text-white">
+                <span class="w-5 h-5 rounded-full bg-rose-500/10 text-rose-500 flex items-center justify-center text-[10px]">
+                  <i class="fa-solid fa-music"></i>
+                </span>
+                <span>Featured Tracks</span>
+              </div>
+              <button type="button" class="text-[12px] font-semibold text-rose-500 hover:text-rose-400 flex items-center gap-1" onclick="if (typeof openFlashgramMusicView === 'function') openFlashgramMusicView();">
+                <span>All Music</span>
+                <i class="fa-solid fa-chevron-right text-[10px]"></i>
+              </button>
+            </div>
+
+            <!-- Horizontal quick-play cards -->
+            <div class="profile-music-tray-scroll flex items-center gap-2.5 overflow-x-auto pb-1 scrollbar-none" id="profileMusicTrayScroll">
+              <!-- Dynamically populated from quickPicks -->
+            </div>
           </div>
 
           <!-- Hidden avatar file input for Set Photo -->

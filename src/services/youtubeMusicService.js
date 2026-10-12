@@ -3,6 +3,30 @@
 
 const YOUTUBE_API_KEY = "AIzaSyAaIoLTRmHOUTv5b5y7yiaT27Mj1AX936Q";
 
+// Background Audio Keep-Alive for continuous playback when screen is locked or app is minimized
+let bgAudioKeepAlive = null;
+
+function startBgAudioKeepAlive() {
+  try {
+    if (!bgAudioKeepAlive) {
+      bgAudioKeepAlive = new Audio();
+      // 1-second silent WAV loop
+      bgAudioKeepAlive.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAP8A/w==";
+      bgAudioKeepAlive.loop = true;
+      bgAudioKeepAlive.volume = 0.01;
+    }
+    bgAudioKeepAlive.play().catch(() => {});
+  } catch (_) {}
+}
+
+function stopBgAudioKeepAlive() {
+  if (bgAudioKeepAlive) {
+    try {
+      bgAudioKeepAlive.pause();
+    } catch (_) {}
+  }
+}
+
 // Curated high-fidelity single tracks fallback catalog
 const FALLBACK_TRACKS = {
   quickPicks: [
@@ -481,6 +505,7 @@ class YouTubeMusicService {
     this.currentTime = 0;
     this.duration = track.duration || 0;
     this.isPlaying = true;
+    startBgAudioKeepAlive();
 
     if (this.player && typeof this.player.loadVideoById === 'function') {
       try {
@@ -523,12 +548,14 @@ class YouTubeMusicService {
       }
       this.isPlaying = false;
       this.stopProgressTracker();
+      stopBgAudioKeepAlive();
     } else {
       if (typeof this.player.playVideo === 'function') {
         this.player.playVideo();
       }
       this.isPlaying = true;
       this.startProgressTracker();
+      startBgAudioKeepAlive();
     }
 
     this.updateMediaSession();
@@ -536,12 +563,14 @@ class YouTubeMusicService {
   }
 
   play() {
+    startBgAudioKeepAlive();
     if (!this.isPlaying) {
       this.togglePlayPause();
     }
   }
 
   pause() {
+    stopBgAudioKeepAlive();
     if (this.isPlaying) {
       this.togglePlayPause();
     }
@@ -550,6 +579,8 @@ class YouTubeMusicService {
   // Full Stop & Close Action (Requirement 1)
   stopAndDismissPlayer() {
     this.stopProgressTracker();
+    stopBgAudioKeepAlive();
+
     if (this.player) {
       try {
         if (typeof this.player.stopVideo === 'function') {
@@ -557,6 +588,9 @@ class YouTubeMusicService {
         }
         if (typeof this.player.pauseVideo === 'function') {
           this.player.pauseVideo();
+        }
+        if (typeof this.player.clearVideo === 'function') {
+          this.player.clearVideo();
         }
       } catch (e) {
         console.warn("Error stopping video stream:", e);
@@ -567,6 +601,13 @@ class YouTubeMusicService {
     this.currentTrack = null;
     this.currentTime = 0;
     this.duration = 0;
+
+    // Stop Native Android MediaService Notification
+    if (typeof window !== "undefined" && window.NativeMediaBridge && typeof window.NativeMediaBridge.stopMediaService === "function") {
+      try {
+        window.NativeMediaBridge.stopMediaService();
+      } catch (e) {}
+    }
 
     // Fully clear the system status bar / lock screen notification
     if ('mediaSession' in navigator) {
@@ -695,7 +736,7 @@ class YouTubeMusicService {
   }
 
   // ========================================================
-  // 4. Web MediaSession API Implementation
+  // 4. Web MediaSession API Implementation & Android Native Bridge
   // ========================================================
 
   setupMediaSessionHandlers() {
@@ -711,34 +752,94 @@ class YouTubeMusicService {
           this.seekTo(details.seekTime);
         }
       });
+      navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+        const offset = details.seekOffset || 10;
+        this.seekTo(Math.max(this.currentTime - offset, 0));
+      });
+      navigator.mediaSession.setActionHandler('seekforward', (details) => {
+        const offset = details.seekOffset || 10;
+        this.seekTo(Math.min(this.currentTime + offset, this.duration || 3600));
+      });
+      navigator.mediaSession.setActionHandler('stop', () => this.stopAndDismissPlayer());
     } catch (e) {
       console.warn("Could not set MediaSession handlers:", e);
     }
+
+    // 2. Custom Heart/Like Action in Media Notification (Requirement 2)
+    try {
+      navigator.mediaSession.setActionHandler('like', () => {
+        this.toggleLikeCurrentTrack();
+      });
+    } catch (err) {
+      console.log('Custom like handler supported:', err);
+    }
+  }
+
+  toggleLikeCurrentTrack() {
+    if (!this.currentTrack) return false;
+    const isLiked = this.toggleLike(this.currentTrack.id);
+    this.updateMediaSession();
+    return isLiked;
   }
 
   updateMediaSession() {
-    if (!('mediaSession' in navigator) || !this.currentTrack) return;
+    if (!this.currentTrack) return;
+    const track = this.currentTrack;
+    const coverArt = track.thumbnail || track.coverUrl || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500';
 
-    try {
-      const track = this.currentTrack;
-      navigator.mediaSession.metadata = new window.MediaMetadata({
-        title: track.title || 'Flashgram Music',
-        artist: track.channelTitle || 'Artist',
-        album: 'Flashgram Music',
-        artwork: [
-          { src: track.thumbnail, sizes: '96x96', type: 'image/jpeg' },
-          { src: track.thumbnail, sizes: '128x128', type: 'image/jpeg' },
-          { src: track.thumbnail, sizes: '192x192', type: 'image/jpeg' },
-          { src: track.thumbnail, sizes: '256x256', type: 'image/jpeg' },
-          { src: track.thumbnail, sizes: '384x384', type: 'image/jpeg' },
-          { src: track.thumbnail, sizes: '512x512', type: 'image/jpeg' }
-        ]
-      });
+    // 1. Web MediaSession API
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.metadata = new window.MediaMetadata({
+          title: track.title || 'Flashgram Music',
+          artist: track.channelTitle || track.artist || 'Flashgram Music',
+          album: 'Flashgram Tracks',
+          artwork: [
+            { src: coverArt, sizes: '512x512', type: 'image/png' },
+            { src: coverArt, sizes: '256x256', type: 'image/png' },
+            { src: '/app-icon.png', sizes: '128x128', type: 'image/png' },
+            { src: '/assets/flashgram-logo.png', sizes: '128x128', type: 'image/png' }
+          ]
+        });
 
-      navigator.mediaSession.playbackState = this.isPlaying ? 'playing' : 'paused';
-      this.updateMediaSessionPosition();
-    } catch (e) {
-      console.warn("MediaSession update error:", e);
+        navigator.mediaSession.playbackState = this.isPlaying ? 'playing' : 'paused';
+        this.updateMediaSessionPosition();
+      } catch (e) {
+        console.warn("MediaSession update error:", e);
+      }
+    }
+
+    // 2. Android Native Foreground Service & Lock Screen Notification
+    this.syncNativeMediaNotification();
+  }
+
+  syncNativeMediaNotification() {
+    if (!this.currentTrack) return;
+    const track = this.currentTrack;
+    const title = track.title || 'Flashgram Music';
+    const artist = track.channelTitle || track.artist || 'Flashgram Music';
+    const album = 'Flashgram Tracks';
+    const coverUrl = track.thumbnail || track.coverUrl || '';
+    const isPlaying = Boolean(this.isPlaying);
+    const durationMs = Math.round((this.duration || 215) * 1000);
+    const positionMs = Math.round((this.currentTime || 0) * 1000);
+    const isLiked = this.isTrackLiked(track.id);
+
+    if (typeof window !== "undefined" && window.NativeMediaBridge && typeof window.NativeMediaBridge.updateMediaMetadata === "function") {
+      try {
+        window.NativeMediaBridge.updateMediaMetadata(
+          title,
+          artist,
+          album,
+          coverUrl,
+          isPlaying,
+          durationMs,
+          positionMs,
+          isLiked
+        );
+      } catch (err) {
+        console.warn("Error calling NativeMediaBridge.updateMediaMetadata:", err);
+      }
     }
   }
 
