@@ -35,48 +35,6 @@ import {
     }
 
     /* =======================================================
-       HTML5 Video Fullscreen & Orientation Lock Helper
-    ======================================================= */
-    const toggleFullScreen = async (elem) => {
-      const target = elem || document.documentElement;
-      try {
-        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-          if (target.requestFullscreen) {
-            await target.requestFullscreen();
-          } else if (target.webkitRequestFullscreen) {
-            await target.webkitRequestFullscreen();
-          }
-          // When entering full screen on horizontal/landscape video reels, auto-rotate orientation smoothly
-          const video = target.querySelector ? target.querySelector("video") : (target.tagName === 'VIDEO' ? target : null);
-          if (video) {
-            const isLandscape = (video.videoWidth && video.videoHeight && video.videoWidth > video.videoHeight);
-            if (isLandscape && window.screen && window.screen.orientation && window.screen.orientation.lock) {
-              try {
-                await window.screen.orientation.lock("landscape");
-              } catch (_) {}
-            }
-          }
-        } else {
-          if (document.exitFullscreen) {
-            await document.exitFullscreen();
-          } else if (document.webkitExitFullscreen) {
-            await document.webkitExitFullscreen();
-          }
-          if (window.screen && window.screen.orientation && window.screen.orientation.unlock) {
-            try {
-              window.screen.orientation.unlock();
-            } catch (_) {}
-          }
-        }
-      } catch (err) {
-        console.log("Fullscreen toggle error:", err);
-      }
-    };
-    if (typeof window !== "undefined") {
-      window.toggleFullScreen = toggleFullScreen;
-    }
-
-    /* =======================================================
        ৮. রিলস ভিডিও লোডিং
     ======================================================= */
     const reelsFeedWrapper = document.getElementById("reelsFeedWrapper");
@@ -275,7 +233,7 @@ import {
         const usernameClass = "reels-username";
 
         const item = document.createElement("div");
-        item.className = "reel-item";
+        item.className = "reel-item reels-fullscreen-container";
         item.dataset.index = index;
         item.dataset.id = String(reel.id || index);
         item.dataset.userId = reel.user_id || '';
@@ -311,8 +269,8 @@ import {
         const sharesDisplay = reel.shares || '18';
 
         item.innerHTML = `
-          <div class="reel-video-wrapper">
-            <video class="reel-video" src="${vidUrl}" poster="${thumbUrl}" playsinline webkit-playsinline preload="metadata"></video>
+          <div class="reel-video-wrapper reels-video-container">
+            <video class="reel-video reels-player reels-video-player" src="${vidUrl}" poster="${thumbUrl}" playsinline webkit-playsinline preload="metadata"></video>
             
             <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
 
@@ -342,10 +300,6 @@ import {
               <div class="reel-action-btn pip-btn" title="Picture in Picture">
                 <i class="fa-solid fa-arrow-up-right-from-square"></i>
                 <span>PiP</span>
-              </div>
-              <div class="reel-action-btn fullscreen-btn" title="Fullscreen">
-                <i class="fa-solid fa-expand"></i>
-                <span>Full</span>
               </div>
               <div class="reel-action-btn more-btn">
                 <i class="fa-solid fa-ellipsis"></i>
@@ -504,19 +458,6 @@ import {
             enableVideoPiP(video);
           };
         }
-
-        const fullscreenBtn = item.querySelector(".fullscreen-btn");
-        if (fullscreenBtn) {
-          fullscreenBtn.onclick = (e) => {
-            e.stopPropagation();
-            toggleFullScreen(wrapper);
-          };
-        }
-
-        video.addEventListener("dblclick", (e) => {
-          e.stopPropagation();
-          toggleFullScreen(wrapper);
-        });
 
         const moreBtn = item.querySelector(".more-btn");
         if (moreBtn) {
@@ -1039,24 +980,6 @@ import {
           enableVideoPiP(activeVid);
         }
       });
-
-      const handleFullscreenChange = () => {
-        const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
-        if (!isFS && window.screen && window.screen.orientation && window.screen.orientation.unlock) {
-          try {
-            window.screen.orientation.unlock();
-          } catch (_) {}
-        }
-        document.querySelectorAll(".fullscreen-btn i").forEach(icon => {
-          if (isFS) {
-            icon.className = "fa-solid fa-compress";
-          } else {
-            icon.className = "fa-solid fa-expand";
-          }
-        });
-      };
-      document.addEventListener("fullscreenchange", handleFullscreenChange);
-      document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
     }
 
-export { loadReels, setupReelObserver, syncActiveReel, playCurrentReel, pauseAllReels, attachVideoProgressTracker, handleProgressBarSeek, resetVideoProgressBar, detachVideoProgressTracker, spawnFloatingHeart, openMyProfileTab, toggleReelFollowBtn, playShabnamReelVideo, navigateToReel, openReelsShareSheet, openReelsCommentsSheet, enableVideoPiP, toggleFullScreen, goToNextReel, goToPrevReel, toggleCurrentReelPlayback };
+export { loadReels, setupReelObserver, syncActiveReel, playCurrentReel, pauseAllReels, attachVideoProgressTracker, handleProgressBarSeek, resetVideoProgressBar, detachVideoProgressTracker, spawnFloatingHeart, openMyProfileTab, toggleReelFollowBtn, playShabnamReelVideo, navigateToReel, openReelsShareSheet, openReelsCommentsSheet, enableVideoPiP, goToNextReel, goToPrevReel, toggleCurrentReelPlayback };

@@ -34,6 +34,7 @@ import * as ReelsVolumeHUD from './components/reels/ReelsVolumeHUD.js';
 import * as AppIconChanger from './components/AppIconChangerModal.js';
 import * as YouTubeMusicService from './services/youtubeMusicService.js';
 import * as MusicView from './components/music/MusicView.js';
+import * as MediaPickerModal from './components/media/MediaPickerModal.js';
 
 // App Controller
 import { App } from './App.js';
@@ -68,6 +69,7 @@ Object.assign(window, {
   ...AppIconChanger,
   ...YouTubeMusicService,
   ...MusicView,
+  ...MediaPickerModal,
   supabase,
   App
 });

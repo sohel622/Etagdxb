@@ -6,6 +6,7 @@
 @import "./shabnam.css";
 @import "./reelsSheets.css";
 @import "./music.css";
+@import "./mediaPicker.css";
 
     @font-face {
       font-family: 'Billabong';

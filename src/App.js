@@ -21,6 +21,7 @@ import { initReelsVolumeHUD } from "./components/reels/ReelsVolumeHUD.js";
 import { setupHeaderLogoEasterEgg, openAppIconChanger, closeAppIconChanger } from "./components/AppIconChangerModal.js";
 import { openOfflineDB, initNetworkListener } from "./services/offlineCacheService.js";
 import { initMusicView } from "./components/music/MusicView.js";
+import { initInstagramMediaPicker } from "./components/media/MediaPickerModal.js";
 
 export const App = {
   async init() {
@@ -69,6 +70,7 @@ export const App = {
     initStories();
     initAccountSwitcher();
     initMusicView();
+    initInstagramMediaPicker();
 
     // 5. Browser notifications
     requestInitialBrowserNotificationPermission();

@@ -241,7 +241,7 @@
               <circle cx="18" cy="16" r="3"></circle>
             </svg>
           </button>
-          <button type="button" class="icon-btn" id="profileCreatePostBtn" title="Create" aria-label="Create new post" onclick="if (typeof openMediaCreationPrompt === 'function') openMediaCreationPrompt();">
+          <button type="button" class="icon-btn" id="profileCreatePostBtn" title="Create" aria-label="Create new post" onclick="if (typeof openInstagramMediaPicker === 'function') { openInstagramMediaPicker(); } else if (typeof openMediaCreationPrompt === 'function') { openMediaCreationPrompt(); }">
             <i class="fa-solid fa-plus" style="font-size: 20px;"></i>
           </button>
           <button type="button" class="icon-btn" id="profileMenuBtn" title="Settings & Options" aria-label="Settings & Options" onclick="if (typeof openSettingsModal === 'function') { openSettingsModal(); } else if (typeof showInstagramToast === 'function') { showInstagramToast('Profile options'); }">

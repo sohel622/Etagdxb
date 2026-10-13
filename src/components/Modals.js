@@ -893,6 +893,10 @@ function initSettingsPanel() {
 
 // --- F. Media Creation & Video Recording Session ---
 function openMediaCreationPrompt() {
+  if (typeof openInstagramMediaPicker === "function") {
+    openInstagramMediaPicker();
+    return;
+  }
   const mediaCreationOverlay = document.getElementById("mediaCreationOverlay");
   if (mediaCreationOverlay) {
     mediaCreationOverlay.classList.add("active");

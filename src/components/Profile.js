@@ -11,6 +11,9 @@ import { supabase } from "../supabaseClient.js";
 import { getCurrentUserId } from "../services/avatarService.js";
 import { isFollowingUser, toggleFollowUser } from "../services/followService.js";
 import { openDirectChatWithUser } from "./DirectChat.js";
+import { inMemoryLocalPosts } from "./Feed.js";
+import { audio30sController } from "../utils/audioCatalog.js";
+import { openInstagramMediaPicker } from "./media/MediaPickerModal.js";
 
 let viewingProfileUserId = null;
 let previousScreenBeforeProfile = "home";
@@ -629,6 +632,12 @@ window.addEventListener("popstate", (e) => {
         let userPosts = [];
         const activeUid = viewingProfileUserId || getCurrentUserId();
 
+        // Include any locally created posts for active user
+        if (!viewingProfileUserId) {
+          const localUserPosts = (inMemoryLocalPosts || []).filter(p => !p.user_id || p.isCurrentUser);
+          userPosts = [...localUserPosts];
+        }
+
         // Requirement 4: Isolate uploaded posts strictly by user_id
         if (supabase && activeUid) {
           const { data, count, error } = await supabase
@@ -638,7 +647,7 @@ window.addEventListener("popstate", (e) => {
             .order('created_at', { ascending: false });
 
           if (!error && Array.isArray(data)) {
-            userPosts = data;
+            userPosts = [...userPosts, ...data];
           }
         }
         updateProfilePostsCount(userPosts.length);
@@ -657,17 +666,32 @@ window.addEventListener("popstate", (e) => {
       container.innerHTML = "";
 
       const userGridItems = userPosts.map((p, idx) => {
+        const isCarousel = Boolean(p.isCarousel || (p.carouselItems && p.carouselItems.length > 1));
+        const hasMusic = Boolean(p.music);
         const rawVidSrc = p.video_url || p.url || (p.blob ? URL.createObjectURL(p.blob) : '');
         const vidSrc = getOptimizedVideoUrl(rawVidSrc);
-        const posterUrl = p.thumbnail_url || (rawVidSrc ? deriveCloudinaryThumbnailUrl(rawVidSrc) : '');
+        const isVideo = Boolean(p.video_url || (!isCarousel && p.url && (p.url.includes('.mp4') || p.url.includes('.webm') || p.url.includes('video'))));
+        const posterUrl = p.thumbnail_url || p.thumbnail || (isCarousel && p.carouselItems ? p.carouselItems[0].thumbnail || p.carouselItems[0].url : '') || (rawVidSrc ? deriveCloudinaryThumbnailUrl(rawVidSrc) : '');
+
+        let badge = '<i class="fa-solid fa-play"></i>';
+        if (isCarousel) {
+          badge = '<i class="fa-regular fa-clone"></i>';
+        } else if (hasMusic) {
+          badge = '<i class="fa-solid fa-music"></i>';
+        } else if (!isVideo) {
+          badge = '';
+        }
+
         return {
           id: String(p.id || idx),
-          type: 'video',
-          isLocal: false,
+          rawPost: p,
+          isCarousel,
+          hasMusic,
+          isVideo,
           videoSrc: vidSrc,
           poster: posterUrl,
-          badge: '<i class="fa-solid fa-play"></i>',
-          likes: p.likes_count ? String(p.likes_count) : '0',
+          badge,
+          likes: p.likes_count ? String(p.likes_count) : (p.likesCount ? String(p.likesCount) : '1'),
           views: '1'
         };
       });
@@ -688,7 +712,7 @@ window.addEventListener("popstate", (e) => {
               </div>
               <div style="font-weight: 700; font-size: 17px; color: currentColor; margin-bottom: 6px;">Share Photos & Videos</div>
               <div style="font-size: 13.5px; opacity: 0.75; max-width: 260px; margin: 0 auto; line-height: 1.4;">When you share photos and videos, they will appear on your profile.</div>
-              <button onclick="openMediaCreationPrompt()" style="margin-top: 16px; color: #0095f6; font-size: 14px; font-weight: 600; background: none; border: none; cursor: pointer;">Share your first post</button>
+              <button onclick="if (typeof openInstagramMediaPicker === 'function') openInstagramMediaPicker(); else openMediaCreationPrompt();" style="margin-top: 16px; color: #0095f6; font-size: 14px; font-weight: 600; background: none; border: none; cursor: pointer;">Share your first post</button>
             </div>
           `;
           return;
@@ -699,14 +723,18 @@ window.addEventListener("popstate", (e) => {
           const el = document.createElement("div");
           el.className = "profile-grid-item";
           el.innerHTML = `
-            <video src="${item.videoSrc}" poster="${item.poster || ''}" style="width:100%; height:100%; object-fit:cover;" muted preload="metadata" playsinline></video>
-            <div class="profile-grid-badge"><i class="fa-solid fa-play"></i></div>
+            ${item.isVideo 
+              ? `<video src="${item.videoSrc}" poster="${item.poster || ''}" style="width:100%; height:100%; object-fit:cover;" muted preload="metadata" playsinline></video>`
+              : `<img src="${item.poster || item.videoSrc}" style="width:100%; height:100%; object-fit:cover;" alt="Grid post" />`}
+            ${item.badge ? `<div class="profile-grid-badge">${item.badge}</div>` : ''}
             <div class="profile-grid-overlay">
               <span><i class="fa-solid fa-heart"></i> ${item.likes}</span>
             </div>
           `;
           el.onclick = () => {
-            if (typeof navigateToReel === "function") {
+            if (item.isCarousel || item.hasMusic || !item.isVideo) {
+              openProfilePostModal(item.rawPost);
+            } else if (typeof navigateToReel === "function") {
               navigateToReel(item.id, item.videoSrc);
             } else if (typeof window !== "undefined" && typeof window.navigateToReel === "function") {
               window.navigateToReel(item.id, item.videoSrc);
@@ -1146,5 +1174,144 @@ window.addEventListener("popstate", (e) => {
         avatarViewerFrame.addEventListener("pointercancel", onViewerEnd);
       }
     }
+
+export function openProfilePostModal(post) {
+  if (!post) return;
+  let modal = document.getElementById("profilePostDetailModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "profilePostDetailModal";
+    modal.className = "profile-post-modal";
+    document.body.appendChild(modal);
+  }
+
+  const isCarousel = Boolean(post.isCarousel && post.carouselItems && post.carouselItems.length > 1);
+  const authorName = post.author_name || post.user || UserProfileStore.state.username || "creator";
+  const authorAvatar = post.avatar || UserProfileStore.state.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
+
+  let mediaHtml = "";
+  if (isCarousel) {
+    mediaHtml = `
+      <div class="post-carousel-container relative" data-post-id="${post.id}">
+        <div class="carousel-counter-badge">1/${post.carouselItems.length}</div>
+        ${post.carouselItems.map((item, idx) => `
+          <div class="post-carousel-item" data-index="${idx}">
+            ${item.type === 'video'
+              ? `<video src="${getOptimizedVideoUrl(item.url)}" poster="${item.thumbnail || ''}" class="w-full h-full object-cover" loop muted playsinline autoplay></video>`
+              : `<img src="${item.url}" alt="Carousel item ${idx + 1}" class="w-full h-full object-cover" />`}
+          </div>
+        `).join('')}
+      </div>
+      <div class="carousel-dots-container">
+        ${post.carouselItems.map((_, idx) => `<span class="carousel-dot ${idx === 0 ? 'active' : ''}"></span>`).join('')}
+      </div>
+    `;
+  } else if (post.video_url || (post.url && (post.url.includes('.mp4') || post.url.includes('.webm')))) {
+    mediaHtml = `
+      <div class="relative w-full aspect-[4/5] bg-black flex items-center justify-center">
+        <video src="${getOptimizedVideoUrl(post.video_url || post.url)}" poster="${post.thumbnail_url || ''}" class="w-full h-full object-cover" autoplay loop muted playsinline></video>
+      </div>
+    `;
+  } else {
+    mediaHtml = `
+      <div class="relative w-full aspect-[4/5] bg-black flex items-center justify-center">
+        <img src="${post.url || post.thumbnail_url || post.thumbnail}" class="w-full h-full object-cover" alt="Post" />
+      </div>
+    `;
+  }
+
+  const musicHtml = post.music ? `
+    <div class="post-music-badge is-playing cursor-pointer mt-1" data-post-id="${post.id}" title="Tap to toggle audio">
+      <i class="fa-solid fa-volume-high music-status-icon text-pink-500 animate-pulse"></i>
+      <span class="truncate max-w-[200px] text-xs">${post.music.title} • ${post.music.artist}</span>
+      <div class="music-wave-bars"><span></span><span></span><span></span></div>
+    </div>
+  ` : '';
+
+  modal.innerHTML = `
+    <div class="profile-post-modal-card" data-post-id="${post.id}">
+      <div class="profile-post-modal-header">
+        <div class="flex items-center gap-2.5">
+          <img src="${authorAvatar}" class="w-8 h-8 rounded-full object-cover border border-white/20" alt="${authorName}" />
+          <div>
+            <div class="font-bold text-[13px] leading-tight text-white">${authorName}</div>
+            <div class="text-[11px] text-neutral-400 leading-tight">${post.location || 'Original Audio'}</div>
+          </div>
+        </div>
+        <button type="button" class="text-neutral-400 hover:text-white p-2 cursor-pointer" id="closeProfilePostModalBtn">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      ${mediaHtml}
+
+      <div class="p-3">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-4 text-xl text-white">
+            <i class="fa-regular fa-heart cursor-pointer hover:text-pink-500 like-btn"></i>
+            <i class="fa-regular fa-comment cursor-pointer"></i>
+            <i class="fa-regular fa-paper-plane cursor-pointer"></i>
+          </div>
+          <i class="fa-regular fa-bookmark cursor-pointer text-lg text-white"></i>
+        </div>
+        ${musicHtml}
+        <div class="font-bold text-xs mt-1.5 text-white">${(post.likesCount || post.likes_count || 1).toLocaleString()} likes</div>
+        <div class="text-xs mt-1 text-white">
+          <span class="font-bold mr-1">${authorName}</span>
+          <span class="text-neutral-300">${post.caption || ''}</span>
+        </div>
+        <div class="text-[10px] text-neutral-500 mt-2 uppercase">${post.time || 'JUST NOW'}</div>
+      </div>
+    </div>
+  `;
+
+  // Start 30-second audio playback if attached music
+  if (post.music) {
+    audio30sController.playTrackForPost(post.id, post.music);
+  }
+
+  // Handle carousel swipe dots
+  const carouselBox = modal.querySelector(".post-carousel-container");
+  if (carouselBox && isCarousel) {
+    const counterBadge = modal.querySelector(".carousel-counter-badge");
+    const dots = modal.querySelectorAll(".carousel-dot");
+    carouselBox.addEventListener("scroll", () => {
+      const scrollLeft = carouselBox.scrollLeft;
+      const itemWidth = carouselBox.offsetWidth || 1;
+      const activeIndex = Math.min(post.carouselItems.length - 1, Math.max(0, Math.round(scrollLeft / itemWidth)));
+      if (counterBadge) counterBadge.textContent = `${activeIndex + 1}/${post.carouselItems.length}`;
+      dots.forEach((dot, i) => dot.classList.toggle("active", i === activeIndex));
+    }, { passive: true });
+  }
+
+  // Like button in modal
+  const likeBtn = modal.querySelector(".like-btn");
+  if (likeBtn) {
+    let liked = false;
+    likeBtn.onclick = () => {
+      liked = !liked;
+      likeBtn.classList.toggle("fa-solid", liked);
+      likeBtn.classList.toggle("fa-regular", !liked);
+      likeBtn.classList.toggle("text-pink-500", liked);
+    };
+  }
+
+  // Close handlers
+  const closeBtn = modal.querySelector("#closeProfilePostModalBtn");
+  const closeModal = () => {
+    modal.classList.remove("active");
+    audio30sController.stopPlayback();
+  };
+  if (closeBtn) closeBtn.onclick = closeModal;
+  modal.onclick = (e) => {
+    if (e.target === modal) closeModal();
+  };
+
+  modal.classList.add("active");
+}
+
+if (typeof window !== "undefined") {
+  window.openProfilePostModal = openProfilePostModal;
+}
 
 export { viewingProfileUserId, setBottomNavVisible, openProfile, handleProfileBack, closeUserProfile, handleProfilePrimaryPillAction, updateProfilePostsCount, switchProfileTab, renderProfileGrid, renderProfileGridItems, initProfileInteractions };
