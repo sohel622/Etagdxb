@@ -8,7 +8,7 @@ import { initProfileInteractions, updateProfilePostsCount, renderProfileGrid, sy
 import { initStories } from "./components/Stories.js";
 import { initModals, requestInitialBrowserNotificationPermission } from "./components/Modals.js";
 import { isUserAuthenticated, openAuthOnboardingFlow, triggerGoogleOneTap } from "./services/supabaseAuth.js";
-import { initIncomingShareListener } from "./services/shareIntentHandler.js";
+import { initIncomingShareListener, handleIncomingSharePayload } from "./services/shareIntentHandler.js";
 import { initAvatarRealtimeSync } from "./services/avatarService.js";
 import { initAccountSwitcher } from "./components/AccountSwitcher.js";
 import { initRealtimeMessagesListener } from "./services/chatService.js";
@@ -20,6 +20,7 @@ import { initDeepLinkListener } from "./services/deepLinkService.js";
 import { initReelsVolumeHUD } from "./components/reels/ReelsVolumeHUD.js";
 import { setupHeaderLogoEasterEgg, openAppIconChanger, closeAppIconChanger } from "./components/AppIconChangerModal.js";
 import { openOfflineDB, initNetworkListener } from "./services/offlineCacheService.js";
+import { App as CapApp } from "@capacitor/app";
 import { initMusicView } from "./components/music/MusicView.js";
 import { initInstagramMediaPicker } from "./components/media/MediaPickerModal.js";
 
@@ -81,7 +82,15 @@ export const App = {
       setTimeout(triggerGoogleOneTap, 500);
     }
 
-    // 7. Android Native & Web Share Intent Receiver
+    // 7. Android Native & Web Share Intent Receiver via @capacitor/app and Bridge
+    try {
+      CapApp.addListener('appUrlOpen', (event) => {
+        console.log('App opened with URL or share target:', event?.url);
+        if (event && event.url) {
+          handleIncomingSharePayload(event.url);
+        }
+      });
+    } catch (_) {}
     initIncomingShareListener();
 
     // 8. Live Real-Time Avatar Synchronization across App

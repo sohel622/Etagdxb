@@ -2,6 +2,7 @@
 import { showInstagramToast } from "../utils/storage.js";
 import { openShabnamChat } from "./ShabnamAI.js";
 import { openReelsShareSheet } from "./reels/index.js";
+import { openInstagramMediaPicker } from "./media/MediaPickerModal.js";
 
 let currentSharedPayload = null;
 
@@ -47,8 +48,14 @@ function createShareModalDOM() {
 
       <!-- Actions -->
       <div class="mt-4 space-y-2">
+        <!-- Action 0: Create Post / Story with Link -->
+        <button type="button" id="shareActionCreatePost" class="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-[#0095F6] to-sky-500 hover:opacity-95 active:scale-[0.99] text-white font-semibold text-[14px] flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer">
+          <i class="fa-regular fa-square-plus text-[16px]"></i>
+          <span>Create Post with this link</span>
+        </button>
+
         <!-- Action 1: Ask Shabnam AI -->
-        <button type="button" id="shareActionShabnam" class="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-sky-500 via-[#0095F6] to-indigo-600 hover:opacity-95 active:scale-[0.99] text-white font-semibold text-[14px] flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer">
+        <button type="button" id="shareActionShabnam" class="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 hover:opacity-95 active:scale-[0.99] text-white font-semibold text-[14px] flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer">
           <i class="fa-solid fa-wand-magic-sparkles text-[15px]"></i>
           <span>Ask Shabnam AI about this</span>
         </button>
@@ -71,6 +78,18 @@ function createShareModalDOM() {
   document.body.appendChild(modal);
 
   // Wire buttons
+  const createPostBtn = modal.querySelector("#shareActionCreatePost");
+  if (createPostBtn) {
+    createPostBtn.onclick = () => {
+      const textToShare = currentSharedPayload ? (currentSharedPayload.url || currentSharedPayload.text || "") : "";
+      closeFlashgramShareModal();
+      openInstagramMediaPicker({
+        prefilledCaption: textToShare,
+        autoAdvanceToFinalize: true
+      });
+    };
+  }
+
   const shabnamBtn = modal.querySelector("#shareActionShabnam");
   if (shabnamBtn) {
     shabnamBtn.onclick = () => {

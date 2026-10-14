@@ -36,6 +36,18 @@ import * as YouTubeMusicService from './services/youtubeMusicService.js';
 import * as MusicView from './components/music/MusicView.js';
 import * as MediaPickerModal from './components/media/MediaPickerModal.js';
 
+// Modular Feature Folders & Router
+import * as HomeFeedFeature from './features/home-feed/index.js';
+import * as ReelsFeedFeature from './features/reels-feed/index.js';
+import * as MediaPickerFeature from './features/media-picker/index.js';
+import * as MusicPlayerFeature from './features/music-player/index.js';
+import * as ProfileFeature from './features/profile/index.js';
+import * as SettingsFeature from './features/settings/index.js';
+import * as UploadServiceFeature from './features/upload-service/uploadService.js';
+import * as ExploreFeature from './features/explore/index.js';
+import * as SharedUI from './shared/index.js';
+import * as AppRouter from './router/index.js';
+
 // App Controller
 import { App } from './App.js';
 
@@ -70,6 +82,17 @@ Object.assign(window, {
   ...YouTubeMusicService,
   ...MusicView,
   ...MediaPickerModal,
+  HomeFeedFeature,
+  ReelsFeedFeature,
+  MediaPickerFeature,
+  MusicPlayerFeature,
+  ProfileFeature,
+  SettingsFeature,
+  UploadServiceFeature,
+  ExploreFeature,
+  ...ExploreFeature,
+  SharedUI,
+  AppRouter,
   supabase,
   App
 });

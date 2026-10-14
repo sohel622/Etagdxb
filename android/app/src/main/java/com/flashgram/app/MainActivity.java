@@ -263,6 +263,41 @@ public class MainActivity extends BridgeActivity {
 
     private void handleIncomingIntent(Intent intent) {
         if (intent == null) return;
+        String action = intent.getAction();
+
+        if (Intent.ACTION_SEND.equals(action) || Intent.ACTION_SEND_MULTIPLE.equals(action)) {
+            String sharedText = intent.getStringExtra(Intent.EXTRA_TEXT);
+            if (sharedText == null) {
+                CharSequence cs = intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
+                if (cs != null) sharedText = cs.toString();
+            }
+            String sharedTitle = intent.getStringExtra(Intent.EXTRA_SUBJECT);
+            if (sharedTitle == null) sharedTitle = "";
+
+            final String fText = sharedText != null ? sharedText.replace("'", "\\'").replace("\n", " ") : "";
+            final String fTitle = sharedTitle.replace("'", "\\'");
+
+            if (bridge != null && bridge.getWebView() != null) {
+                bridge.getWebView().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        bridge.getWebView().evaluateJavascript(
+                            "(function() { " +
+                            "  var payload = { text: '" + fText + "', url: '" + fText + "', title: '" + fTitle + "' }; " +
+                            "  if (typeof window.handleIncomingSharePayload === 'function') { " +
+                            "    window.handleIncomingSharePayload(payload); " +
+                            "  } else { " +
+                            "    window.__pendingSharePayload = payload; " +
+                            "  } " +
+                            "})();",
+                            null
+                        );
+                    }
+                });
+            }
+            return;
+        }
+
         String route = intent.getStringExtra("route");
         if (route == null && intent.getData() != null) {
             route = intent.getData().toString();

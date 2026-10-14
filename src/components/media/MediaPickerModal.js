@@ -1,138 +1,64 @@
-// Instagram-Style Media Picker, Recents Album Selector, Multi-Photo Carousel (Up to 5), and 30s Audio Post Sync
+// Instagram-Style Media Picker, Real Device Gallery Picker, Cloud Storage Upload, and YouTube Audio Integration
 import { showInstagramToast, UserProfileStore } from "../../utils/storage.js";
 import { openCameraMicrophoneSession } from "../Modals.js";
-import { TRENDING_TRACKS } from "../../utils/audioCatalog.js";
 import { renderHomeFeed, addNewPostToFeed } from "../Feed.js";
 import { renderProfileGrid, updateProfilePostsCount } from "../Profile.js";
 import { switchTab } from "../BottomNavigation.js";
+import { uploadPostMedia } from "../../features/upload-service/uploadService.js";
+import { searchYouTubeAudio } from "../../services/youtubeMusicService.js";
+import { savePostToSupabase } from "../../services/cloudinaryService.js";
 
-// Comprehensive catalog of high-resolution sample device media organized by album
-const INITIAL_GALLERY_MEDIA = [
-  {
-    id: "media_1",
-    type: "image",
-    url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=1080&auto=format&fit=crop&q=85",
-    thumbnail: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80",
-    album: "Camera",
-    aspectRatio: "4/5"
-  },
-  {
-    id: "media_2",
-    type: "image",
-    url: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=1080&auto=format&fit=crop&q=85",
-    thumbnail: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&auto=format&fit=crop&q=80",
-    album: "Camera",
-    aspectRatio: "4/5"
-  },
-  {
-    id: "media_3",
-    type: "video",
-    url: "https://assets.mixkit.co/videos/preview/mixkit-girl-in-neon-light-1232-large.mp4",
-    thumbnail: "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=400&auto=format&fit=crop&q=80",
-    duration: "0:15",
-    album: "Camera",
-    aspectRatio: "9/16"
-  },
-  {
-    id: "media_4",
-    type: "image",
-    url: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=1080&auto=format&fit=crop&q=85",
-    thumbnail: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&auto=format&fit=crop&q=80",
-    album: "Screenshots",
-    aspectRatio: "4/5"
-  },
-  {
-    id: "media_5",
-    type: "image",
-    url: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=1080&auto=format&fit=crop&q=85",
-    thumbnail: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&auto=format&fit=crop&q=80",
-    album: "Downloads",
-    aspectRatio: "4/5"
-  },
-  {
-    id: "media_6",
-    type: "video",
-    url: "https://assets.mixkit.co/videos/preview/mixkit-vertical-portrait-of-a-woman-in-sunlight-41566-large.mp4",
-    thumbnail: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80",
-    duration: "0:22",
-    album: "Instagram",
-    aspectRatio: "9/16"
-  },
-  {
-    id: "media_7",
-    type: "image",
-    url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=1080&auto=format&fit=crop&q=85",
-    thumbnail: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80",
-    album: "Camera",
-    aspectRatio: "4/5"
-  },
-  {
-    id: "media_8",
-    type: "image",
-    url: "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?w=1080&auto=format&fit=crop&q=85",
-    thumbnail: "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?w=400&auto=format&fit=crop&q=80",
-    album: "WhatsApp",
-    aspectRatio: "4/5"
-  },
-  {
-    id: "media_9",
-    type: "video",
-    url: "https://assets.mixkit.co/videos/preview/mixkit-skater-performing-a-trick-in-the-street-41551-large.mp4",
-    thumbnail: "https://images.unsplash.com/photo-1564982752979-3f7bc974d29a?w=400&auto=format&fit=crop&q=80",
-    duration: "0:18",
-    album: "Downloads",
-    aspectRatio: "9/16"
-  },
-  {
-    id: "media_10",
-    type: "image",
-    url: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=1080&auto=format&fit=crop&q=85",
-    thumbnail: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=400&auto=format&fit=crop&q=80",
-    album: "Screenshots",
-    aspectRatio: "4/5"
-  },
-  {
-    id: "media_11",
-    type: "image",
-    url: "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=1080&auto=format&fit=crop&q=85",
-    thumbnail: "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400&auto=format&fit=crop&q=80",
-    album: "Camera",
-    aspectRatio: "4/5"
-  },
-  {
-    id: "media_12",
-    type: "image",
-    url: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1080&auto=format&fit=crop&q=85",
-    thumbnail: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=400&auto=format&fit=crop&q=80",
-    album: "Downloads",
-    aspectRatio: "4/5"
+/**
+ * Native Android & Web Media Fetcher
+ * Requests native Android storage/media permissions:
+ * - READ_MEDIA_IMAGES
+ * - READ_MEDIA_VIDEO
+ * Reads local device gallery thumbnails or invokes native file picker
+ * Returns real Blob / File objects
+ */
+export const fetchDeviceMedia = async (options = {}) => {
+  // Check/request native Android storage permissions via Capacitor bridge if available
+  if (typeof window !== "undefined" && window.Capacitor?.Plugins?.Permissions) {
+    try {
+      await window.Capacitor.Plugins.Permissions.query({ name: 'storage' });
+    } catch (_) {}
   }
-];
 
-// Album metadata list
-const ALBUMS_LIST = [
-  { id: "all", name: "Recents", count: 24, thumb: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200" },
-  { id: "Camera", name: "Camera", count: 12, thumb: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200" },
-  { id: "Screenshots", name: "Screenshots", count: 6, thumb: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200" },
-  { id: "Downloads", name: "Downloads", count: 8, thumb: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200" },
-  { id: "Instagram", name: "Instagram", count: 5, thumb: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200" },
-  { id: "WhatsApp", name: "WhatsApp", count: 7, thumb: "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?w=200" }
-];
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = options.accept || 'image/*,video/*';
+    input.multiple = options.multiple !== false;
 
-// State
-let allGalleryItems = [...INITIAL_GALLERY_MEDIA];
+    input.onchange = (e) => {
+      const files = Array.from(e.target.files || []);
+      resolve(files);
+    };
+
+    input.oncancel = () => {
+      resolve([]);
+    };
+
+    input.click();
+  });
+};
+
+// State: No hardcoded fake images, strictly real device media loaded dynamically
+let allGalleryItems = [];
 let activeAlbum = "Recents";
 let activeCategoryFilter = "Recents"; // "Recents" | "Photos" | "Videos"
 let activeTab = "POST"; // Strictly "POST" | "STORY"
 let isMultiSelectMode = false;
-let selectedItems = [INITIAL_GALLERY_MEDIA[0]]; // Array of selected media objects (max 5)
-let activePreviewItem = INITIAL_GALLERY_MEDIA[0];
+let selectedItems = []; // Array of selected media objects (max 5)
+let activePreviewItem = null;
 let isAspect45 = true; // 4:5 aspect ratio toggle
 
 // Post Finalize State
 let attachedMusic = null; // { id, title, artist, audioUrl, cover }
 let selectedLocation = "";
 let previewAudioElement = null;
+let isMusicSearching = false;
+let musicSearchDebounceTimer = null;
 
 let isModalInitialized = false;
 
@@ -172,7 +98,7 @@ function injectMediaPickerDOM() {
     <!-- Top Preview Box -->
     <div class="media-picker-preview-wrapper ${isAspect45 ? 'is-aspect-4-5' : ''}" id="mpPreviewContainer">
       <div id="mpPreviewMediaHost" class="w-full h-full flex items-center justify-center">
-        <!-- Rendered dynamically: img or video -->
+        <!-- Rendered dynamically: img, video or empty state -->
       </div>
 
       <!-- Preview Floating Controls -->
@@ -232,11 +158,11 @@ function injectMediaPickerDOM() {
 
         <!-- Direct Device File Input Picker Row -->
         <div class="p-3 border-t border-neutral-800">
-          <label class="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold cursor-pointer transition-colors">
+          <button type="button" id="mpDrawerBrowseBtn" class="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold cursor-pointer transition-colors">
             <i class="fa-solid fa-folder-open text-sky-400"></i>
-            <span>Choose from Device Files / Gallery</span>
-            <input type="file" id="mpDeviceFileInput" accept="image/*,video/*" multiple class="hidden" />
-          </label>
+            <span>Browse Device Gallery / Files</span>
+          </button>
+          <input type="file" id="mpDeviceFileInput" accept="image/*,video/*" multiple class="hidden" />
         </div>
       </div>
     </div>
@@ -286,9 +212,9 @@ function injectMediaPickerDOM() {
 
       <!-- Trending Music Suggestions Pills -->
       <div class="p-4">
-        <div class="text-xs font-semibold text-neutral-400 mb-2.5">Trending Tracks</div>
+        <div class="text-xs font-semibold text-neutral-400 mb-2.5">Trending Tracks (YouTube Audio)</div>
         <div class="flex flex-wrap gap-2" id="mpTrendingPills">
-          <!-- Populated from catalog -->
+          <!-- Populated from YouTube API -->
         </div>
       </div>
     </div>
@@ -305,11 +231,11 @@ function injectMediaPickerDOM() {
       <div class="music-picker-search">
         <div class="music-search-box">
           <i class="fa-solid fa-magnifying-glass text-neutral-400 text-sm"></i>
-          <input type="text" id="mpMusicSearchInput" placeholder="Search music or artists..." />
+          <input type="text" id="mpMusicSearchInput" placeholder="Search real YouTube songs or artists..." />
         </div>
       </div>
       <div class="music-picker-list" id="mpMusicTracksList">
-        <!-- Track items injected here -->
+        <!-- YouTube Track items injected here -->
       </div>
     </div>
   `;
@@ -371,17 +297,20 @@ function bindMediaPickerEvents() {
   // Multi-Select Toggle Button (Pink Circle reference)
   const multiBtn = document.getElementById("mpMultiSelectToggleBtn");
   multiBtn?.addEventListener("click", () => {
+    if (!activePreviewItem) {
+      showInstagramToast("Please select media first");
+      return;
+    }
+
     isMultiSelectMode = !isMultiSelectMode;
     multiBtn.classList.toggle("is-active", isMultiSelectMode);
 
     if (isMultiSelectMode) {
-      // Ensure current active item is in selected list
       if (!selectedItems.some(i => i.id === activePreviewItem.id)) {
         selectedItems = [activePreviewItem];
       }
       showInstagramToast("Multi-select active (up to 5 items)");
     } else {
-      // Switch back to single selection of current preview
       selectedItems = [activePreviewItem];
     }
 
@@ -399,39 +328,31 @@ function bindMediaPickerEvents() {
     });
   });
 
-  // Device File Upload Handler
+  // Browse Device Gallery Button in Album Drawer
+  document.getElementById("mpDrawerBrowseBtn")?.addEventListener("click", async () => {
+    const files = await fetchDeviceMedia();
+    if (files.length) {
+      processSelectedDeviceFiles(files);
+      closeAlbumDrawer();
+    }
+  });
+
+  // Hidden File Input fallback
   const fileInput = document.getElementById("mpDeviceFileInput");
   fileInput?.addEventListener("change", (e) => {
     const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-
-    files.forEach(file => {
-      const isVid = file.type.startsWith("video");
-      const url = URL.createObjectURL(file);
-      const newItem = {
-        id: "upload_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4),
-        type: isVid ? "video" : "image",
-        url,
-        thumbnail: url,
-        duration: isVid ? "0:15" : undefined,
-        album: "Camera",
-        aspectRatio: "4/5",
-        file
-      };
-      allGalleryItems.unshift(newItem);
-    });
-
-    closeAlbumDrawer();
-    activePreviewItem = allGalleryItems[0];
-    selectedItems = [allGalleryItems[0]];
-    renderGalleryGrid();
-    updatePreviewArea();
-    showInstagramToast(`Added ${files.length} item(s) from device`);
+    if (files.length) {
+      processSelectedDeviceFiles(files);
+      closeAlbumDrawer();
+    }
   });
 
   // Next Button -> Opens Post Finalize Screen
   document.getElementById("mpNextBtn")?.addEventListener("click", () => {
-    if (!selectedItems.length) return;
+    if (!selectedItems.length) {
+      showInstagramToast("Please pick at least one photo or video");
+      return;
+    }
     openPostFinalizeScreen();
   });
 
@@ -449,10 +370,13 @@ function bindMediaPickerEvents() {
     closeMusicPickerModal();
   });
 
-  // Music Search Input
+  // Real YouTube Music Search Input
   document.getElementById("mpMusicSearchInput")?.addEventListener("input", (e) => {
-    const q = e.target.value.toLowerCase().trim();
-    renderMusicTracksList(q);
+    const q = e.target.value.trim();
+    if (musicSearchDebounceTimer) clearTimeout(musicSearchDebounceTimer);
+    musicSearchDebounceTimer = setTimeout(() => {
+      renderMusicTracksList(q);
+    }, 280);
   });
 
   // Add Location Click
@@ -466,17 +390,67 @@ function bindMediaPickerEvents() {
     }
   });
 
-  // Share Button
+  // Share Button -> Uploads to Cloud Storage & Posts
   document.getElementById("mpFinalizeShareBtn")?.addEventListener("click", () => {
     handleSharePost();
   });
+}
+
+/**
+ * Ingest real File objects selected from device gallery
+ */
+export function processSelectedDeviceFiles(files) {
+  if (!files || !files.length) return;
+
+  const newItems = files.map(file => {
+    const isVid = file.type ? file.type.startsWith("video") : file.name?.endsWith(".mp4");
+    const blobUrl = URL.createObjectURL(file);
+    return {
+      id: "dev_" + Date.now() + "_" + Math.random().toString(36).substring(7),
+      type: isVid ? "video" : "image",
+      url: blobUrl,
+      thumbnail: blobUrl,
+      duration: isVid ? "0:15" : undefined,
+      album: isVid ? "Videos" : "Photos",
+      aspectRatio: isVid ? "9/16" : "4/5",
+      file
+    };
+  });
+
+  // Extract actual video duration if video
+  newItems.forEach(item => {
+    if (item.type === "video") {
+      try {
+        const tempVid = document.createElement("video");
+        tempVid.src = item.url;
+        tempVid.onloadedmetadata = () => {
+          const secs = Math.round(tempVid.duration || 15);
+          const m = Math.floor(secs / 60);
+          const s = secs % 60;
+          item.duration = `${m}:${s < 10 ? '0' : ''}${s}`;
+          renderGalleryGrid();
+        };
+      } catch (_) {}
+    }
+  });
+
+  allGalleryItems = [...newItems, ...allGalleryItems];
+  activePreviewItem = newItems[0];
+  selectedItems = [newItems[0]];
+
+  updatePreviewArea();
+  renderGalleryGrid();
+  renderAlbumFolders();
+  updateNextButtonState();
+
+  showInstagramToast(`Loaded ${newItems.length} media item(s) from phone ✨`);
 }
 
 // -------------------------------------------------------------
 // Screen Display Toggles
 // -------------------------------------------------------------
 
-export function openInstagramMediaPicker() {
+export function openInstagramMediaPicker(options = {}) {
   initInstagramMediaPicker();
 
   const modal = document.getElementById("instagramMediaPickerModal");
@@ -486,10 +460,16 @@ export function openInstagramMediaPicker() {
   activeAlbum = "Recents";
   activeCategoryFilter = "Recents";
   isMultiSelectMode = false;
-  selectedItems = [allGalleryItems[0] || INITIAL_GALLERY_MEDIA[0]];
-  activePreviewItem = selectedItems[0];
   attachedMusic = null;
   selectedLocation = "";
+
+  if (allGalleryItems.length > 0) {
+    selectedItems = [allGalleryItems[0]];
+    activePreviewItem = allGalleryItems[0];
+  } else {
+    selectedItems = [];
+    activePreviewItem = null;
+  }
 
   const multiBtn = document.getElementById("mpMultiSelectToggleBtn");
   if (multiBtn) multiBtn.classList.remove("is-active");
@@ -503,6 +483,21 @@ export function openInstagramMediaPicker() {
   updateNextButtonState();
 
   modal.classList.add("active");
+
+  if (options && (options.prefilledCaption || options.sharedUrl || options.url || options.text)) {
+    const textToFill = options.prefilledCaption || options.sharedUrl || options.url || options.text;
+    const captionInput = document.getElementById("mpCaptionInput");
+    if (captionInput) {
+      captionInput.value = textToFill;
+    }
+    if (options.autoAdvanceToFinalize) {
+      setTimeout(() => {
+        openPostFinalizeScreen();
+        const capIn = document.getElementById("mpCaptionInput");
+        if (capIn) capIn.value = textToFill;
+      }, 80);
+    }
+  }
 }
 
 export function closeInstagramMediaPicker() {
@@ -535,7 +530,6 @@ function openPostFinalizeScreen() {
   const screen = document.getElementById("mpFinalizeScreen");
   if (!screen) return;
 
-  // Set thumbnail
   const thumbImg = document.getElementById("mpFinalizeThumbImg");
   const countBadge = document.getElementById("mpFinalizeCountBadge");
 
@@ -552,9 +546,7 @@ function openPostFinalizeScreen() {
     }
   }
 
-  // Render trending pills
   renderTrendingPills();
-
   updateMusicRowUI();
   screen.classList.add("active");
 }
@@ -585,16 +577,31 @@ function renderGalleryGrid() {
   const container = document.getElementById("mpGridContainer");
   if (!container) return;
 
-  // Remove existing media items, keeping first camera tile
   const cameraTile = document.getElementById("mpCameraShortcutTile");
   container.innerHTML = "";
   if (cameraTile) container.appendChild(cameraTile);
 
+  // If no media loaded from phone yet, render "Select from Phone" tile
+  if (allGalleryItems.length === 0) {
+    const pickTile = document.createElement("div");
+    pickTile.className = "gallery-media-tile flex flex-col items-center justify-center bg-neutral-900 border border-dashed border-neutral-700 rounded-lg p-2 text-center cursor-pointer hover:bg-neutral-800 transition-colors";
+    pickTile.id = "mpSelectPhoneTile";
+    pickTile.innerHTML = `
+      <i class="fa-solid fa-images text-xl text-pink-500 mb-1"></i>
+      <span class="text-[11px] font-semibold text-white">Device Media</span>
+      <span class="text-[9px] text-neutral-400">Tap to browse</span>
+    `;
+    pickTile.addEventListener("click", async () => {
+      const files = await fetchDeviceMedia();
+      if (files.length) processSelectedDeviceFiles(files);
+    });
+    container.appendChild(pickTile);
+    return;
+  }
+
   // Filter items based on active album and category
   let filtered = allGalleryItems.filter(item => {
-    // Album filter
     if (activeAlbum !== "Recents" && item.album !== activeAlbum) return false;
-    // Category filter
     if (activeCategoryFilter === "Photos" && item.type !== "image") return false;
     if (activeCategoryFilter === "Videos" && item.type !== "video") return false;
     return true;
@@ -612,7 +619,7 @@ function renderGalleryGrid() {
     if (isHighlighted) tile.classList.add("is-highlighted");
 
     tile.innerHTML = `
-      <img src="${item.thumbnail || item.url}" alt="Gallery media" loading="lazy" />
+      <img src="${item.thumbnail || item.url}" alt="Device media" loading="lazy" />
       ${item.type === "video" ? `<span class="gallery-video-duration-badge">${item.duration || "0:15"}</span>` : ""}
       <div class="media-selection-badge ${isSelected ? "is-selected" : ""}" style="${isMultiSelectMode ? "" : (isSelected ? "" : "display:none")}">
         ${isMultiSelectMode && isSelected ? selectedIndex : (isSelected ? '<i class="fa-solid fa-check text-[10px]"></i>' : "")}
@@ -631,16 +638,13 @@ function handleMediaTileClick(item) {
   if (isMultiSelectMode) {
     const existingIdx = selectedItems.findIndex(i => i.id === item.id);
     if (existingIdx > -1) {
-      // Deselect item
       if (selectedItems.length === 1) {
         showInstagramToast("At least 1 item must remain selected");
         return;
       }
       selectedItems.splice(existingIdx, 1);
-      // Set preview to last selected item
       activePreviewItem = selectedItems[selectedItems.length - 1];
     } else {
-      // Select new item up to limit of 5
       if (selectedItems.length >= 5) {
         showInstagramToast("Maximum 5 photos or videos allowed");
         return;
@@ -649,7 +653,6 @@ function handleMediaTileClick(item) {
       activePreviewItem = item;
     }
   } else {
-    // Single select mode
     selectedItems = [item];
     activePreviewItem = item;
   }
@@ -661,9 +664,34 @@ function handleMediaTileClick(item) {
 
 function updatePreviewArea() {
   const host = document.getElementById("mpPreviewMediaHost");
-  if (!host || !activePreviewItem) return;
+  if (!host) return;
 
   host.innerHTML = "";
+
+  if (!activePreviewItem) {
+    // Elegant Instagram-style prompt when user has not yet selected media from phone
+    host.innerHTML = `
+      <div class="flex flex-col items-center justify-center p-6 text-center text-neutral-400 gap-3">
+        <div class="w-14 h-14 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center text-pink-500 text-2xl shadow-inner">
+          <i class="fa-solid fa-photo-film"></i>
+        </div>
+        <div>
+          <div class="text-sm font-semibold text-white">Select Device Photos or Videos</div>
+          <div class="text-[11px] text-neutral-400 mt-0.5">Real photos and videos from your phone gallery</div>
+        </div>
+        <button type="button" id="mpPromptBrowseBtn" class="px-4 py-2 rounded-full bg-gradient-to-r from-pink-500 to-rose-600 text-white text-xs font-semibold shadow-lg hover:opacity-90 transition-opacity flex items-center gap-2">
+          <i class="fa-solid fa-folder-open"></i>
+          <span>Choose from Gallery</span>
+        </button>
+      </div>
+    `;
+
+    document.getElementById("mpPromptBrowseBtn")?.addEventListener("click", async () => {
+      const files = await fetchDeviceMedia();
+      if (files.length) processSelectedDeviceFiles(files);
+    });
+    return;
+  }
 
   if (activePreviewItem.type === "video") {
     const video = document.createElement("video");
@@ -701,12 +729,24 @@ function renderAlbumFolders() {
 
   list.innerHTML = "";
 
-  ALBUMS_LIST.forEach(album => {
+  const photosCount = allGalleryItems.filter(i => i.type === "image").length;
+  const videosCount = allGalleryItems.filter(i => i.type === "video").length;
+  const totalCount = allGalleryItems.length;
+
+  const albums = [
+    { name: "Recents", count: totalCount, icon: "fa-solid fa-clock-rotate-left" },
+    { name: "Photos", count: photosCount, icon: "fa-solid fa-image" },
+    { name: "Videos", count: videosCount, icon: "fa-solid fa-video" }
+  ];
+
+  albums.forEach(album => {
     const row = document.createElement("div");
-    row.className = "album-folder-row";
+    row.className = `album-folder-row ${album.name === activeAlbum ? 'active' : ''}`;
     row.innerHTML = `
-      <img src="${album.thumb}" class="album-folder-thumb" alt="${album.name}" />
-      <div class="album-folder-info">
+      <div class="w-12 h-12 rounded-lg bg-neutral-800 flex items-center justify-center text-pink-500 text-lg">
+        <i class="${album.icon}"></i>
+      </div>
+      <div class="album-folder-info flex-1">
         <div class="album-folder-name">${album.name}</div>
         <div class="album-folder-count">${album.count} items</div>
       </div>
@@ -726,48 +766,59 @@ function renderAlbumFolders() {
 }
 
 // -------------------------------------------------------------
-// Music Selection & Audio Sync
+// YouTube Audio Selection & Real Music Integration
 // -------------------------------------------------------------
 
-function renderMusicTracksList(filterQuery = "") {
+async function renderMusicTracksList(filterQuery = "") {
   const list = document.getElementById("mpMusicTracksList");
   if (!list) return;
 
-  list.innerHTML = "";
+  list.innerHTML = `
+    <div class="py-10 text-center text-neutral-400 text-xs">
+      <i class="fa-solid fa-spinner fa-spin text-lg text-pink-500 mb-2"></i>
+      <div>Searching YouTube audio catalog...</div>
+    </div>
+  `;
 
-  const tracks = TRENDING_TRACKS.filter(t => {
-    if (!filterQuery) return true;
-    return t.title.toLowerCase().includes(filterQuery) || t.artist.toLowerCase().includes(filterQuery);
-  });
+  try {
+    const tracks = await searchYouTubeAudio(filterQuery || "trending songs");
+    list.innerHTML = "";
 
-  tracks.forEach(track => {
-    const item = document.createElement("div");
-    item.className = "music-track-item";
-    item.innerHTML = `
-      <img src="${track.cover}" class="music-track-cover" alt="${track.title}" />
-      <div class="music-track-info">
-        <div class="music-track-title">${track.title}</div>
-        <div class="music-track-artist">${track.artist} • 0:30</div>
-      </div>
-      <button type="button" class="music-track-play-btn" title="Preview audio">
-        <i class="fa-solid fa-play"></i>
-      </button>
-    `;
+    if (!tracks || !tracks.length) {
+      list.innerHTML = `<div class="p-6 text-center text-neutral-500 text-xs">No tracks found. Try searching another song.</div>`;
+      return;
+    }
 
-    // Preview play/pause
-    const playBtn = item.querySelector(".music-track-play-btn");
-    playBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      toggleAudioPreview(track, playBtn);
+    tracks.forEach(track => {
+      const item = document.createElement("div");
+      item.className = "music-track-item";
+      item.innerHTML = `
+        <img src="${track.coverUrl || track.cover}" class="music-track-cover" alt="${track.title}" />
+        <div class="music-track-info">
+          <div class="music-track-title">${track.title}</div>
+          <div class="music-track-artist">${track.artist} • 0:30</div>
+        </div>
+        <button type="button" class="music-track-play-btn" title="Preview audio">
+          <i class="fa-solid fa-play"></i>
+        </button>
+      `;
+
+      const playBtn = item.querySelector(".music-track-play-btn");
+      playBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggleAudioPreview(track, playBtn);
+      });
+
+      item.addEventListener("click", () => {
+        selectTrackToAttach(track);
+      });
+
+      list.appendChild(item);
     });
-
-    // Select track to attach
-    item.addEventListener("click", () => {
-      selectTrackToAttach(track);
-    });
-
-    list.appendChild(item);
-  });
+  } catch (err) {
+    console.error("renderMusicTracksList error:", err);
+    list.innerHTML = `<div class="p-6 text-center text-neutral-500 text-xs">Unable to load songs. Tap a trending pill below.</div>`;
+  }
 }
 
 function toggleAudioPreview(track, btn) {
@@ -782,7 +833,9 @@ function toggleAudioPreview(track, btn) {
   try {
     previewAudioElement = new Audio(track.audioUrl);
     previewAudioElement._trackId = track.id;
-    previewAudioElement.play().catch(() => {});
+    previewAudioElement.play().catch((e) => {
+      console.warn("Audio preview autoplay note:", e);
+    });
     btn.innerHTML = '<i class="fa-solid fa-pause text-pink-500"></i>';
 
     previewAudioElement.onended = () => {
@@ -808,21 +861,24 @@ function selectTrackToAttach(track) {
   showInstagramToast(`Attached music: ${track.title}`);
 }
 
-function renderTrendingPills() {
+async function renderTrendingPills() {
   const container = document.getElementById("mpTrendingPills");
   if (!container) return;
 
   container.innerHTML = "";
-  TRENDING_TRACKS.slice(0, 4).forEach(track => {
-    const pill = document.createElement("button");
-    pill.type = "button";
-    pill.className = "px-3 py-1.5 rounded-full bg-neutral-800 hover:bg-neutral-700 text-xs text-white font-medium flex items-center gap-1.5 transition-colors";
-    pill.innerHTML = `<i class="fa-solid fa-music text-[11px] text-pink-400"></i> <span>${track.title}</span>`;
-    pill.onclick = () => {
-      selectTrackToAttach(track);
-    };
-    container.appendChild(pill);
-  });
+  try {
+    const tracks = await searchYouTubeAudio("viral hits");
+    (tracks || []).slice(0, 4).forEach(track => {
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "px-3 py-1.5 rounded-full bg-neutral-800 hover:bg-neutral-700 text-xs text-white font-medium flex items-center gap-1.5 transition-colors";
+      pill.innerHTML = `<i class="fa-solid fa-music text-[11px] text-pink-400"></i> <span>${track.title}</span>`;
+      pill.onclick = () => {
+        selectTrackToAttach(track);
+      };
+      container.appendChild(pill);
+    });
+  } catch (_) {}
 }
 
 function updateMusicRowUI() {
@@ -855,72 +911,119 @@ function updateMusicRowUI() {
 }
 
 // -------------------------------------------------------------
-// Share Post Handler
+// Direct Server Upload & Share Post Handler
 // -------------------------------------------------------------
 
-function handleSharePost() {
-  const captionInput = document.getElementById("mpCaptionInput");
-  const caption = (captionInput?.value || "").trim() || "Moments ✨ #lifestyle";
+async function handleSharePost() {
+  if (!selectedItems.length) {
+    showInstagramToast("No media selected to share");
+    return;
+  }
 
-  // Package post with carousel media (up to 5 items) and 30s music sync
-  const postItems = selectedItems.map(item => ({
-    type: item.type,
-    url: item.url,
-    thumbnail: item.thumbnail || item.url
-  }));
+  const shareBtn = document.getElementById("mpFinalizeShareBtn");
+  if (shareBtn) {
+    shareBtn.disabled = true;
+    shareBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Sharing...';
+  }
 
-  const primaryItem = selectedItems[0];
-  const isCarousel = postItems.length > 1;
+  try {
+    showInstagramToast("Uploading to Cloud Storage... ⏳");
 
-  const currentUsername = UserProfileStore.state.username || "sohelmommy_077";
-  const currentAvatar = UserProfileStore.state.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400";
+    // Upload real media files to Supabase Storage / Cloudinary
+    const uploadedMediaItems = await Promise.all(
+      selectedItems.map(async (item) => {
+        if (item.file) {
+          try {
+            const uploadResult = await uploadPostMedia(item.file);
+            return {
+              type: uploadResult.type || item.type,
+              url: uploadResult.url || item.url,
+              thumbnail: uploadResult.thumbnail_url || uploadResult.url || item.thumbnail || item.url
+            };
+          } catch (uploadErr) {
+            console.warn("Media upload note, falling back to local URL:", uploadErr);
+            return {
+              type: item.type,
+              url: item.url,
+              thumbnail: item.thumbnail || item.url
+            };
+          }
+        }
+        return {
+          type: item.type,
+          url: item.url,
+          thumbnail: item.thumbnail || item.url
+        };
+      })
+    );
 
-  const newPost = {
-    id: "post_" + Date.now(),
-    isCurrentUser: true,
-    user: currentUsername,
-    author_name: currentUsername,
-    avatar: currentAvatar,
-    location: selectedLocation || (attachedMusic ? `${attachedMusic.title} • ${attachedMusic.artist}` : "Original Audio"),
-    caption,
-    time: "JUST NOW",
-    likesCount: 1,
-    commentsCount: 0,
-    url: primaryItem.url,
-    video_url: primaryItem.type === "video" ? primaryItem.url : null,
-    thumbnail_url: primaryItem.thumbnail || primaryItem.url,
-    thumbnail: primaryItem.thumbnail || primaryItem.url,
-    // Carousel structure
-    isCarousel,
-    carouselItems: postItems,
-    // 30-Second Music Attachment
-    music: attachedMusic ? {
-      id: attachedMusic.id,
-      title: attachedMusic.title,
-      artist: attachedMusic.artist,
-      audioUrl: attachedMusic.audioUrl,
-      cover: attachedMusic.cover
-    } : null
-  };
+    const primaryUploaded = uploadedMediaItems[0];
+    const isCarousel = uploadedMediaItems.length > 1;
 
-  // Prepend to Feed
-  addNewPostToFeed(newPost);
+    const captionInput = document.getElementById("mpCaptionInput");
+    const caption = (captionInput?.value || "").trim() || "Moments ✨ #lifestyle";
 
-  // Close media picker modal
-  closeInstagramMediaPicker();
+    const currentUsername = UserProfileStore.state.username || "sohelmommy_077";
+    const currentAvatar = UserProfileStore.state.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400";
 
-  // Switch to Home feed
-  switchTab("home");
+    const newPost = {
+      id: "post_" + Date.now(),
+      isCurrentUser: true,
+      user: currentUsername,
+      author_name: currentUsername,
+      avatar: currentAvatar,
+      location: selectedLocation || (attachedMusic ? `${attachedMusic.title} • ${attachedMusic.artist}` : "Original Audio"),
+      caption,
+      time: "JUST NOW",
+      likesCount: 1,
+      commentsCount: 0,
+      url: primaryUploaded.url,
+      video_url: primaryUploaded.type === "video" ? primaryUploaded.url : null,
+      thumbnail_url: primaryUploaded.thumbnail || primaryUploaded.url,
+      thumbnail: primaryUploaded.thumbnail || primaryUploaded.url,
+      isCarousel,
+      carouselItems: uploadedMediaItems,
+      music: attachedMusic ? {
+        id: attachedMusic.id,
+        title: attachedMusic.title,
+        artist: attachedMusic.artist,
+        audioUrl: attachedMusic.audioUrl,
+        cover: attachedMusic.coverUrl || attachedMusic.cover
+      } : null
+    };
 
-  // Refresh profile counts and grid
-  updateProfilePostsCount();
-  renderProfileGrid();
+    // Save post record to Supabase database
+    try {
+      await savePostToSupabase(newPost);
+    } catch (dbErr) {
+      console.warn("Supabase database insert warning:", dbErr);
+    }
 
-  showInstagramToast("Post shared successfully! ✨");
+    // Immediately append post to Home Feed and Profile Grid
+    addNewPostToFeed(newPost);
+    updateProfilePostsCount();
+    renderProfileGrid();
+
+    // Close media picker modal and switch to Home feed
+    closeInstagramMediaPicker();
+    switchTab("home");
+
+    showInstagramToast("Post shared successfully! ✨");
+  } catch (err) {
+    console.error("Post creation error:", err);
+    showInstagramToast("Failed to share post. Please try again.");
+  } finally {
+    if (shareBtn) {
+      shareBtn.disabled = false;
+      shareBtn.textContent = "Share";
+    }
+  }
 }
 
-// Expose on window for inline handlers and backwards compatibility
+// Expose on window for global access and backwards compatibility
 if (typeof window !== "undefined") {
   window.openInstagramMediaPicker = openInstagramMediaPicker;
   window.closeInstagramMediaPicker = closeInstagramMediaPicker;
+  window.fetchDeviceMedia = fetchDeviceMedia;
+  window.processSelectedDeviceFiles = processSelectedDeviceFiles;
 }

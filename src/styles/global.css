@@ -7,6 +7,7 @@
 @import "./reelsSheets.css";
 @import "./music.css";
 @import "./mediaPicker.css";
+@import "./explore.css";
 
     @font-face {
       font-family: 'Billabong';

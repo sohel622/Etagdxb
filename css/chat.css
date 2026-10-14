@@ -1,0 +1,159 @@
+/* ==========================================================================
+   css/chat.css - Chat Drawer, Emoji Reaction Tray & Message Bubble Styling
+   ========================================================================== */
+
+/* Shabnam AI History Side Drawer */
+#shabnamHistoryDrawer {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: flex-end;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: opacity 0.3s ease;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#shabnamHistoryDrawer.open {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+#shabnamHistoryDrawerPanel {
+  width: 85%;
+  max-width: 320px;
+  height: 100%;
+  background-color: #ffffff;
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.2);
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dark #shabnamHistoryDrawerPanel,
+.app-container.dark #shabnamHistoryDrawerPanel {
+  background-color: #171717;
+  border-left-color: #262626;
+  color: #ffffff;
+}
+
+#shabnamHistoryDrawer.open #shabnamHistoryDrawerPanel {
+  transform: translateX(0) !important;
+}
+
+/* Instagram Message Long-Press Context Menu & Reaction Overlay */
+#chatMessageContextMenuOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background-color: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: opacity 0.2s ease;
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+}
+
+#chatMessageContextMenuOverlay.open {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+/* Animations */
+@keyframes reactionPillPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.86) translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.reaction-pill-pop {
+  animation: reactionPillPop 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes contextMenuPopIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.context-menu-pop-in {
+  animation: contextMenuPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes sheetSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sheet-slide-up {
+  animation: sheetSlideUp 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Chat Message Bubbles & Swipe-Reply Interactions */
+.chat-bubble-interactive {
+  touch-action: pan-y;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  position: relative;
+  transition: transform 0.15s ease-out;
+}
+
+.swipe-reply-icon {
+  position: absolute;
+  left: -32px;
+  top: 50%;
+  transform: translateY(-50%) scale(0.6);
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease, background-color 0.15s ease;
+  pointer-events: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  background: rgba(14, 165, 233, 0.15);
+  color: #0ea5e9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.swipe-reply-threshold .swipe-reply-icon {
+  opacity: 1 !important;
+  transform: translateY(-50%) scale(1.1) !important;
+  background: rgba(14, 165, 233, 0.25) !important;
+}
+
+/* Reply & Pin Banners */
+#chatReplyBanner,
+#chatPinnedBanner {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}

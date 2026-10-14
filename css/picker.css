@@ -1,0 +1,63 @@
+/* ==========================================================================
+   css/picker.css - Gallery Picker and Modal Styling
+   ========================================================================== */
+
+@import "../src/styles/mediaPicker.css";
+
+/* Full-Screen Instagram Media Picker Sheet */
+.media-picker-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background-color: #000000;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+}
+
+.media-picker-modal.active {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+/* Recents Album Selector Drawer */
+.album-select-drawer {
+  position: absolute;
+  inset: 0;
+  z-index: 130;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.album-select-drawer.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.album-drawer-panel {
+  background: #1c1c1c;
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  max-height: 75vh;
+  display: flex;
+  flex-direction: column;
+  transform: translateY(100%);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.album-select-drawer.active .album-drawer-panel {
+  transform: translateY(0);
+}

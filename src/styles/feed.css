@@ -171,6 +171,25 @@
     }
 
     /* Strict Video Dimensions & Scaling: Instagram Home Feed (4:5 / 1080x1350 px) */
+    .home-post-video-container {
+      width: 100%;
+      aspect-ratio: 4 / 5;
+      max-height: 80vh;
+      background-color: #000000;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 0px;
+    }
+
+    .home-post-video-player {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
     .home-post-video-container,
     .home-video-container,
     .post-video-container,

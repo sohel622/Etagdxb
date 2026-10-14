@@ -4,6 +4,7 @@ import { UserProfileStore } from "../../utils/storage.js";
 import { setupProfileIconLongPress } from "../AccountSwitcher.js";
 import { updateChatNavUnreadBadge } from "../../services/chatService.js";
 import { updateStatusBar, isAppDarkMode } from "../../services/statusBarService.js";
+import { initExploreView } from "../../features/explore/index.js";
 
 let currentNav = [...DEFAULT_NAV];
 try {
@@ -556,6 +557,12 @@ function switchTab(tabId, btnElement) {
     if (typeof resetVideoProgressBar === "function") resetVideoProgressBar();
 
     const chatsView = document.getElementById("chatsView");
+    const exploreView = document.getElementById("exploreView");
+    if (exploreView && tabId !== "search") {
+      exploreView.classList.remove("active");
+      exploreView.style.display = "none";
+    }
+
     if (chatsView && tabId !== "messages") {
       chatsView.classList.remove("active");
       chatsView.style.display = "none";
@@ -578,7 +585,7 @@ function switchTab(tabId, btnElement) {
       if (pView) pView.classList.add("active");
       applyCurrentDynamicTheme();
 
-      // Requirement 5: Reset any other profile view and strictly sync logged-in user's profile
+      // Reset any other profile view and strictly sync logged-in user's profile
       if (typeof window.closeUserProfile === "function") {
         window.closeUserProfile();
       }
@@ -603,17 +610,31 @@ function switchTab(tabId, btnElement) {
         if (typeof renderChatsList === "function") renderChatsList();
       }
       applyCurrentDynamicTheme();
+    } else if (tabId === "search") {
+      if (typeof pauseAllHomeVideos === "function") pauseAllHomeVideos();
+      if (hView) hView.classList.remove("active");
+      if (rView) rView.classList.remove("active");
+      if (pView) pView.classList.remove("active");
+      if (chatsView) {
+        chatsView.classList.remove("active");
+        chatsView.style.display = "none";
+      }
+      if (exploreView) {
+        exploreView.classList.add("active");
+        exploreView.style.display = "flex";
+        exploreView.style.flexDirection = "column";
+      }
+      if (typeof initExploreView === "function") {
+        initExploreView();
+      } else if (typeof window !== "undefined" && typeof window.initExploreView === "function") {
+        window.initExploreView();
+      }
+      applyCurrentDynamicTheme();
     } else {
       if (rView) rView.classList.remove("active");
       if (pView) pView.classList.remove("active");
       if (hView) hView.classList.add("active");
       applyCurrentDynamicTheme();
-    }
-  }
-    
-  if (tabId === "search") {
-    if (typeof showInstagramToast === "function") {
-      showInstagramToast("Explore & Search 🔍");
     }
   }
 }

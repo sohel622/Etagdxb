@@ -1,6 +1,7 @@
-// Share Intent Receiver & Incoming Content Handler for Android / WebToNative / Capacitor
+import { App as CapApp } from '@capacitor/app';
 import { showInstagramToast } from "../utils/storage.js";
 import { openFlashgramShareModal, openShabnamWithPrefilledLink } from "../components/FlashgramShareModal.js";
+import { openInstagramMediaPicker } from "../components/media/MediaPickerModal.js";
 
 let incomingSharedLink = null;
 let isInitialized = false;
@@ -61,13 +62,29 @@ export function handleIncomingSharePayload(payload) {
 
   setIncomingSharedLink(cleanPayload.full);
 
-  // Requirement 3: Show subtle confirmation toast upon successfully catching the shared link
-  showInstagramToast("Link received from external app 🔗");
+  const isWebOrYouTubeLink = Boolean(
+    cleanPayload.url?.includes("http") ||
+    cleanPayload.full?.includes("youtube.com") ||
+    cleanPayload.full?.includes("youtu.be") ||
+    cleanPayload.full?.includes("http://") ||
+    cleanPayload.full?.includes("https://")
+  );
 
-  // Open the Flashgram Share Sheet modal
-  setTimeout(() => {
-    openFlashgramShareModal(cleanPayload);
-  }, 350);
+  if (isWebOrYouTubeLink) {
+    showInstagramToast("Link received • Creating post 🔗");
+    setTimeout(() => {
+      openInstagramMediaPicker({
+        prefilledCaption: cleanPayload.full || cleanPayload.url,
+        autoAdvanceToFinalize: true
+      });
+    }, 300);
+  } else {
+    showInstagramToast("Content received from external app 🔗");
+    // Open the Flashgram Share Sheet modal
+    setTimeout(() => {
+      openFlashgramShareModal(cleanPayload);
+    }, 350);
+  }
 }
 
 /**
@@ -114,22 +131,27 @@ export function initIncomingShareListener() {
   // 1. Check for immediate URL query parameters (WebToNative / Web Share Target)
   checkUrlShareParams();
 
-  // 2. Capacitor App Plugin Listener (@capacitor/app or window.Capacitor)
-  if (typeof window !== "undefined") {
-    // Check if Capacitor App plugin exists
-    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
-      try {
-        window.Capacitor.Plugins.App.addListener("appUrlOpen", (data) => {
-          if (data && data.url) {
-            handleIncomingSharePayload(data.url);
-          }
-        });
-      } catch (e) {
-        console.warn("Capacitor appUrlOpen registration note:", e);
+  // 2. Capacitor App Plugin Listener (@capacitor/app)
+  try {
+    CapApp.addListener("appUrlOpen", (data) => {
+      console.log("App opened with URL or share target:", data?.url);
+      if (data && data.url) {
+        handleIncomingSharePayload(data.url);
       }
+    });
+  } catch (e) {
+    console.warn("CapApp.addListener note:", e);
+  }
+
+  // 3. Window event listeners for custom native bridges / Cordova / WebToNative
+  if (typeof window !== "undefined") {
+    // Check pending payload received from Android before JS initialization
+    if (window.__pendingSharePayload) {
+      const p = window.__pendingSharePayload;
+      window.__pendingSharePayload = null;
+      setTimeout(() => handleIncomingSharePayload(p), 100);
     }
 
-    // 3. Window event listeners for custom native bridges / Cordova / WebToNative
     window.addEventListener("appUrlOpen", (event) => {
       const url = (event && event.detail && event.detail.url) || (event && event.url);
       if (url) handleIncomingSharePayload(url);

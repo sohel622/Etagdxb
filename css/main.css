@@ -1,0 +1,99 @@
+/* ==========================================================================
+   css/main.css - Flashgram Global Layout, Resets & Safe-Area Tokens
+   ========================================================================== */
+
+@import "../src/styles/global.css";
+
+/* Safe Area Environment Variables */
+:root {
+  --safe-area-top: env(safe-area-inset-top, 24px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 16px);
+  --header-bg: #ffffff;
+  --bg-header: #ffffff;
+  --app-font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.dark,
+.app-container.dark,
+.app-container.dark-mode-active {
+  --header-bg: #000000;
+  --bg-header: #000000;
+}
+
+/* App Skeleton Layout */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background-color: #000000;
+  font-family: var(--app-font-family);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.app-container {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  height: 100%;
+  height: 100dvh;
+  margin: 0 auto;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.4);
+}
+
+.dark .app-container {
+  background: #000000;
+  color: #ffffff;
+}
+
+/* Status Bar Curtain */
+#statusBarCurtain {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  pointer-events: none;
+  height: var(--safe-area-top);
+  background-color: var(--header-bg);
+  transition: background-color 0.2s ease;
+}
+
+/* View Section Switching */
+.view-section {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.view-section.active {
+  display: flex !important;
+}
+
+/* Fixed Top Header */
+.fixed-top-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  padding-top: max(var(--safe-area-top), 24px);
+  padding-bottom: 8px;
+  background-color: var(--header-bg);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  transition: background-color 0.2s ease;
+}
+
+.dark .fixed-top-header {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
