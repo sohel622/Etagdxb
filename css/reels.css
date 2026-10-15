@@ -81,3 +81,8 @@
 .reel-action-btn i {
   font-size: 24px;
 }
+/* To hide only the PiP icon from the screen */
+.pip-icon, button.pip-btn i, .reel-action-btn:has(svg.pip-icon) {
+    display: none !important;
+}
+
