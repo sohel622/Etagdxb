@@ -1499,7 +1499,9 @@
       }
       .stories-container {
         background: #000000 !important;
-        border-bottom-color: #1f1f1f !important;
+        border: none !important;
+        border-bottom: none !important;
+        box-shadow: none !important;
       }
       .story-name {
         color: #ffffff !important;

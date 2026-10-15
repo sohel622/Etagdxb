@@ -504,7 +504,9 @@
     .app-container.dark-mode-active .top-bar {
       background: #000000 !important;
       background-color: #000000 !important;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+      border: none !important;
+      border-bottom: none !important;
+      box-shadow: none !important;
       color: #ffffff;
     }
 
@@ -531,7 +533,9 @@
     .app-container.dark .stories-container,
     .app-container.dark-mode-active .stories-container {
       background: #000000;
-      border-bottom-color: #1f1f1f;
+      border: none !important;
+      border-bottom: none !important;
+      box-shadow: none !important;
     }
 
     .dark .story-name,
@@ -541,16 +545,23 @@
     }
 
     .dark .story-avatar-wrapper.my-story,
+    .dark .story-ring-wrapper.my-story,
     .app-container.dark .story-avatar-wrapper.my-story,
-    .app-container.dark-mode-active .story-avatar-wrapper.my-story {
+    .app-container.dark .story-ring-wrapper.my-story,
+    .app-container.dark-mode-active .story-avatar-wrapper.my-story,
+    .app-container.dark-mode-active .story-ring-wrapper.my-story {
       background: #1a1a1a;
       border-color: #2e2e2e;
     }
 
     .dark .story-avatar-wrapper.active-ring img,
+    .dark .story-ring-wrapper.active-ring img,
+    .dark .story-ring-wrapper img,
     .app-container.dark .story-avatar-wrapper.active-ring img,
-    .app-container.dark-mode-active .story-avatar-wrapper.active-ring img {
-      border-color: #000000;
+    .app-container.dark .story-ring-wrapper.active-ring img,
+    .app-container.dark-mode-active .story-avatar-wrapper.active-ring img,
+    .app-container.dark-mode-active .story-ring-wrapper.active-ring img {
+      border-color: #000000 !important;
     }
 
     .dark .post-card,

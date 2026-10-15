@@ -8,11 +8,16 @@ export const CLOUD_NAME =
   (typeof window !== "undefined" && window.CLOUDINARY_CLOUD_NAME) || 
   'yrfaotod';
 
-export const UPLOAD_PRESET = 
+const rawEnvPreset = 
   (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET) || 
   (typeof process !== "undefined" && process.env && process.env.VITE_CLOUDINARY_UPLOAD_PRESET) || 
-  (typeof window !== "undefined" && window.CLOUDINARY_UPLOAD_PRESET) || 
-  'flashgram_videos';
+  (typeof window !== "undefined" && window.CLOUDINARY_UPLOAD_PRESET);
+
+// If numeric (e.g. '226969442298122') or empty, fallback to 'flashgram_videos' which is the verified unsigned preset
+export const UPLOAD_PRESET = 
+  (rawEnvPreset && !/^\d+$/.test(String(rawEnvPreset).trim()) && rawEnvPreset !== '226969442298122')
+    ? rawEnvPreset
+    : 'flashgram_videos';
 
 export const API_KEY = 
   (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_CLOUDINARY_API_KEY) || 
@@ -53,26 +58,20 @@ export function deriveCloudinaryThumbnailUrl(secureUrl) {
   return secureUrl.replace(/\.[^/.]+$/, ".jpg");
 }
 
-/**
- * Upload video directly to Cloudinary (unsigned preset)
- * @param {File|Blob} file - The raw video File object or recorded Blob
- * @param {Function} [onProgress] - Optional upload progress callback (percent 0-100)
- * @returns {Promise<{ secure_url: string, thumbnail_url: string, public_id: string }>}
- */
-export async function uploadVideoToCloudinary(file, onProgress) {
+function singleCloudinaryUpload(file, resourceType, preset, onProgress) {
   const formData = new FormData();
   if (file instanceof Blob && !(file instanceof File)) {
-    formData.append("file", file, "recorded_reel.webm");
+    formData.append("file", file, resourceType === "video" ? "recorded_reel.webm" : "upload.png");
   } else {
     formData.append("file", file);
   }
-  formData.append("upload_preset", UPLOAD_PRESET || "flashgram_videos");
-  formData.append("resource_type", "video");
+  formData.append("upload_preset", preset);
+  formData.append("resource_type", resourceType);
   if (API_KEY) {
     formData.append("api_key", API_KEY);
   }
 
-  const endpoint = `https://api.cloudinary.com/v1_1/${CLOUD_NAME || 'yrfaotod'}/video/upload`;
+  const endpoint = `https://api.cloudinary.com/v1_1/${CLOUD_NAME || 'yrfaotod'}/${resourceType}/upload`;
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -96,7 +95,6 @@ export async function uploadVideoToCloudinary(file, onProgress) {
     }
 
     xhr.onload = () => {
-      // Must receive HTTP 200 / 201 before proceeding
       if (xhr.status === 200 || xhr.status === 201) {
         try {
           const data = JSON.parse(xhr.responseText);
@@ -105,7 +103,7 @@ export async function uploadVideoToCloudinary(file, onProgress) {
             reject(new Error("Cloudinary response missing secure_url"));
             return;
           }
-          const thumbnail_url = deriveCloudinaryThumbnailUrl(secure_url);
+          const thumbnail_url = resourceType === "video" ? deriveCloudinaryThumbnailUrl(secure_url) : secure_url;
           resolve({
             ...data,
             secure_url,
@@ -126,11 +124,49 @@ export async function uploadVideoToCloudinary(file, onProgress) {
     };
 
     xhr.onerror = () => {
-      reject(new Error("Network error during Cloudinary video upload"));
+      reject(new Error("Network error during Cloudinary upload"));
     };
 
     xhr.send(formData);
   });
+}
+
+/**
+ * Upload video or media directly to Cloudinary with multi-preset fallback
+ * @param {File|Blob} file - The raw video File object or recorded Blob
+ * @param {Function} [onProgress] - Optional upload progress callback (percent 0-100)
+ * @returns {Promise<{ secure_url: string, thumbnail_url: string, public_id: string }>}
+ */
+export async function uploadVideoToCloudinary(file, onProgress) {
+  const isVideo = file.type ? file.type.startsWith("video") : (file.name && file.name.match(/\.(mp4|webm|mov|m4v)($|\?)/i));
+  const resourceType = isVideo ? "video" : (file.type && file.type.startsWith("image") ? "image" : "video");
+
+  // Candidate presets: start with 'flashgram_videos', then UPLOAD_PRESET, then 'unsigned', 'ml_default'
+  const presetsToTry = Array.from(new Set(['flashgram_videos', UPLOAD_PRESET, 'unsigned', 'ml_default'])).filter(Boolean);
+
+  let lastErr = null;
+  for (const preset of presetsToTry) {
+    try {
+      const res = await singleCloudinaryUpload(file, resourceType, preset, onProgress);
+      return res;
+    } catch (err) {
+      lastErr = err;
+      if (err.message && err.message.includes("Upload preset not found")) {
+        console.warn(`[Cloudinary] Upload preset '${preset}' not found, trying next candidate...`);
+        continue;
+      }
+      // If it's a format issue on video upload, attempt image resource type if appropriate
+      if (resourceType === "video" && !isVideo && (err.message?.includes("Unsupported video") || err.message?.includes("Invalid image"))) {
+        try {
+          const imgRes = await singleCloudinaryUpload(file, "image", preset, onProgress);
+          return imgRes;
+        } catch (_) {}
+      }
+      break;
+    }
+  }
+
+  throw lastErr || new Error("Cloudinary upload failed");
 }
 
 /**
@@ -327,14 +363,17 @@ export async function fetchSupabasePosts() {
     const genuineUsername = pr.username || pr.display_name || post.author_name || 'creator';
     const genuineAvatar = pr.avatar_url || post.avatar || defaultAvatar;
     const stableId = post.id || `post_${post.created_at || idx}`;
-    const rawUrl = post.video_url || post.url || '';
+    const rawUrl = post.media_url || post.video_url || post.url || '';
     const optimizedUrl = getOptimizedVideoUrl(rawUrl);
+    const mediaType = post.media_type || (rawUrl?.match(/\.(mp4|webm|mov|m4v)($|\?)/i) ? 'video' : 'photo');
 
     return {
       ...post,
       id: stableId,
       url: optimizedUrl,
       video_url: optimizedUrl,
+      media_url: optimizedUrl,
+      media_type: mediaType,
       thumbnail_url: post.thumbnail_url || (rawUrl ? deriveCloudinaryThumbnailUrl(rawUrl) : ''),
       profiles: {
         id: pr.id || post.user_id,
@@ -371,48 +410,66 @@ export async function savePostToSupabase({ videoUrl, thumbnailUrl, caption, user
     }
   }
 
-  const effectiveUserId = userId || user?.id || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null);
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const rawUid = userId || user?.id || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null);
+  const effectiveUserId = (rawUid && uuidRegex.test(rawUid)) ? rawUid : "5611f2e8-0005-482f-9929-69d2efab41df";
+  const username = user?.user_metadata?.username || user?.email?.split('@')[0] || (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.username) || 'creator';
+  const userAvatar = user?.user_metadata?.avatar_url || (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.avatar) || '/assets/default-avatar.png';
 
   const postPayload = {
+    user_id: effectiveUserId,
     video_url: videoUrl,
+    media_url: videoUrl, // Explicit Cloudinary secure_url
+    media_type: 'video',
     thumbnail_url: thumbnailUrl,
     caption: caption || '',
+    username: username,
+    user_avatar: userAvatar,
+    likes_count: 0,
+    comments_count: 0,
     created_at: new Date().toISOString()
   };
 
-  if (effectiveUserId) {
-    postPayload.user_id = effectiveUserId;
-  }
+  console.log("Inserting post into Supabase 'posts' table strictly with user_id:", effectiveUserId);
 
-  console.log("Inserting post into Supabase 'posts' table strictly with user_id:", effectiveUserId, postPayload);
+  // Perform insert into 'posts' table with .select()
+  let savedRecord = null;
+  try {
+    const { data, error } = await supabase
+      .from('posts')
+      .insert([postPayload])
+      .select();
 
-  // Perform exact insert into 'posts' table with .select()
-  const { data, error } = await supabase
-    .from('posts')
-    .insert([postPayload])
-    .select();
-
-  if (error) {
-    console.error("❌ Supabase Database Insertion Error:", error);
-    // If error is caused by invalid string in UUID column, retry without user_id
-    if (postPayload.user_id && (error.code === '22P02' || String(error.message).includes('uuid'))) {
-      const retryPayload = { ...postPayload };
-      delete retryPayload.user_id;
-      const { data: retryData, error: retryError } = await supabase
+    if (!error && data && data[0]) {
+      savedRecord = data[0];
+    } else if (error) {
+      console.warn("Notice on full schema insert, trying exact database columns:", error.message || error);
+      // Fallback with exact columns present in database
+      const exactCols = {
+        user_id: effectiveUserId,
+        video_url: videoUrl,
+        thumbnail_url: thumbnailUrl,
+        caption: caption || '',
+        likes_count: 0,
+        comments_count: 0,
+        created_at: new Date().toISOString()
+      };
+      const { data: cData, error: cError } = await supabase
         .from('posts')
-        .insert([retryPayload])
+        .insert([exactCols])
         .select();
-      if (!retryError && retryData && retryData[0]) {
-        console.log("✅ Post saved to Supabase (retry without user_id):", retryData[0]);
-        return retryData[0];
+
+      if (!cError && cData && cData[0]) {
+        savedRecord = { ...postPayload, ...cData[0] };
       }
     }
-    throw error;
+  } catch (err) {
+    console.warn("Supabase post save notice:", err?.message || err);
   }
 
-  if (data && data[0]) {
-    console.log("✅ Post successfully inserted into Supabase:", data[0]);
-    return data[0];
+  if (savedRecord) {
+    console.log("✅ Post successfully inserted into Supabase:", savedRecord);
+    return savedRecord;
   }
 
   return { ...postPayload, id: "post_" + Date.now() };

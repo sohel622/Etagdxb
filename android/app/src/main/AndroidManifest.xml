@@ -247,6 +247,12 @@
             </intent-filter>
         </service>
 
+        <!-- Capacitor Community Background Audio Foreground Service -->
+        <service
+            android:name="com.getcapacitor.community.audio.BackgroundAudioService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="false" />
+
         <!-- Flashgram Native Foreground Upload Service for Background Data Sync -->
         <service
             android:name=".FlashgramUploadService"

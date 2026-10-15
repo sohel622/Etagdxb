@@ -1,30 +1,33 @@
 // Flashgram Music Service
-// Powered by YouTube Data API v3, YouTube IFrame Player API, and Web MediaSession API
+// Powered by YouTube Data API v3, YouTube IFrame Player API, Web MediaSession API, and Capacitor LocalNotifications
+import {
+  updateMediaSessionState,
+  clearMediaNotification,
+  ensurePersistentAudioElement,
+  acquireWakeLock,
+  releaseWakeLock
+} from "./mediaSessionController.js";
 
 const YOUTUBE_API_KEY = "AIzaSyAaIoLTRmHOUTv5b5y7yiaT27Mj1AX936Q";
 
 // Background Audio Keep-Alive for continuous playback when screen is locked or app is minimized
-let bgAudioKeepAlive = null;
-
 function startBgAudioKeepAlive() {
   try {
-    if (!bgAudioKeepAlive) {
-      bgAudioKeepAlive = new Audio();
-      // 1-second silent WAV loop
-      bgAudioKeepAlive.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAP8A/w==";
-      bgAudioKeepAlive.loop = true;
-      bgAudioKeepAlive.volume = 0.01;
+    const bgAudio = ensurePersistentAudioElement();
+    if (bgAudio && bgAudio.paused) {
+      bgAudio.play().catch(() => {});
     }
-    bgAudioKeepAlive.play().catch(() => {});
+    acquireWakeLock();
   } catch (_) {}
 }
 
 function stopBgAudioKeepAlive() {
-  if (bgAudioKeepAlive) {
-    try {
-      bgAudioKeepAlive.pause();
-    } catch (_) {}
-  }
+  try {
+    if (typeof window !== "undefined" && window._flashgramPersistentAudio) {
+      window._flashgramPersistentAudio.pause();
+    }
+    releaseWakeLock();
+  } catch (_) {}
 }
 
 // Curated high-fidelity single tracks fallback catalog
@@ -440,6 +443,10 @@ class YouTubeMusicService {
     } else {
       this.isPlaying = false;
       this.stopProgressTracker();
+      stopBgAudioKeepAlive();
+      if (this.currentTrack) {
+        updateMediaSessionState(false, this.currentTrack);
+      }
       this.notify();
     }
   }
@@ -580,6 +587,7 @@ class YouTubeMusicService {
   stopAndDismissPlayer() {
     this.stopProgressTracker();
     stopBgAudioKeepAlive();
+    clearMediaNotification();
 
     if (this.player) {
       try {
@@ -607,17 +615,6 @@ class YouTubeMusicService {
       try {
         window.NativeMediaBridge.stopMediaService();
       } catch (e) {}
-    }
-
-    // Fully clear the system status bar / lock screen notification
-    if ('mediaSession' in navigator) {
-      try {
-        navigator.mediaSession.metadata = null;
-        navigator.mediaSession.playbackState = 'none';
-        if (typeof navigator.mediaSession.setPositionState === 'function') {
-          navigator.mediaSession.setPositionState(null);
-        }
-      } catch (_) {}
     }
 
     // Dismiss now playing modal if open
@@ -787,26 +784,17 @@ class YouTubeMusicService {
     const track = this.currentTrack;
     const coverArt = track.thumbnail || track.coverUrl || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500';
 
-    // 1. Web MediaSession API
-    if ('mediaSession' in navigator) {
-      try {
-        navigator.mediaSession.metadata = new window.MediaMetadata({
-          title: track.title || 'Flashgram Music',
-          artist: track.channelTitle || track.artist || 'Flashgram Music',
-          album: 'Flashgram Tracks',
-          artwork: [
-            { src: coverArt, sizes: '512x512', type: 'image/png' },
-            { src: coverArt, sizes: '256x256', type: 'image/png' },
-            { src: '/app-icon.png', sizes: '128x128', type: 'image/png' },
-            { src: '/assets/flashgram-logo.png', sizes: '128x128', type: 'image/png' }
-          ]
-        });
+    // 1. Unified MediaSession & Capacitor LocalNotifications with swipe-to-dismiss (ongoing: isPlaying)
+    updateMediaSessionState(Boolean(this.isPlaying), {
+      title: track.title || 'Flashgram Music',
+      artist: track.channelTitle || track.artist || 'Flashgram Music',
+      cover: coverArt,
+      coverUrl: coverArt,
+      thumbnail: coverArt
+    });
 
-        navigator.mediaSession.playbackState = this.isPlaying ? 'playing' : 'paused';
-        this.updateMediaSessionPosition();
-      } catch (e) {
-        console.warn("MediaSession update error:", e);
-      }
+    if ('mediaSession' in navigator) {
+      this.updateMediaSessionPosition();
     }
 
     // 2. Android Native Foreground Service & Lock Screen Notification

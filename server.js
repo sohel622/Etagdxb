@@ -262,6 +262,129 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// Viral Shorts & Reels Sounds catalog (Slowed + Reverb, Phonk, Trending Reels Audios)
+const VIRAL_EDIT_TRACKS = [
+  {
+    id: "xqe0-uYHqnM",
+    title: "X-COOL! (Instrumental - Ultra Slowed)",
+    artist: "Trending Sound",
+    coverUrl: "https://i.ytimg.com/vi/xqe0-uYHqnM/hqdefault.jpg",
+    thumbnail: "https://i.ytimg.com/vi/xqe0-uYHqnM/hqdefault.jpg",
+    audioUrl: "https://pipedapi.kavin.rocks/streams/xqe0-uYHqnM",
+    duration: "1:00"
+  },
+  {
+    id: "BX7exLYSEy8",
+    title: "Memory Reboot (Slowed)",
+    artist: "VØJ x Narvent",
+    coverUrl: "https://i.ytimg.com/vi/BX7exLYSEy8/hqdefault.jpg",
+    thumbnail: "https://i.ytimg.com/vi/BX7exLYSEy8/hqdefault.jpg",
+    audioUrl: "https://pipedapi.kavin.rocks/streams/BX7exLYSEy8",
+    duration: "1:30"
+  },
+  {
+    id: "6mWJ4FfNAYI",
+    title: "MONTAGEM PEGADORA (Slowed)",
+    artist: "Trending Sound",
+    coverUrl: "https://i.ytimg.com/vi/6mWJ4FfNAYI/hqdefault.jpg",
+    thumbnail: "https://i.ytimg.com/vi/6mWJ4FfNAYI/hqdefault.jpg",
+    audioUrl: "https://pipedapi.kavin.rocks/streams/6mWJ4FfNAYI",
+    duration: "1:15"
+  },
+  {
+    id: "49EJ5ERgXwM",
+    title: "ACIDO III (Super Slowed)",
+    artist: "Trending Sound",
+    coverUrl: "https://i.ytimg.com/vi/49EJ5ERgXwM/hqdefault.jpg",
+    thumbnail: "https://i.ytimg.com/vi/49EJ5ERgXwM/hqdefault.jpg",
+    audioUrl: "https://pipedapi.kavin.rocks/streams/49EJ5ERgXwM",
+    duration: "1:20"
+  },
+  {
+    id: "3QqwjYC3EAg",
+    title: "AVANGARD (Ultra Slowed + Reverb)",
+    artist: "Trending Sound",
+    coverUrl: "https://i.ytimg.com/vi/3QqwjYC3EAg/hqdefault.jpg",
+    thumbnail: "https://i.ytimg.com/vi/3QqwjYC3EAg/hqdefault.jpg",
+    audioUrl: "https://pipedapi.kavin.rocks/streams/3QqwjYC3EAg",
+    duration: "1:05"
+  },
+  {
+    id: "saTV3Df7R_s",
+    title: "LUZ ROJA (Super Slowed)",
+    artist: "bxkq",
+    coverUrl: "https://i.ytimg.com/vi/saTV3Df7R_s/hqdefault.jpg",
+    thumbnail: "https://i.ytimg.com/vi/saTV3Df7R_s/hqdefault.jpg",
+    audioUrl: "https://pipedapi.kavin.rocks/streams/saTV3Df7R_s",
+    duration: "1:10"
+  }
+];
+
+// Live Real-Time YouTube Music Search API Route
+app.get('/api/music/search', async (req, res) => {
+  const query = (req.query.q || req.query.query || '').trim();
+  if (!query) {
+    return res.json({ success: true, items: VIRAL_EDIT_TRACKS });
+  }
+
+  try {
+    const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query + ' slowed remix audio')}`;
+    const ytRes = await fetch(searchUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9'
+      }
+    });
+
+    if (ytRes.ok) {
+      const html = await ytRes.text();
+      const match = html.match(/var ytInitialData = ({.*?});<\/script>/);
+      if (match) {
+        const data = JSON.parse(match[1]);
+        const contents = data.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents;
+        const videos = (contents || [])
+          .filter(c => c.videoRenderer && c.videoRenderer.videoId)
+          .slice(0, 20)
+          .map(c => {
+            const v = c.videoRenderer;
+            const rawTitle = v.title?.runs?.[0]?.text || 'Trending Track';
+            const cleanTitle = rawTitle.replace(/\(Official Video\)|\(Official Audio\)|\(Lyrics\)|\[.*?\]/gi, '').trim();
+            const artist = v.ownerText?.runs?.[0]?.text || 'Trending Audio';
+            const durationStr = v.lengthText?.simpleText || '0:30';
+            const thumb = v.thumbnail?.thumbnails?.slice(-1)[0]?.url || `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`;
+
+            return {
+              id: v.videoId,
+              title: cleanTitle,
+              artist,
+              coverUrl: thumb,
+              thumbnail: thumb,
+              audioUrl: `https://pipedapi.kavin.rocks/streams/${v.videoId}`,
+              duration: durationStr
+            };
+          });
+
+        if (videos.length > 0) {
+          return res.json({ success: true, items: videos });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[MusicSearch] Live search exception:', err);
+  }
+
+  // Filter viral tracks matching query as fallback
+  const filtered = VIRAL_EDIT_TRACKS.filter(t => 
+    t.title.toLowerCase().includes(query.toLowerCase()) || 
+    t.artist.toLowerCase().includes(query.toLowerCase())
+  );
+  return res.json({ success: true, items: filtered.length > 0 ? filtered : VIRAL_EDIT_TRACKS });
+});
+
+app.get('/api/music/trending', (req, res) => {
+  return res.json({ success: true, items: VIRAL_EDIT_TRACKS });
+});
+
 // Ensure production build exists for reliable module resolution
 const distDir = path.join(__dirname, 'dist');
 if (!fs.existsSync(distDir) || !fs.existsSync(path.join(distDir, 'index.html'))) {

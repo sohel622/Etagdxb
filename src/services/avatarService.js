@@ -8,17 +8,19 @@ let realtimeAvatarChannel = null;
  * Get current user identifier from Supabase session or localStorage
  */
 export function getCurrentUserId() {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   try {
     const activeAccId = localStorage.getItem("flashgram_active_account_id");
-    if (activeAccId && activeAccId.trim()) return activeAccId.trim();
+    if (activeAccId && uuidRegex.test(activeAccId.trim())) return activeAccId.trim();
   } catch (_) {}
 
   try {
     const sessionStr = localStorage.getItem("flashgram_user_session");
     if (sessionStr) {
       const parsed = JSON.parse(sessionStr);
-      if (parsed && (parsed.uid || parsed.id)) {
-        return parsed.uid || parsed.id;
+      const uid = parsed?.uid || parsed?.id;
+      if (uid && uuidRegex.test(uid)) {
+        return uid;
       }
     }
   } catch (_) {}
@@ -27,31 +29,32 @@ export function getCurrentUserId() {
     if (supabase && supabase.auth) {
       if (typeof supabase.auth.user === "function") {
         const sessionUser = supabase.auth.user();
-        if (sessionUser && sessionUser.id) return sessionUser.id;
+        if (sessionUser && sessionUser.id && uuidRegex.test(sessionUser.id)) return sessionUser.id;
       }
     }
   } catch (_) {}
 
-  return UserProfileStore.state.username ? "user_" + UserProfileStore.state.username : "5611f2e8-0005-482f-9929-69d2efab41df";
+  return "5611f2e8-0005-482f-9929-69d2efab41df";
 }
 
 /**
  * Resolve authentic user UUID from Supabase Auth
  */
 export async function resolveCurrentUserId() {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   try {
     const activeAccId = localStorage.getItem("flashgram_active_account_id");
-    if (activeAccId && activeAccId.trim()) return activeAccId.trim();
+    if (activeAccId && uuidRegex.test(activeAccId.trim())) return activeAccId.trim();
   } catch (_) {}
 
   if (supabase && supabase.auth) {
     try {
       const { data } = await supabase.auth.getUser();
-      if (data?.user?.id) return data.user.id;
+      if (data?.user?.id && uuidRegex.test(data.user.id)) return data.user.id;
     } catch (_) {}
     try {
       const { data } = await supabase.auth.getSession();
-      if (data?.session?.user?.id) return data.session.user.id;
+      if (data?.session?.user?.id && uuidRegex.test(data.session.user.id)) return data.session.user.id;
     } catch (_) {}
   }
   return getCurrentUserId();

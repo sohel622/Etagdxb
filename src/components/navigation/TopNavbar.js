@@ -191,12 +191,14 @@ function renderTopNavbar() {
   }
 
   topBar.id = "topNavbarHeader";
-  topBar.className = "fixed top-0 left-0 right-0 z-50 bg-white dark:bg-black transition-colors fixed-top-header top-bar app-header select-none";
+  topBar.className = "fixed top-0 left-0 right-0 z-50 bg-white dark:bg-black transition-colors fixed-top-header top-bar app-header select-none border-none shadow-none";
   topBar.style.display = "";
   topBar.style.backgroundColor = "var(--header-bg, #ffffff)";
   topBar.style.paddingTop = "max(env(safe-area-inset-top, 0px), 36px)";
   topBar.style.paddingBottom = "8px";
-  topBar.style.borderBottom = "1px solid rgba(0, 0, 0, 0.05)";
+  topBar.style.border = "none";
+  topBar.style.borderBottom = "none";
+  topBar.style.boxShadow = "none";
 
   topBar.innerHTML = `
     <div class="flex items-center justify-between px-4 h-11 w-full">

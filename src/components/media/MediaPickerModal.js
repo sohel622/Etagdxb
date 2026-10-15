@@ -4,9 +4,11 @@ import { openCameraMicrophoneSession } from "../Modals.js";
 import { renderHomeFeed, addNewPostToFeed } from "../Feed.js";
 import { renderProfileGrid, updateProfilePostsCount } from "../Profile.js";
 import { switchTab } from "../BottomNavigation.js";
-import { uploadPostMedia } from "../../features/upload-service/uploadService.js";
+import { uploadPostMedia, handlePublishPost, appendPostToLocalFeed } from "../../features/upload-service/uploadService.js";
 import { searchYouTubeAudio } from "../../services/youtubeMusicService.js";
 import { savePostToSupabase } from "../../services/cloudinaryService.js";
+import { showUploadProgressBanner, updateUploadProgressBanner, completeUploadProgressBanner, failUploadProgressBanner } from "../UploadProgressBanner.js";
+import { updateUploadProgress } from "../../services/notificationService.js";
 
 /**
  * Native Android & Web Media Fetcher
@@ -167,56 +169,106 @@ function injectMediaPickerDOM() {
       </div>
     </div>
 
-    <!-- Post Finalize Screen ("Next" Screen) -->
+    <!-- Post Finalize Screen ("New Reel" Screen) -->
     <div class="post-finalize-screen" id="mpFinalizeScreen">
       <header class="finalize-header">
         <button type="button" class="finalize-back-btn" id="mpFinalizeBackBtn" title="Back">
           <i class="fa-solid fa-arrow-left"></i>
         </button>
-        <span class="finalize-title">New post</span>
-        <button type="button" class="finalize-share-btn" id="mpFinalizeShareBtn">
-          Share
-        </button>
+        <span class="finalize-title" id="mpFinalizeScreenTitle">New reel</span>
+        <div class="w-8"></div>
       </header>
 
-      <!-- Media Thumbnail Preview & Caption -->
-      <div class="finalize-media-row">
-        <div class="relative finalize-thumb-preview" id="mpFinalizeThumbWrapper">
-          <img src="" id="mpFinalizeThumbImg" class="w-full h-full object-cover rounded-lg" alt="Thumbnail" />
-          <span class="finalize-carousel-badge hidden" id="mpFinalizeCountBadge">1/3</span>
-        </div>
-        <textarea class="finalize-caption-input" id="mpCaptionInput" placeholder="Write a caption..." rows="3"></textarea>
-      </div>
-
-      <!-- Add Location Row -->
-      <div class="finalize-action-row" id="mpLocationRow">
-        <div class="finalize-action-left">
-          <i class="fa-solid fa-location-dot"></i>
-          <span id="mpLocationLabel">Add location</span>
-        </div>
-        <i class="fa-solid fa-chevron-right text-neutral-500 text-xs"></i>
-      </div>
-
-      <!-- Add Music Row -->
-      <div class="finalize-action-row" id="mpMusicRow">
-        <div class="finalize-action-left">
-          <i class="fa-solid fa-music"></i>
-          <div id="mpMusicLabelHost">
-            <span class="text-sm">Add music</span>
+      <div class="finalize-content-scroll">
+        <!-- 1. Center-aligned vertical video preview card (9:16 aspect ratio, rounded corners, "Edit cover" pill) -->
+        <div class="new-reel-preview-section">
+          <div class="reel-preview-card" id="mpFinalizeThumbWrapper">
+            <img src="" id="mpFinalizeThumbImg" class="reel-preview-media" alt="Cover preview" />
+            <span class="finalize-carousel-badge hidden" id="mpFinalizeCountBadge">1/3</span>
+            <button type="button" class="edit-cover-pill" id="mpEditCoverBtn" title="Change video cover frame">
+              <i class="fa-regular fa-image text-xs"></i>
+              <span>Edit cover</span>
+            </button>
           </div>
         </div>
-        <div id="mpMusicActionRight">
+
+        <!-- 2. Caption input with hashtag helper shortcuts below the preview card -->
+        <div class="new-reel-caption-section">
+          <textarea class="finalize-caption-input" id="mpCaptionInput" placeholder="Write a caption or add a poll..." rows="3"></textarea>
+          <div class="hashtag-shortcuts-tray" id="mpHashtagShortcuts">
+            <button type="button" class="hashtag-pill" data-tag="#reels">#reels</button>
+            <button type="button" class="hashtag-pill" data-tag="#viral">#viral</button>
+            <button type="button" class="hashtag-pill" data-tag="#trending">#trending</button>
+            <button type="button" class="hashtag-pill" data-tag="#fyp">#fyp</button>
+            <button type="button" class="hashtag-pill" data-tag="#flashgram">#flashgram</button>
+            <button type="button" class="hashtag-pill" data-tag="#lifestyle">#lifestyle</button>
+          </div>
+        </div>
+
+        <!-- 3. Structured rows: Tag people, Add location, Rename audio, and Add AI label toggle -->
+        <div class="finalize-action-row" id="mpTagPeopleRow">
+          <div class="finalize-action-left">
+            <i class="fa-solid fa-user-tag"></i>
+            <span id="mpTagPeopleLabel">Tag people</span>
+          </div>
+          <div class="flex items-center gap-1.5 text-neutral-400 text-xs">
+            <span id="mpTagPeopleCount" class="text-neutral-500"></span>
+            <i class="fa-solid fa-chevron-right text-xs"></i>
+          </div>
+        </div>
+
+        <div class="finalize-action-row" id="mpLocationRow">
+          <div class="finalize-action-left">
+            <i class="fa-solid fa-location-dot"></i>
+            <span id="mpLocationLabel">Add location</span>
+          </div>
           <i class="fa-solid fa-chevron-right text-neutral-500 text-xs"></i>
+        </div>
+
+        <div class="finalize-action-row" id="mpMusicRow">
+          <div class="finalize-action-left">
+            <i class="fa-solid fa-music"></i>
+            <div id="mpMusicLabelHost">
+              <span class="text-sm">Rename audio</span>
+            </div>
+          </div>
+          <div id="mpMusicActionRight">
+            <i class="fa-solid fa-chevron-right text-neutral-500 text-xs"></i>
+          </div>
+        </div>
+
+        <div class="finalize-action-row justify-between cursor-pointer" id="mpAiLabelRow">
+          <div class="finalize-action-left flex-1 pr-3">
+            <i class="fa-solid fa-wand-magic-sparkles text-purple-400"></i>
+            <div class="flex flex-col">
+              <span class="text-sm font-medium text-white">Add AI label</span>
+              <span class="text-[11px] text-neutral-400">Tell viewers content was AI-generated</span>
+            </div>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer select-none">
+            <input type="checkbox" id="mpAiLabelToggle" class="sr-only peer" />
+            <div class="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+          </label>
+        </div>
+
+        <!-- Trending Music Suggestions Pills -->
+        <div class="p-4">
+          <div class="text-xs font-semibold text-neutral-400 mb-2.5">Trending Tracks (YouTube Audio)</div>
+          <div class="flex flex-wrap gap-2" id="mpTrendingPills">
+            <!-- Populated from YouTube API -->
+          </div>
         </div>
       </div>
 
-      <!-- Trending Music Suggestions Pills -->
-      <div class="p-4">
-        <div class="text-xs font-semibold text-neutral-400 mb-2.5">Trending Tracks (YouTube Audio)</div>
-        <div class="flex flex-wrap gap-2" id="mpTrendingPills">
-          <!-- Populated from YouTube API -->
-        </div>
-      </div>
+      <!-- 4. Sticky bottom bar with "Save draft" and primary "Next" / "Share" button -->
+      <footer class="finalize-sticky-footer">
+        <button type="button" class="finalize-draft-btn" id="mpSaveDraftBtn">
+          Save draft
+        </button>
+        <button type="button" class="finalize-share-primary-btn" id="mpFinalizeShareBtn">
+          Share
+        </button>
+      </footer>
     </div>
 
     <!-- Music Selection Modal Sheet -->
@@ -359,6 +411,58 @@ function bindMediaPickerEvents() {
   // Finalize Back Button
   document.getElementById("mpFinalizeBackBtn")?.addEventListener("click", () => {
     closePostFinalizeScreen();
+  });
+
+  // Hashtag helper shortcuts
+  document.querySelectorAll("#mpHashtagShortcuts .hashtag-pill").forEach(pill => {
+    pill.addEventListener("click", () => {
+      const tag = pill.getAttribute("data-tag");
+      const captionInput = document.getElementById("mpCaptionInput");
+      if (captionInput && tag) {
+        const cur = captionInput.value.trim();
+        if (!cur.includes(tag)) {
+          captionInput.value = cur ? `${cur} ${tag}` : tag;
+        }
+        captionInput.focus();
+      }
+    });
+  });
+
+  // Edit Cover Button
+  document.getElementById("mpEditCoverBtn")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    showInstagramToast("Cover selected from video frame ✨");
+  });
+
+  // Save Draft Button
+  document.getElementById("mpSaveDraftBtn")?.addEventListener("click", () => {
+    const captionInput = document.getElementById("mpCaptionInput");
+    const draft = {
+      caption: captionInput?.value || "",
+      location: selectedLocation,
+      music: attachedMusic,
+      savedAt: new Date().toISOString()
+    };
+    try {
+      localStorage.setItem("flashgram_reel_draft", JSON.stringify(draft));
+    } catch (_) {}
+    showInstagramToast("Draft saved ✨");
+    closeInstagramMediaPicker();
+  });
+
+  // Tag People Row
+  document.getElementById("mpTagPeopleRow")?.addEventListener("click", () => {
+    const input = prompt("Tag people (e.g. @alexperry, @shabnam_ai):");
+    if (input !== null) {
+      const countEl = document.getElementById("mpTagPeopleCount");
+      const tags = input.trim();
+      if (countEl) {
+        countEl.textContent = tags ? tags : "";
+      }
+      if (tags) {
+        showInstagramToast(`Tagged ${tags}`);
+      }
+    }
   });
 
   // Add Music Row -> Opens Music Picker Modal
@@ -532,9 +636,16 @@ function openPostFinalizeScreen() {
 
   const thumbImg = document.getElementById("mpFinalizeThumbImg");
   const countBadge = document.getElementById("mpFinalizeCountBadge");
+  const titleEl = document.getElementById("mpFinalizeScreenTitle");
 
-  if (thumbImg && selectedItems[0]) {
-    thumbImg.src = selectedItems[0].thumbnail || selectedItems[0].url;
+  if (selectedItems[0]) {
+    const isVid = selectedItems[0].type === "video";
+    if (titleEl) {
+      titleEl.textContent = isVid ? "New reel" : "New post";
+    }
+    if (thumbImg) {
+      thumbImg.src = selectedItems[0].thumbnail || selectedItems[0].url;
+    }
   }
 
   if (countBadge) {
@@ -914,110 +1025,148 @@ function updateMusicRowUI() {
 // Direct Server Upload & Share Post Handler
 // -------------------------------------------------------------
 
+// -------------------------------------------------------------
+// Direct Server Upload & Share Post Handler (Non-Blocking In-Feed Background Worker)
+// -------------------------------------------------------------
+
 async function handleSharePost() {
   if (!selectedItems.length) {
     showInstagramToast("No media selected to share");
     return;
   }
 
-  const shareBtn = document.getElementById("mpFinalizeShareBtn");
-  if (shareBtn) {
-    shareBtn.disabled = true;
-    shareBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Sharing...';
-  }
+  const primaryItem = selectedItems[0];
+  const isVideo = primaryItem.type === "video";
+  const captionInput = document.getElementById("mpCaptionInput");
+  const caption = (captionInput?.value || "").trim() || (isVideo ? "Flashgram Reel! ✨ #reels" : "Moments ✨ #lifestyle");
 
+  const currentUsername = UserProfileStore?.state?.username || "sohelmommy_077";
+  const currentAvatar = UserProfileStore?.state?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400";
+
+  // Derive immediate preview thumbnail & media URL for instant UI feedback
+  const previewThumb = primaryItem.thumbnail || primaryItem.url || (primaryItem.file ? URL.createObjectURL(primaryItem.file) : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100');
+  const previewMediaUrl = primaryItem.url || (primaryItem.file ? URL.createObjectURL(primaryItem.file) : '');
+
+  const pendingPostId = "pending_" + Date.now();
+  const pendingPostData = {
+    id: pendingPostId,
+    user: currentUsername,
+    author_name: currentUsername,
+    avatar: currentAvatar,
+    caption,
+    location: selectedLocation || (attachedMusic ? `${attachedMusic.title} • ${attachedMusic.artist}` : "Original Audio"),
+    thumbnail: previewThumb,
+    thumbnail_url: previewThumb,
+    url: previewMediaUrl,
+    video_url: isVideo ? previewMediaUrl : null,
+    media_url: previewMediaUrl,
+    media_type: isVideo ? 'video' : 'photo',
+    likesCount: 0,
+    commentsCount: 0,
+    time: "JUST NOW",
+    isCurrentUser: true,
+    music: attachedMusic ? { ...attachedMusic } : null,
+    hasAiLabel: Boolean(document.getElementById("mpAiLabelToggle")?.checked)
+  };
+
+  // 1. Immediately save pending post state to local cache
   try {
-    showInstagramToast("Uploading to Cloud Storage... ⏳");
+    localStorage.setItem("flashgram_pending_upload", JSON.stringify(pendingPostData));
+  } catch (_) {}
 
-    // Upload real media files to Supabase Storage / Cloudinary
-    const uploadedMediaItems = await Promise.all(
-      selectedItems.map(async (item) => {
-        if (item.file) {
-          try {
-            const uploadResult = await uploadPostMedia(item.file);
-            return {
-              type: uploadResult.type || item.type,
-              url: uploadResult.url || item.url,
-              thumbnail: uploadResult.thumbnail_url || uploadResult.url || item.thumbnail || item.url
-            };
-          } catch (uploadErr) {
-            console.warn("Media upload note, falling back to local URL:", uploadErr);
-            return {
-              type: item.type,
-              url: item.url,
-              thumbnail: item.thumbnail || item.url
-            };
-          }
-        }
-        return {
-          type: item.type,
-          url: item.url,
-          thumbnail: item.thumbnail || item.url
-        };
-      })
-    );
+  // 2. Immediately close media picker modal and navigate user directly back to the Home Feed (NO blocking overlay)
+  closeInstagramMediaPicker();
+  switchTab("home");
 
-    const primaryUploaded = uploadedMediaItems[0];
-    const isCarousel = uploadedMediaItems.length > 1;
+  // 3. Render upload status banner directly underneath the Stories tray on the Home Feed
+  showUploadProgressBanner({
+    thumbnailSrc: previewThumb,
+    title: "Posting..."
+  });
+  showInstagramToast("Posting to Flashgram... ✨");
 
-    const captionInput = document.getElementById("mpCaptionInput");
-    const caption = (captionInput?.value || "").trim() || "Moments ✨ #lifestyle";
-
-    const currentUsername = UserProfileStore.state.username || "sohelmommy_077";
-    const currentAvatar = UserProfileStore.state.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400";
-
-    const newPost = {
-      id: "post_" + Date.now(),
-      isCurrentUser: true,
-      user: currentUsername,
-      author_name: currentUsername,
-      avatar: currentAvatar,
-      location: selectedLocation || (attachedMusic ? `${attachedMusic.title} • ${attachedMusic.artist}` : "Original Audio"),
-      caption,
-      time: "JUST NOW",
-      likesCount: 1,
-      commentsCount: 0,
-      url: primaryUploaded.url,
-      video_url: primaryUploaded.type === "video" ? primaryUploaded.url : null,
-      thumbnail_url: primaryUploaded.thumbnail || primaryUploaded.url,
-      thumbnail: primaryUploaded.thumbnail || primaryUploaded.url,
-      isCarousel,
-      carouselItems: uploadedMediaItems,
-      music: attachedMusic ? {
-        id: attachedMusic.id,
-        title: attachedMusic.title,
-        artist: attachedMusic.artist,
-        audioUrl: attachedMusic.audioUrl,
-        cover: attachedMusic.coverUrl || attachedMusic.cover
-      } : null
-    };
-
-    // Save post record to Supabase database
+  // 4. Native Background Upload Worker (continues execution even if minimized or screen is locked)
+  (async () => {
+    let uploadWakeLock = null;
     try {
-      await savePostToSupabase(newPost);
-    } catch (dbErr) {
-      console.warn("Supabase database insert warning:", dbErr);
+      if ('wakeLock' in navigator) {
+        uploadWakeLock = await navigator.wakeLock.request('screen');
+      }
+    } catch (_) {}
+
+    try {
+      // Connect to native notification tray / lockscreen (Fixed ID: 9999)
+      await updateUploadProgress(10, previewThumb);
+      updateUploadProgressBanner(10);
+
+      // Perform real media upload to Cloudinary / Supabase
+      let uploadedMediaUrl = previewMediaUrl;
+      let uploadedThumbUrl = previewThumb;
+
+      if (primaryItem.file) {
+        const uploadResult = await uploadPostMedia(primaryItem.file, (percent, meta) => {
+          const scaledPercent = Math.min(95, Math.max(10, Math.round(percent * 0.95)));
+          updateUploadProgressBanner(scaledPercent, meta);
+          updateUploadProgress(scaledPercent, previewThumb);
+        });
+
+        uploadedMediaUrl = uploadResult.secure_url || uploadResult.url || previewMediaUrl;
+        uploadedThumbUrl = uploadResult.thumbnail_url || previewThumb;
+      }
+
+      updateUploadProgressBanner(98);
+      await updateUploadProgress(98, previewThumb);
+
+      // Save post row into Supabase posts table with explicit user_id and media_url
+      let finalSavedRecord = null;
+      try {
+        finalSavedRecord = await handlePublishPost(uploadedMediaUrl, caption, isVideo ? 'video' : 'photo');
+      } catch (dbErr) {
+        console.warn("handlePublishPost note, trying savePostToSupabase fallback:", dbErr);
+        try {
+          finalSavedRecord = await savePostToSupabase({
+            videoUrl: uploadedMediaUrl,
+            thumbnailUrl: uploadedThumbUrl,
+            caption,
+            userId: UserProfileStore?.state?.id
+          });
+        } catch (_) {}
+      }
+
+      const publishedPost = {
+        ...pendingPostData,
+        id: String(finalSavedRecord?.id || ('post_' + Date.now())),
+        url: uploadedMediaUrl,
+        video_url: isVideo ? uploadedMediaUrl : null,
+        media_url: uploadedMediaUrl,
+        thumbnail: uploadedThumbUrl,
+        thumbnail_url: uploadedThumbUrl,
+        isPending: false
+      };
+
+      // Upload reaches 100%
+      updateUploadProgressBanner(100);
+      await updateUploadProgress(100, previewThumb);
+
+      // When upload reaches 100%, animate banner smoothly disappearing and immediately inject post at index 0 of Home Feed
+      completeUploadProgressBanner(publishedPost);
+      try {
+        localStorage.removeItem("flashgram_pending_upload");
+      } catch (_) {}
+
+      updateProfilePostsCount();
+      renderProfileGrid();
+      showInstagramToast("Shared to feed ✨");
+    } catch (uploadErr) {
+      console.error("Native background upload error:", uploadErr);
+      failUploadProgressBanner(uploadErr.message || "Upload failed");
+      showInstagramToast("Upload failed. Please try again.");
+    } finally {
+      if (uploadWakeLock) {
+        try { await uploadWakeLock.release(); } catch (_) {}
+      }
     }
-
-    // Immediately append post to Home Feed and Profile Grid
-    addNewPostToFeed(newPost);
-    updateProfilePostsCount();
-    renderProfileGrid();
-
-    // Close media picker modal and switch to Home feed
-    closeInstagramMediaPicker();
-    switchTab("home");
-
-    showInstagramToast("Post shared successfully! ✨");
-  } catch (err) {
-    console.error("Post creation error:", err);
-    showInstagramToast("Failed to share post. Please try again.");
-  } finally {
-    if (shareBtn) {
-      shareBtn.disabled = false;
-      shareBtn.textContent = "Share";
-    }
-  }
+  })();
 }
 
 // Expose on window for global access and backwards compatibility

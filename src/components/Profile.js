@@ -650,8 +650,18 @@ window.addEventListener("popstate", (e) => {
             userPosts = [...userPosts, ...data];
           }
         }
-        updateProfilePostsCount(userPosts.length);
-        renderProfileGridItems(userPosts);
+
+        // Deduplicate posts
+        const seenKeys = new Set();
+        const uniquePosts = userPosts.filter(p => {
+          const key = p.id || p.media_url || p.video_url;
+          if (!key || seenKeys.has(key)) return false;
+          seenKeys.add(key);
+          return true;
+        });
+
+        updateProfilePostsCount(uniquePosts.length);
+        renderProfileGridItems(uniquePosts);
       } catch (e) {
         console.warn("renderProfileGrid error:", e);
         updateProfilePostsCount(0);
@@ -668,10 +678,10 @@ window.addEventListener("popstate", (e) => {
       const userGridItems = userPosts.map((p, idx) => {
         const isCarousel = Boolean(p.isCarousel || (p.carouselItems && p.carouselItems.length > 1));
         const hasMusic = Boolean(p.music);
-        const rawVidSrc = p.video_url || p.url || (p.blob ? URL.createObjectURL(p.blob) : '');
+        const rawVidSrc = p.media_url || p.video_url || p.url || (p.blob ? URL.createObjectURL(p.blob) : '');
         const vidSrc = getOptimizedVideoUrl(rawVidSrc);
-        const isVideo = Boolean(p.video_url || (!isCarousel && p.url && (p.url.includes('.mp4') || p.url.includes('.webm') || p.url.includes('video'))));
-        const posterUrl = p.thumbnail_url || p.thumbnail || (isCarousel && p.carouselItems ? p.carouselItems[0].thumbnail || p.carouselItems[0].url : '') || (rawVidSrc ? deriveCloudinaryThumbnailUrl(rawVidSrc) : '');
+        const isVideo = p.media_type === 'video' || Boolean(p.video_url || p.media_url || (!isCarousel && (rawVidSrc.includes('.mp4') || rawVidSrc.includes('.webm') || rawVidSrc.includes('video'))));
+        const posterUrl = p.thumbnail_url || p.thumbnail || (isCarousel && p.carouselItems ? p.carouselItems[0].thumbnail || p.carouselItems[0].url : '') || (rawVidSrc ? deriveCloudinaryThumbnailUrl(rawVidSrc) : '') || rawVidSrc;
 
         let badge = '<i class="fa-solid fa-play"></i>';
         if (isCarousel) {

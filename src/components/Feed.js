@@ -154,19 +154,32 @@ function createPostCardElement(post, index = 0) {
       </div>
     `;
   } else {
-    mediaMarkup = `
-      <div class="home-post-video-container home-video-container post-video-container relative" data-post-id="${post.id}" data-video-url="${getOptimizedVideoUrl(post.url || post.video_url)}" data-poster-url="${posterImg}" style="cursor: pointer;" title="Watch Reel">
-        <div class="home-video-skeleton"></div>
-        <img class="home-post-video-player home-video-poster" src="${posterImg}" alt="${displayUser} video" loading="lazy" crossorigin="anonymous" onerror="this.style.display='none';" />
-        ${Boolean(post.isOfflineCached) 
-          ? `<div class="offline-item-badge absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white text-[10.5px] font-semibold border border-white/10 shadow-sm"><i class="fa-solid fa-circle-check text-sky-400 text-[10px]"></i><span>Cached</span></div>`
-          : (isOffline() 
-              ? `<div class="offline-item-badge absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/75 backdrop-blur-md text-neutral-300 text-[10.5px] font-medium border border-white/10"><i class="fa-solid fa-wifi-slash text-amber-400 text-[10px]"></i><span>Offline</span></div>`
-              : '')}
-        <div class="home-play-badge"><i class="fa-solid fa-play ml-0.5"></i></div>
-        <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
-      </div>
-    `;
+    const mediaUrl = post.media_url || post.video_url || post.url || "";
+    const optimizedMediaUrl = getOptimizedVideoUrl(mediaUrl);
+    const videoSrc = post.media_url || optimizedMediaUrl;
+    const isPhoto = post.media_type === "photo" || (!post.media_type && !mediaUrl.match(/\.(mp4|webm|mov|m4v)($|\?)/i) && mediaUrl.match(/\.(jpg|jpeg|png|webp|gif)($|\?)/i));
+
+    if (isPhoto) {
+      mediaMarkup = `
+        <div class="home-post-video-container home-video-container post-video-container relative" data-post-id="${post.id}" style="cursor: pointer;">
+          <img class="home-post-video-player w-full h-full object-cover" src="${videoSrc || posterImg}" alt="${displayUser} photo" loading="lazy" />
+        </div>
+      `;
+    } else {
+      mediaMarkup = `
+        <div class="home-post-video-container home-video-container post-video-container relative" data-post-id="${post.id}" data-video-url="${videoSrc}" data-poster-url="${posterImg}" style="cursor: pointer;" title="Watch Reel">
+          <div class="home-video-skeleton"></div>
+          <video class="home-post-video-player w-full h-full object-cover" src="${post.media_url || videoSrc}" poster="${posterImg}" loop muted playsinline preload="metadata"></video>
+          ${Boolean(post.isOfflineCached) 
+            ? `<div class="offline-item-badge absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white text-[10.5px] font-semibold border border-white/10 shadow-sm"><i class="fa-solid fa-circle-check text-sky-400 text-[10px]"></i><span>Cached</span></div>`
+            : (isOffline() 
+                ? `<div class="offline-item-badge absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/75 backdrop-blur-md text-neutral-300 text-[10.5px] font-medium border border-white/10"><i class="fa-solid fa-wifi-slash text-amber-400 text-[10px]"></i><span>Offline</span></div>`
+                : '')}
+          <div class="home-play-badge"><i class="fa-solid fa-play ml-0.5"></i></div>
+          <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
+        </div>
+      `;
+    }
   }
 
   const musicBadgeMarkup = hasAttachedMusic ? `
@@ -522,6 +535,11 @@ function prependPostToHomeFeed(newPost) {
   const feedContainer = document.getElementById("feedContainer");
   if (!feedContainer || !newPost) return;
 
+  if (newPost.id) {
+    const existing = feedContainer.querySelector(`[data-post-id="${newPost.id}"]`);
+    if (existing) return;
+  }
+
   try {
     const card = createPostCardElement(newPost, 0);
     if (card) {
@@ -659,6 +677,8 @@ async function mountAndPlayVideo(container) {
     };
 
     container.appendChild(video);
+  } else if (!video.src || video.src === window.location.href) {
+    video.src = resolvedVideoSrc;
   }
 
   // Requirement 4: Strictly guarantee that ONLY the active video post plays audio
@@ -688,14 +708,7 @@ function unmountAndCleanupVideo(container) {
   if (video) {
     try {
       video.pause();
-      video.muted = true; // Requirement 4: Force muted={true}
-      video.onplaying = null;
-      video.onloadeddata = null;
-      video.onloadedmetadata = null;
-      video.onerror = null;
-      video.removeAttribute("src"); // Detach video buffer
-      video.load(); // Aggressively flush hardware video decoders and RAM
-      video.remove(); // Fully unmount DOM element
+      video.muted = true; // Force muted={true}
     } catch (e) {
       console.warn("Video cleanup notice:", e);
     }

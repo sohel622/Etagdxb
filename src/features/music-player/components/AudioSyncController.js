@@ -1,29 +1,38 @@
 // Audio Post Sync Controller with MediaSession API integration
 import { audio30sController } from "../../../utils/audioCatalog.js";
+import { updateMediaSessionState, clearMediaNotification } from "../../../services/mediaSessionController.js";
 
-export { audio30sController };
+export { audio30sController, updateMediaSessionState, clearMediaNotification };
 
 export function setupMediaSessionMetadata(track) {
-  if (!('mediaSession' in navigator) || !track) return;
+  if (!track) return;
 
-  try {
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: track.title,
-      artist: track.artist,
-      album: "Flashgram Hits",
-      artwork: [
-        { src: track.cover || "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=512", sizes: "512x512", type: "image/jpeg" }
-      ]
-    });
+  updateMediaSessionState(true, track);
 
-    navigator.mediaSession.setActionHandler('play', () => {
-      audio30sController.resume();
-    });
+  if ('mediaSession' in navigator) {
+    try {
+      navigator.mediaSession.setActionHandler('play', () => {
+        updateMediaSessionState(true, track);
+        if (typeof audio30sController.resume === "function") {
+          audio30sController.resume();
+        }
+      });
 
-    navigator.mediaSession.setActionHandler('pause', () => {
-      audio30sController.pause();
-    });
-  } catch (e) {
-    console.warn("MediaSession API setup error:", e);
+      navigator.mediaSession.setActionHandler('pause', () => {
+        updateMediaSessionState(false, track);
+        if (typeof audio30sController.pause === "function") {
+          audio30sController.pause();
+        }
+      });
+
+      navigator.mediaSession.setActionHandler('stop', () => {
+        clearMediaNotification();
+        if (typeof audio30sController.stopPlayback === "function") {
+          audio30sController.stopPlayback();
+        }
+      });
+    } catch (e) {
+      console.warn("MediaSession API setup error:", e);
+    }
   }
 }

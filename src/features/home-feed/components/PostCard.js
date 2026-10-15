@@ -35,15 +35,27 @@ export function buildPostCardElement(post, options = {}) {
       </div>
     `;
   } else {
+    const mediaUrl = post.media_url || post.video_url || post.url || "";
+    const optimizedMediaUrl = getOptimizedVideoUrl(mediaUrl);
     const poster = post.thumbnail_url || post.thumbnail || "";
-    mediaHtml = `
-      <div class="home-post-video-container home-video-container post-video-container relative" data-post-id="${post.id}" data-video-url="${getOptimizedVideoUrl(post.url || post.video_url)}" data-poster-url="${poster}" style="cursor: pointer;" title="Watch Reel">
-        <div class="home-video-skeleton"></div>
-        <img class="home-post-video-player home-video-poster" src="${poster}" alt="${post.user || 'post'} video" loading="lazy" crossorigin="anonymous" onerror="this.style.display='none';" />
-        <div class="home-play-badge"><i class="fa-solid fa-play ml-0.5"></i></div>
-        <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
-      </div>
-    `;
+    const isPhoto = post.media_type === "photo" || (!post.media_type && !mediaUrl.match(/\.(mp4|webm|mov|m4v)($|\?)/i) && mediaUrl.match(/\.(jpg|jpeg|png|webp|gif)($|\?)/i));
+
+    if (isPhoto) {
+      mediaHtml = `
+        <div class="home-post-video-container home-video-container post-video-container relative" data-post-id="${post.id}" style="cursor: pointer;">
+          <img class="home-post-video-player w-full h-full object-cover" src="${optimizedMediaUrl || poster}" alt="${post.user || 'post'} photo" loading="lazy" />
+        </div>
+      `;
+    } else {
+      mediaHtml = `
+        <div class="home-post-video-container home-video-container post-video-container relative" data-post-id="${post.id}" data-video-url="${post.media_url || optimizedMediaUrl}" data-poster-url="${poster}" style="cursor: pointer;" title="Watch Reel">
+          <div class="home-video-skeleton"></div>
+          <video class="home-post-video-player w-full h-full object-cover" src="${post.media_url || optimizedMediaUrl}" poster="${poster}" loop muted playsinline preload="metadata"></video>
+          <div class="home-play-badge"><i class="fa-solid fa-play ml-0.5"></i></div>
+          <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
+        </div>
+      `;
+    }
   }
 
   const musicHtml = hasMusic ? `

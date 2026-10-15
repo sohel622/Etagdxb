@@ -233,7 +233,7 @@ import {
         const usernameClass = "reels-username";
 
         const item = document.createElement("div");
-        item.className = "reel-item reels-fullscreen-container";
+        item.className = "reel-item reels-fullscreen-container reels-fullscreen-viewport";
         item.dataset.index = index;
         item.dataset.id = String(reel.id || index);
         item.dataset.userId = reel.user_id || '';
@@ -269,7 +269,7 @@ import {
         const sharesDisplay = reel.shares || '18';
 
         item.innerHTML = `
-          <div class="reel-video-wrapper reels-video-container">
+          <div class="reel-video-wrapper reels-video-container reels-fullscreen-viewport">
             <video class="reel-video reels-player reels-video-player" src="${vidUrl}" poster="${thumbUrl}" playsinline webkit-playsinline preload="metadata"></video>
             
             <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
@@ -282,6 +282,10 @@ import {
                 ${followBtnHtml}
               </div>
               <div class="reels-caption">${reel.caption || 'Flashgram Reel! ✨ #reels'}</div>
+              <div class="reels-audio-badge" title="Audio">
+                <i class="fa-solid fa-music"></i>
+                <span class="truncate">${reel.soundTitle || reel.music?.title || 'Original audio'}</span>
+              </div>
             </div>
 
             <div class="reels-sidebar">
@@ -430,10 +434,29 @@ import {
           lastTap = currentTime;
         });
 
-        likeIcon.onclick = (e) => {
-          e.stopPropagation();
-          likeIcon.classList.toggle("liked");
-        };
+        const likeBtn = item.querySelector(".like-btn");
+        if (likeBtn) {
+          likeBtn.onclick = (e) => {
+            e.stopPropagation();
+            likeIcon.classList.toggle("liked");
+          };
+        } else {
+          likeIcon.onclick = (e) => {
+            e.stopPropagation();
+            likeIcon.classList.toggle("liked");
+          };
+        }
+
+        const soundBadge = item.querySelector(".sound-status-badge");
+        if (soundBadge) {
+          soundBadge.onclick = (e) => {
+            e.stopPropagation();
+            video.muted = !video.muted;
+            soundBadge.innerHTML = video.muted
+              ? '<i class="fa-solid fa-volume-xmark"></i>'
+              : '<i class="fa-solid fa-volume-high"></i>';
+          };
+        }
 
         const commentBtn = item.querySelector(".comment-btn");
         if (commentBtn) {

@@ -13,7 +13,7 @@ import { getOptimizedVideoUrl } from "../../../services/cloudinaryService.js";
  */
 export function buildReelItemElement(reel, index) {
   const item = document.createElement("div");
-  item.className = "reel-item reels-fullscreen-container";
+  item.className = "reel-item reels-fullscreen-container reels-fullscreen-viewport";
   item.dataset.index = String(index);
   item.dataset.reelId = String(reel.id);
 
@@ -21,7 +21,7 @@ export function buildReelItemElement(reel, index) {
   const posterUrl = reel.thumbnail_url || reel.thumbnail || "";
 
   item.innerHTML = `
-    <div class="reel-video-wrapper reels-video-container">
+    <div class="reel-video-wrapper reels-video-container reels-fullscreen-viewport">
       <video class="reel-video reels-player reels-video-player" src="${videoUrl}" poster="${posterUrl}" loop playsinline preload="metadata"></video>
       <div class="reel-overlay"></div>
 

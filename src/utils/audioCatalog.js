@@ -1,5 +1,6 @@
 // Curated Music Library with 30-Second Audio Snippets for Post Attachments
 // Fallback to Web Audio synthesized melodic preview if network audio fails
+import { updateMediaSessionState, clearMediaNotification } from "../services/mediaSessionController.js";
 
 export const TRENDING_TRACKS = [
   {
@@ -107,6 +108,7 @@ class Audio30sController {
 
       // Notify post indicator that music is playing
       this.notifyPlaybackState(postId, true);
+      updateMediaSessionState(true, track);
 
       // Strict 30-second duration cutoff with gentle 2-second fade-out starting at 28s
       this.timerId = setTimeout(() => {
@@ -166,6 +168,8 @@ class Audio30sController {
       } catch (_) {}
       this.synthContext = null;
     }
+
+    clearMediaNotification();
 
     if (this.currentPostId) {
       this.notifyPlaybackState(this.currentPostId, false);
