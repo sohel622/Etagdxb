@@ -35,9 +35,9 @@ export function buildPostCardElement(post, options = {}) {
       </div>
     `;
   } else {
-    const mediaUrl = post.media_url || post.video_url || post.url || "";
+    const mediaUrl = post.video_url || post.media_url || post.url || "";
     const optimizedMediaUrl = getOptimizedVideoUrl(mediaUrl);
-    const poster = post.thumbnail_url || post.thumbnail || "";
+    const poster = post.thumbnail_url || post.thumbnail || (mediaUrl ? mediaUrl.replace(/\.[^/.]+$/, ".jpg") : "");
     const isPhoto = post.media_type === "photo" || (!post.media_type && !mediaUrl.match(/\.(mp4|webm|mov|m4v)($|\?)/i) && mediaUrl.match(/\.(jpg|jpeg|png|webp|gif)($|\?)/i));
 
     if (isPhoto) {
@@ -48,9 +48,17 @@ export function buildPostCardElement(post, options = {}) {
       `;
     } else {
       mediaHtml = `
-        <div class="home-post-video-container home-video-container post-video-container relative" data-post-id="${post.id}" data-video-url="${post.media_url || optimizedMediaUrl}" data-poster-url="${poster}" style="cursor: pointer;" title="Watch Reel">
+        <div class="home-post-video-container home-video-container post-video-container relative" data-post-id="${post.id}" data-video-url="${post.video_url || post.media_url || optimizedMediaUrl}" data-poster-url="${poster}" style="cursor: pointer;" title="Watch Reel">
           <div class="home-video-skeleton"></div>
-          <video class="home-post-video-player w-full h-full object-cover" src="${post.media_url || optimizedMediaUrl}" poster="${poster}" loop muted playsinline preload="metadata"></video>
+          <video
+            class="home-post-video-player w-full h-full object-cover"
+            src="${post.video_url || post.media_url || optimizedMediaUrl}"
+            poster="${poster}"
+            playsinline
+            muted
+            loop
+            preload="metadata"
+          ></video>
           <div class="home-play-badge"><i class="fa-solid fa-play ml-0.5"></i></div>
           <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
         </div>

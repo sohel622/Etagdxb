@@ -416,12 +416,27 @@ export async function savePostToSupabase({ videoUrl, thumbnailUrl, caption, user
   const username = user?.user_metadata?.username || user?.email?.split('@')[0] || (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.username) || 'creator';
   const userAvatar = user?.user_metadata?.avatar_url || (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.avatar) || '/assets/default-avatar.png';
 
+  // Guard: NEVER save temporary local blob links to Supabase
+  if (videoUrl && String(videoUrl).startsWith('blob:')) {
+    console.warn("[savePostToSupabase] Refusing to save temporary blob URL to Supabase table:", videoUrl);
+    return {
+      id: "post_" + Date.now(),
+      user_id: effectiveUserId,
+      video_url: videoUrl,
+      thumbnail_url: thumbnailUrl || videoUrl,
+      caption: caption || '',
+      created_at: new Date().toISOString()
+    };
+  }
+
+  const permanentThumb = thumbnailUrl || (videoUrl ? videoUrl.replace(/\.[^/.]+$/, ".jpg") : '');
+
   const postPayload = {
     user_id: effectiveUserId,
     video_url: videoUrl,
     media_url: videoUrl, // Explicit Cloudinary secure_url
     media_type: 'video',
-    thumbnail_url: thumbnailUrl,
+    thumbnail_url: permanentThumb,
     caption: caption || '',
     username: username,
     user_avatar: userAvatar,

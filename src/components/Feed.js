@@ -46,11 +46,14 @@ function getPostThumbnail(post) {
   if (post.thumbnail_url && !post.thumbnail_url.includes(".mp4") && !post.thumbnail_url.includes(".webm") && !String(post.thumbnail_url).startsWith("blob:")) {
     return post.thumbnail_url;
   }
-  if (post.video_url && post.video_url.includes("cloudinary.com")) {
-    return deriveCloudinaryThumbnailUrl(post.video_url);
+  if (post.video_url && typeof post.video_url === 'string' && !String(post.video_url).startsWith("blob:")) {
+    return post.video_url.includes("cloudinary.com") ? deriveCloudinaryThumbnailUrl(post.video_url) : post.video_url.replace(/\.[^/.]+$/, ".jpg");
   }
-  if (post.url && post.url.includes("cloudinary.com")) {
-    return deriveCloudinaryThumbnailUrl(post.url);
+  if (post.media_url && typeof post.media_url === 'string' && !String(post.media_url).startsWith("blob:")) {
+    return post.media_url.includes("cloudinary.com") ? deriveCloudinaryThumbnailUrl(post.media_url) : post.media_url.replace(/\.[^/.]+$/, ".jpg");
+  }
+  if (post.url && typeof post.url === 'string' && !String(post.url).startsWith("blob:")) {
+    return post.url.includes("cloudinary.com") ? deriveCloudinaryThumbnailUrl(post.url) : post.url.replace(/\.[^/.]+$/, ".jpg");
   }
   if (post.thumbnail && !post.thumbnail.includes(".mp4") && !post.thumbnail.includes(".webm") && !String(post.thumbnail).startsWith("blob:")) {
     return post.thumbnail;
@@ -167,9 +170,17 @@ function createPostCardElement(post, index = 0) {
       `;
     } else {
       mediaMarkup = `
-        <div class="home-post-video-container home-video-container post-video-container relative" data-post-id="${post.id}" data-video-url="${videoSrc}" data-poster-url="${posterImg}" style="cursor: pointer;" title="Watch Reel">
+        <div class="home-post-video-container home-video-container post-video-container relative" data-post-id="${post.id}" data-video-url="${post.video_url || post.media_url || videoSrc}" data-poster-url="${post.thumbnail_url || posterImg}" style="cursor: pointer;" title="Watch Reel">
           <div class="home-video-skeleton"></div>
-          <video class="home-post-video-player w-full h-full object-cover" src="${post.media_url || videoSrc}" poster="${posterImg}" loop muted playsinline preload="metadata"></video>
+          <video
+            class="home-post-video-player w-full h-full object-cover"
+            src="${post.video_url || post.media_url || videoSrc}"
+            poster="${post.thumbnail_url || posterImg}"
+            playsinline
+            muted
+            loop
+            preload="metadata"
+          ></video>
           ${Boolean(post.isOfflineCached) 
             ? `<div class="offline-item-badge absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white text-[10.5px] font-semibold border border-white/10 shadow-sm"><i class="fa-solid fa-circle-check text-sky-400 text-[10px]"></i><span>Cached</span></div>`
             : (isOffline() 

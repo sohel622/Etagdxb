@@ -2,6 +2,7 @@
 import { DEFAULT_USER_PROFILE, SAMPLE_VIDEOS } from "./mockData.js";
 import { db } from "../services/database.js";
 
+  if (typeof window !== "undefined") {
     window.alert = function(msg) {
       try {
         const existing = document.querySelector(".app-toast-popup");
@@ -19,6 +20,7 @@ import { db } from "../services/database.js";
         console.log(msg);
       }
     };
+  }
 
 
     const UserProfileStore = {
@@ -163,10 +165,6 @@ import { db } from "../services/database.js";
         return typeof isFollowingShabnam === "function" && isFollowingShabnam() ? 1 : 0;
       }
     };
-    window.UserProfileStore = UserProfileStore;
-
-
-
     function getShabnamUnread() {
       try {
         return localStorage.getItem("flashgram_shabnam_unread") === "true";
@@ -174,25 +172,33 @@ import { db } from "../services/database.js";
         return false;
       }
     }
-    window.getShabnamUnread = getShabnamUnread;
 
     function setShabnamUnread(val) {
       try {
         localStorage.setItem("flashgram_shabnam_unread", val ? "true" : "false");
       } catch (_) {}
-      const dot = document.getElementById("shabnamUnreadDot");
-      if (dot) {
-        dot.style.display = val ? "inline-block" : "none";
+      if (typeof document !== "undefined") {
+        const dot = document.getElementById("shabnamUnreadDot");
+        if (dot) {
+          dot.style.display = val ? "inline-block" : "none";
+        }
       }
     }
-    window.setShabnamUnread = setShabnamUnread;
 
     function markShabnamChatAsRead() {
       setShabnamUnread(false);
-      const dot = document.getElementById("shabnamUnreadDot");
-      if (dot) dot.style.display = "none";
+      if (typeof document !== "undefined") {
+        const dot = document.getElementById("shabnamUnreadDot");
+        if (dot) dot.style.display = "none";
+      }
     }
-    window.markShabnamChatAsRead = markShabnamChatAsRead;
+
+    if (typeof window !== "undefined") {
+      window.UserProfileStore = UserProfileStore;
+      window.getShabnamUnread = getShabnamUnread;
+      window.setShabnamUnread = setShabnamUnread;
+      window.markShabnamChatAsRead = markShabnamChatAsRead;
+    }
 
     /* Pinned Conversations Storage */
     function getPinnedConversations() {
@@ -424,32 +430,34 @@ import { db } from "../services/database.js";
           }
         }, duration);
       }
-      window.showInstagramToast = showInstagramToast;
+      if (typeof window !== "undefined") {
+        window.showInstagramToast = showInstagramToast;
 
-      // Profile Screen Header & Action Buttons Handlers
-      const profileCreatePostBtn = document.getElementById("profileCreatePostBtn");
-      const shareProfileBtn = document.getElementById("shareProfileBtn");
-      const profileAddFriendBtn = document.getElementById("profileAddFriendBtn");
+        // Profile Screen Header & Action Buttons Handlers
+        const profileCreatePostBtn = document.getElementById("profileCreatePostBtn");
+        const shareProfileBtn = document.getElementById("shareProfileBtn");
+        const profileAddFriendBtn = document.getElementById("profileAddFriendBtn");
 
-      if (profileCreatePostBtn) {
-        profileCreatePostBtn.onclick = () => {
-          if (typeof openMediaCreationPrompt === "function") {
-            openMediaCreationPrompt();
-          }
-        };
-      }
-      if (shareProfileBtn) {
-        shareProfileBtn.onclick = () => {
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(window.location.href).catch(() => {});
-          }
-          showInstagramToast("Profile link copied to clipboard");
-        };
-      }
-      if (profileAddFriendBtn) {
-        profileAddFriendBtn.onclick = () => {
-          showInstagramToast("Discover people • Suggested accounts");
-        };
+        if (profileCreatePostBtn) {
+          profileCreatePostBtn.onclick = () => {
+            if (typeof openMediaCreationPrompt === "function") {
+              openMediaCreationPrompt();
+            }
+          };
+        }
+        if (shareProfileBtn) {
+          shareProfileBtn.onclick = () => {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(window.location.href).catch(() => {});
+            }
+            showInstagramToast("Profile link copied to clipboard");
+          };
+        }
+        if (profileAddFriendBtn) {
+          profileAddFriendBtn.onclick = () => {
+            showInstagramToast("Discover people • Suggested accounts");
+          };
+        }
       }
 
 
@@ -511,7 +519,9 @@ import { db } from "../services/database.js";
         }
       }
     }
-    window.toggleFollowShabnam = toggleFollowShabnam;
+    if (typeof window !== "undefined") {
+      window.toggleFollowShabnam = toggleFollowShabnam;
+    }
 
 
 

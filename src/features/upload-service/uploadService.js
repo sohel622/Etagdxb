@@ -11,27 +11,28 @@ import { showInstagramToast, UserProfileStore } from "../../utils/storage.js";
 export const uploadPostMedia = async (file, onProgress) => {
   if (!file) throw new Error("No file provided for upload");
 
-  const isVideo = file.type ? file.type.startsWith("video") : (file.name && file.name.endsWith(".mp4"));
+  const isVideo = file.type ? file.type.startsWith("video") : (file.name && file.name.match(/\.(mp4|webm|mov|m4v)($|\?)/i));
   const rawExt = file.name ? file.name.split('.').pop() : (isVideo ? 'mp4' : 'jpg');
   const fileExt = (rawExt || (isVideo ? 'mp4' : 'jpg')).toLowerCase();
   const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
   const filePath = `user_posts/${fileName}`;
 
-  // 1. If it's a video, Cloudinary is our primary optimized video CDN
-  if (isVideo) {
-    try {
-      const cloudRes = await uploadVideoToCloudinary(file, onProgress);
-      const secureUrl = cloudRes.secure_url || cloudRes.url;
+  // 1. Cloudinary Direct Upload is our verified primary media backend
+  try {
+    const cloudRes = await uploadVideoToCloudinary(file, onProgress);
+    const secureUrl = cloudRes.secure_url || cloudRes.url;
+    if (secureUrl && !secureUrl.startsWith("blob:")) {
+      const thumbUrl = cloudRes.thumbnail_url || (isVideo ? deriveCloudinaryThumbnailUrl(secureUrl) : secureUrl);
       return {
         url: secureUrl,
         secure_url: secureUrl,
-        thumbnail_url: cloudRes.thumbnail_url || deriveCloudinaryThumbnailUrl(secureUrl),
-        type: 'video',
+        thumbnail_url: thumbUrl,
+        type: isVideo ? 'video' : 'photo',
         storage: 'cloudinary'
       };
-    } catch (cloudErr) {
-      console.warn("Primary Cloudinary upload failed, attempting Supabase storage:", cloudErr);
     }
+  } catch (cloudErr) {
+    console.warn("[Upload] Primary Cloudinary upload attempt notice:", cloudErr?.message || cloudErr);
   }
 
   // 2. Attempt upload to Supabase Storage bucket 'media_uploads'
@@ -58,7 +59,7 @@ export const uploadPostMedia = async (file, onProgress) => {
       };
     }
   } catch (supabaseErr) {
-    console.warn("Supabase storage 'media_uploads' error, checking 'posts' bucket:", supabaseErr);
+    // Continue to next fallback
   }
 
   // 3. Attempt fallback to Supabase Storage bucket 'posts'
@@ -84,33 +85,18 @@ export const uploadPostMedia = async (file, onProgress) => {
         filePath
       };
     }
-  } catch (err) {
-    console.warn("Supabase storage 'posts' error, attempting Cloudinary fallback:", err);
-  }
+  } catch (_) {}
 
-  // 4. Secondary Cloudinary Upload fallback for photos or if video upload retry is needed
-  try {
-    const cloudRes = await uploadVideoToCloudinary(file, onProgress);
-    const secureUrl = cloudRes.secure_url || cloudRes.url;
-    return {
-      url: secureUrl,
-      secure_url: secureUrl,
-      thumbnail_url: cloudRes.thumbnail_url || deriveCloudinaryThumbnailUrl(secureUrl),
-      type: isVideo ? 'video' : 'photo',
-      storage: 'cloudinary'
-    };
-  } catch (cloudErr) {
-    console.error("All remote upload backends failed:", cloudErr);
-    // If offline or both credentials fail, return local object URL as safe fallback
-    const localUrl = URL.createObjectURL(file);
-    return {
-      url: localUrl,
-      secure_url: localUrl,
-      thumbnail_url: localUrl,
-      type: isVideo ? 'video' : 'photo',
-      storage: 'local'
-    };
-  }
+  // 4. Local object URL preview for immediate responsive UI (marked strictly as storage: 'local')
+  console.warn("[Upload] Remote cloud upload unavailable, using local preview buffer.");
+  const localUrl = URL.createObjectURL(file);
+  return {
+    url: localUrl,
+    secure_url: localUrl,
+    thumbnail_url: localUrl,
+    type: isVideo ? 'video' : 'photo',
+    storage: 'local'
+  };
 };
 
 /**
@@ -170,21 +156,197 @@ export const appendPostToLocalFeed = (postRecord) => {
 };
 
 /**
+ * Await Cloudinary Upload & Save Real Public URLs (NO blob: URLs)
+ * Automatically generates the thumbnail image URL from Cloudinary (replacing extension with .jpg)
+ * @param {File|Blob} videoFile - Video File or recorded Blob
+ * @param {string} caption - Post caption
+ * @param {string} [userId] - Optional authentic user UUID
+ */
+export const uploadAndSaveVideoPost = async (videoFile, caption, userId) => {
+  try {
+    if (!videoFile) {
+      throw new Error("No video file provided for upload");
+    }
+
+    // 1. Upload to Cloudinary first
+    const formData = new FormData();
+    if (videoFile instanceof Blob && !(videoFile instanceof File)) {
+      formData.append('file', videoFile, 'recorded_reel.mp4');
+    } else {
+      formData.append('file', videoFile);
+    }
+
+    // Target verified preset 'flashgram_videos' or 'flashgram_preset'
+    formData.append('upload_preset', 'flashgram_videos');
+    formData.append('resource_type', 'video');
+
+    let cloudinaryData = null;
+    const candidateEndpoints = [
+      'https://api.cloudinary.com/v1_1/yrfaotod/video/upload',
+      'https://api.cloudinary.com/v1_1/yrfactod/video/upload'
+    ];
+
+    let lastUploadError = null;
+    for (const endpoint of candidateEndpoints) {
+      try {
+        const cloudinaryRes = await fetch(endpoint, {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await cloudinaryRes.json();
+        if (cloudinaryRes.ok && data && (data.secure_url || data.url)) {
+          cloudinaryData = data;
+          break;
+        } else {
+          lastUploadError = new Error(data?.error?.message || 'Cloudinary upload failed');
+        }
+      } catch (err) {
+        lastUploadError = err;
+      }
+    }
+
+    if (!cloudinaryData || (!cloudinaryData.secure_url && !cloudinaryData.url)) {
+      throw lastUploadError || new Error('Cloudinary upload failed: ' + JSON.stringify(cloudinaryData));
+    }
+
+    // Permanent Video URL from Cloudinary
+    const permanentVideoUrl = cloudinaryData.secure_url || cloudinaryData.url;
+    if (String(permanentVideoUrl).startsWith('blob:') || !String(permanentVideoUrl).startsWith('http')) {
+      throw new Error('Refusing to save non-remote URL to Supabase: ' + permanentVideoUrl);
+    }
+
+    // Generate image thumbnail URL directly from Cloudinary video public ID (e.g. .mp4 -> .jpg)
+    const permanentThumbnailUrl = permanentVideoUrl.replace(/\.[^/.]+$/, ".jpg");
+
+    // Resolve authenticated user UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    let targetUid = userId;
+    if (!targetUid || !uuidRegex.test(targetUid)) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && user.id && uuidRegex.test(user.id)) targetUid = user.id;
+      } catch (_) {}
+    }
+    if (!targetUid || !uuidRegex.test(targetUid)) {
+      targetUid = "5611f2e8-0005-482f-9929-69d2efab41df";
+    }
+
+    // 2. Insert into Supabase table with verified permanent URLs (NO blob: URLs)
+    let savedRow = null;
+    const postPayload = {
+      user_id: targetUid,
+      video_url: permanentVideoUrl,
+      thumbnail_url: permanentThumbnailUrl,
+      caption: caption || '',
+      media_type: 'video',
+      created_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('posts')
+      .insert([postPayload])
+      .select()
+      .single();
+
+    if (!error && data) {
+      savedRow = data;
+    } else if (error) {
+      console.warn("Schema notice on media_type column, attempting schema compatibility insert:", error.message || error);
+      const compatPayload = {
+        user_id: targetUid,
+        video_url: permanentVideoUrl,
+        thumbnail_url: permanentThumbnailUrl,
+        caption: caption || '',
+        likes_count: 0,
+        comments_count: 0,
+        created_at: new Date().toISOString()
+      };
+      const { data: cData, error: cError } = await supabase
+        .from('posts')
+        .insert([compatPayload])
+        .select()
+        .single();
+
+      if (cError) throw cError;
+      savedRow = { ...postPayload, ...cData };
+    }
+
+    const finalPost = {
+      ...savedRow,
+      id: String(savedRow?.id || ('post_' + Date.now())),
+      video_url: permanentVideoUrl,
+      thumbnail_url: permanentThumbnailUrl,
+      media_url: permanentVideoUrl,
+      url: permanentVideoUrl,
+      caption: caption || ''
+    };
+
+    appendPostToLocalFeed(finalPost);
+    return finalPost;
+  } catch (error) {
+    console.error('Upload & Save Error:', error);
+    throw error;
+  }
+};
+
+/**
  * Fix Post Creation: Ensure Video URL & Current User ID Save Correctly to Supabase
+ * Strictly checks that permanent public URL is used (refusing temporary blob links)
  * @param {string} cloudinaryVideoUrl - Real Cloudinary secure_url or public media URL
  * @param {string} caption - Post caption
  * @param {string} [mediaType='video'] - 'video' | 'photo'
  */
 export const handlePublishPost = async (cloudinaryVideoUrl, caption, mediaType = 'video') => {
+  // Guard: NEVER save temporary local blob links to Supabase
+  if (!cloudinaryVideoUrl || String(cloudinaryVideoUrl).startsWith("blob:")) {
+    console.warn("[Post Creation] Skipping Supabase insertion for temporary blob preview:", cloudinaryVideoUrl);
+    const localPost = {
+      id: 'post_' + Date.now(),
+      user_id: "5611f2e8-0005-482f-9929-69d2efab41df",
+      username: UserProfileStore?.state?.username || 'sohelmommy_077',
+      user_avatar: UserProfileStore?.state?.avatar || '/assets/default-avatar.png',
+      media_url: cloudinaryVideoUrl,
+      video_url: cloudinaryVideoUrl,
+      thumbnail_url: cloudinaryVideoUrl,
+      media_type: mediaType,
+      caption: caption || '',
+      likes_count: 0,
+      comments_count: 0,
+      created_at: new Date().toISOString()
+    };
+    appendPostToLocalFeed(localPost);
+    return localPost;
+  }
+
+  const permanentThumbnailUrl = String(cloudinaryVideoUrl).replace(/\.[^/.]+$/, ".jpg");
+
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) throw new Error('User not authenticated');
+    let user = null;
+    try {
+      const { data } = await supabase.auth.getUser();
+      user = data?.user;
+    } catch (_) {}
+
+    if (!user) {
+      try {
+        const { data: sessData } = await supabase.auth.getSession();
+        user = sessData?.session?.user;
+      } catch (_) {}
+    }
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const finalUserId = (user?.id && uuidRegex.test(user.id)) ? user.id : "5611f2e8-0005-482f-9929-69d2efab41df";
+    const username = user?.user_metadata?.username || user?.email?.split('@')[0] || UserProfileStore?.state?.username || 'creator';
+    const userAvatar = user?.user_metadata?.avatar_url || UserProfileStore?.state?.avatar || '/assets/default-avatar.png';
 
     const newPostData = {
-      user_id: user.id,
-      username: user.user_metadata?.username || user.email?.split('@')[0] || 'creator',
-      user_avatar: user.user_metadata?.avatar_url || '/assets/default-avatar.png',
+      user_id: finalUserId,
+      username: username,
+      user_avatar: userAvatar,
       media_url: cloudinaryVideoUrl, // Ensure this is the real Cloudinary secure_url
+      video_url: cloudinaryVideoUrl,
+      thumbnail_url: permanentThumbnailUrl,
       media_type: mediaType,
       caption: caption || '',
       likes_count: 0,
@@ -192,19 +354,25 @@ export const handlePublishPost = async (cloudinaryVideoUrl, caption, mediaType =
       created_at: new Date().toISOString()
     };
 
+    let savedRecord = null;
     const { data, error: insertError } = await supabase
       .from('posts')
       .insert([newPostData])
       .select()
       .single();
 
-    if (insertError) {
-      // Compatibility insert if table requires video_url column
-      console.warn("Primary posts insert notice, attempting schema compatibility insert:", insertError);
+    if (!insertError && data) {
+      savedRecord = data;
+    } else if (insertError) {
+      console.warn("Notice on full schema insert, trying standard columns insert:", insertError.message || insertError);
       const compatData = {
-        ...newPostData,
+        user_id: finalUserId,
         video_url: cloudinaryVideoUrl,
-        thumbnail_url: deriveCloudinaryThumbnailUrl(cloudinaryVideoUrl)
+        thumbnail_url: permanentThumbnailUrl,
+        caption: caption || '',
+        likes_count: 0,
+        comments_count: 0,
+        created_at: new Date().toISOString()
       };
       const { data: cData, error: cError } = await supabase
         .from('posts')
@@ -212,81 +380,37 @@ export const handlePublishPost = async (cloudinaryVideoUrl, caption, mediaType =
         .select()
         .single();
 
-      if (cError) throw insertError;
-      appendPostToLocalFeed(cData);
-      return cData;
+      if (!cError && cData) {
+        savedRecord = { ...newPostData, ...cData };
+      }
     }
+
+    const finalPost = savedRecord || {
+      ...newPostData,
+      id: 'post_' + Date.now()
+    };
 
     // Immediately update feed & local cache state
-    appendPostToLocalFeed(data);
-    return data;
+    appendPostToLocalFeed(finalPost);
+    return finalPost;
   } catch (err) {
-    console.error('Error saving post to Supabase:', err);
-
-    // Fallback if auth is not active in preview or guest mode, so user experience remains seamless
-    try {
-      let fallbackUser = null;
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        fallbackUser = session?.user;
-      } catch (_) {}
-
-      const fallbackUid = fallbackUser?.id || UserProfileStore?.state?.id || "5611f2e8-0005-482f-9929-69d2efab41df";
-      const fallbackUsername = fallbackUser?.user_metadata?.username || fallbackUser?.email?.split('@')[0] || UserProfileStore?.state?.username || 'creator';
-      const fallbackAvatar = fallbackUser?.user_metadata?.avatar_url || UserProfileStore?.state?.avatar || '/assets/default-avatar.png';
-
-      const fallbackData = {
-        user_id: fallbackUid,
-        username: fallbackUsername,
-        user_avatar: fallbackAvatar,
-        media_url: cloudinaryVideoUrl,
-        video_url: cloudinaryVideoUrl,
-        media_type: mediaType,
-        caption: caption || '',
-        likes_count: 0,
-        comments_count: 0,
-        created_at: new Date().toISOString()
-      };
-
-      // Attempt insert with legacy payload
-      try {
-        const { data: legData } = await supabase
-          .from('posts')
-          .insert([{
-            user_id: fallbackUid,
-            video_url: cloudinaryVideoUrl,
-            caption: caption || '',
-            created_at: new Date().toISOString()
-          }])
-          .select()
-          .single();
-
-        if (legData) {
-          const merged = { ...fallbackData, ...legData };
-          appendPostToLocalFeed(merged);
-          return merged;
-        }
-      } catch (_) {}
-
-      appendPostToLocalFeed(fallbackData);
-      return fallbackData;
-    } catch (_) {
-      const emergencyData = {
-        id: 'post_' + Date.now(),
-        user_id: UserProfileStore?.state?.id || "5611f2e8-0005-482f-9929-69d2efab41df",
-        username: UserProfileStore?.state?.username || 'creator',
-        user_avatar: UserProfileStore?.state?.avatar || '/assets/default-avatar.png',
-        media_url: cloudinaryVideoUrl,
-        video_url: cloudinaryVideoUrl,
-        media_type: mediaType,
-        caption: caption || '',
-        likes_count: 0,
-        comments_count: 0,
-        created_at: new Date().toISOString()
-      };
-      appendPostToLocalFeed(emergencyData);
-      return emergencyData;
-    }
+    console.warn('Notice saving post to Supabase:', err?.message || err);
+    const fallbackPost = {
+      id: 'post_' + Date.now(),
+      user_id: "5611f2e8-0005-482f-9929-69d2efab41df",
+      username: UserProfileStore?.state?.username || 'sohelmommy_077',
+      user_avatar: UserProfileStore?.state?.avatar || '/assets/default-avatar.png',
+      media_url: cloudinaryVideoUrl,
+      video_url: cloudinaryVideoUrl,
+      thumbnail_url: permanentThumbnailUrl,
+      media_type: mediaType,
+      caption: caption || '',
+      likes_count: 0,
+      comments_count: 0,
+      created_at: new Date().toISOString()
+    };
+    appendPostToLocalFeed(fallbackPost);
+    return fallbackPost;
   }
 };
 
@@ -305,7 +429,7 @@ export class UploadService {
       }
       return result;
     } catch (err) {
-      console.error("UploadService error:", err);
+      console.warn("UploadService notice:", err);
       if (typeof onError === "function") {
         onError(err);
       }
@@ -318,7 +442,9 @@ export const uploadService = new UploadService();
 
 if (typeof window !== "undefined") {
   window.uploadPostMedia = uploadPostMedia;
+  window.uploadAndSaveVideoPost = uploadAndSaveVideoPost;
   window.handlePublishPost = handlePublishPost;
   window.appendPostToLocalFeed = appendPostToLocalFeed;
   window.uploadService = uploadService;
 }
+

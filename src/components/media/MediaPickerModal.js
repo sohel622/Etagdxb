@@ -4,11 +4,12 @@ import { openCameraMicrophoneSession } from "../Modals.js";
 import { renderHomeFeed, addNewPostToFeed } from "../Feed.js";
 import { renderProfileGrid, updateProfilePostsCount } from "../Profile.js";
 import { switchTab } from "../BottomNavigation.js";
-import { uploadPostMedia, handlePublishPost, appendPostToLocalFeed } from "../../features/upload-service/uploadService.js";
+import { uploadPostMedia, uploadAndSaveVideoPost, handlePublishPost, appendPostToLocalFeed } from "../../features/upload-service/uploadService.js";
 import { searchYouTubeAudio } from "../../services/youtubeMusicService.js";
 import { savePostToSupabase } from "../../services/cloudinaryService.js";
 import { showUploadProgressBanner, updateUploadProgressBanner, completeUploadProgressBanner, failUploadProgressBanner } from "../UploadProgressBanner.js";
 import { updateUploadProgress } from "../../services/notificationService.js";
+import { getCurrentUserId } from "../../services/avatarService.js";
 
 /**
  * Native Android & Web Media Fetcher
@@ -1042,6 +1043,7 @@ async function handleSharePost() {
 
   const currentUsername = UserProfileStore?.state?.username || "sohelmommy_077";
   const currentAvatar = UserProfileStore?.state?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400";
+  const currentUserId = UserProfileStore?.state?.id || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null) || "5611f2e8-0005-482f-9929-69d2efab41df";
 
   // Derive immediate preview thumbnail & media URL for instant UI feedback
   const previewThumb = primaryItem.thumbnail || primaryItem.url || (primaryItem.file ? URL.createObjectURL(primaryItem.file) : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100');
@@ -1099,39 +1101,43 @@ async function handleSharePost() {
       await updateUploadProgress(10, previewThumb);
       updateUploadProgressBanner(10);
 
-      // Perform real media upload to Cloudinary / Supabase
+      // Perform real media upload to Cloudinary & Supabase
       let uploadedMediaUrl = previewMediaUrl;
       let uploadedThumbUrl = previewThumb;
+      let finalSavedRecord = null;
 
       if (primaryItem.file) {
-        const uploadResult = await uploadPostMedia(primaryItem.file, (percent, meta) => {
-          const scaledPercent = Math.min(95, Math.max(10, Math.round(percent * 0.95)));
-          updateUploadProgressBanner(scaledPercent, meta);
-          updateUploadProgress(scaledPercent, previewThumb);
-        });
+        if (isVideo) {
+          // Strictly await Cloudinary upload & save verified permanent URLs to Supabase
+          updateUploadProgressBanner(40);
+          await updateUploadProgress(40, previewThumb);
 
-        uploadedMediaUrl = uploadResult.secure_url || uploadResult.url || previewMediaUrl;
-        uploadedThumbUrl = uploadResult.thumbnail_url || previewThumb;
+          finalSavedRecord = await uploadAndSaveVideoPost(primaryItem.file, caption, currentUserId);
+          uploadedMediaUrl = finalSavedRecord.video_url || finalSavedRecord.media_url;
+          uploadedThumbUrl = finalSavedRecord.thumbnail_url || (uploadedMediaUrl ? uploadedMediaUrl.replace(/\.[^/.]+$/, ".jpg") : previewThumb);
+        } else {
+          // Photo upload to Cloudinary / Supabase
+          const uploadResult = await uploadPostMedia(primaryItem.file, (percent, meta) => {
+            const scaledPercent = Math.min(95, Math.max(10, Math.round(percent * 0.95)));
+            updateUploadProgressBanner(scaledPercent, meta);
+            updateUploadProgress(scaledPercent, previewThumb);
+          });
+
+          uploadedMediaUrl = uploadResult.secure_url || uploadResult.url || previewMediaUrl;
+          uploadedThumbUrl = uploadResult.thumbnail_url || previewThumb;
+
+          if (uploadedMediaUrl && !uploadedMediaUrl.startsWith("blob:")) {
+            try {
+              finalSavedRecord = await handlePublishPost(uploadedMediaUrl, caption, 'photo');
+            } catch (err) {
+              console.warn("Photo handlePublishPost notice:", err);
+            }
+          }
+        }
       }
 
       updateUploadProgressBanner(98);
       await updateUploadProgress(98, previewThumb);
-
-      // Save post row into Supabase posts table with explicit user_id and media_url
-      let finalSavedRecord = null;
-      try {
-        finalSavedRecord = await handlePublishPost(uploadedMediaUrl, caption, isVideo ? 'video' : 'photo');
-      } catch (dbErr) {
-        console.warn("handlePublishPost note, trying savePostToSupabase fallback:", dbErr);
-        try {
-          finalSavedRecord = await savePostToSupabase({
-            videoUrl: uploadedMediaUrl,
-            thumbnailUrl: uploadedThumbUrl,
-            caption,
-            userId: UserProfileStore?.state?.id
-          });
-        } catch (_) {}
-      }
 
       const publishedPost = {
         ...pendingPostData,
