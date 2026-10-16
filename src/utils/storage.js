@@ -125,8 +125,16 @@ import { db } from "../services/database.js";
         const chatsHeaderUser = document.getElementById("chatsHeaderUsername");
         if (chatsHeaderUser) chatsHeaderUser.textContent = username;
 
-        // 5. PROFILE VIEW ELEMENTS - Only update if viewing own profile (NEVER touch when viewing Shabnam AI!)
-        const isSelfProfile = (typeof window !== "undefined" && window.viewingProfileUserId === "shabnam_ai") ? false : true;
+        // 5. PROFILE VIEW ELEMENTS - Only update if viewing own profile (NEVER touch when viewing another user or Shabnam AI!)
+        const activeViewingId = typeof window !== "undefined" ? window.viewingProfileUserId : null;
+        let isSelfProfile = true;
+        if (activeViewingId) {
+          const curUid = (typeof window !== "undefined" && typeof window.getCurrentUserId === "function") 
+            ? window.getCurrentUserId() 
+            : null;
+          isSelfProfile = Boolean(curUid && String(activeViewingId).toLowerCase() === String(curUid).toLowerCase());
+        }
+
         if (isSelfProfile) {
           const mainAvatar = document.getElementById("mainProfileAvatarImg");
           if (mainAvatar && mainAvatar.src !== avatar) mainAvatar.src = avatar;
@@ -518,11 +526,84 @@ import { db } from "../services/database.js";
           showInstagramToast("Unfollowed Shabnam AI");
         }
       }
+    /**
+     * Check if a post is liked by a specific user
+     */
+    function isPostLikedByUser(postId, userId = null) {
+      if (!postId) return false;
+      const curUid = userId || (typeof window !== "undefined" && typeof window.getCurrentUserId === "function" ? window.getCurrentUserId() : "user");
+      try {
+        const key = `flashgram_user_likes_${String(curUid).toLowerCase()}`;
+        const raw = localStorage.getItem(key);
+        if (!raw) return false;
+        const likedList = JSON.parse(raw);
+        return Array.isArray(likedList) && likedList.includes(String(postId));
+      } catch (_) {
+        return false;
+      }
     }
+
+    /**
+     * Toggle like state for a post for a specific user
+     */
+    function togglePostLike(postId, userId = null) {
+      if (!postId) return { isLiked: false };
+      const curUid = userId || (typeof window !== "undefined" && typeof window.getCurrentUserId === "function" ? window.getCurrentUserId() : "user");
+      const key = `flashgram_user_likes_${String(curUid).toLowerCase()}`;
+      let likedList = [];
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw) likedList = JSON.parse(raw);
+        if (!Array.isArray(likedList)) likedList = [];
+      } catch (_) {
+        likedList = [];
+      }
+
+      const normId = String(postId);
+      const isAlreadyLiked = likedList.includes(normId);
+      const nextLiked = !isAlreadyLiked;
+
+      if (nextLiked) {
+        likedList.push(normId);
+      } else {
+        likedList = likedList.filter(id => id !== normId);
+      }
+
+      try {
+        localStorage.setItem(key, JSON.stringify(likedList));
+      } catch (_) {}
+
+      return { isLiked: nextLiked };
+    }
+
     if (typeof window !== "undefined") {
-      window.toggleFollowShabnam = toggleFollowShabnam;
+      window.isPostLikedByUser = isPostLikedByUser;
+      window.togglePostLike = togglePostLike;
     }
 
-
-
-export { UserProfileStore, showInstagramToast, getSavedVideos, getPinnedConversations, setPinnedConversations, getMutedConversations, setMutedConversations, getDeletedConversations, setDeletedConversations, getBlockedConversations, setBlockedConversations, getShabnamUnread, setShabnamUnread, markShabnamChatAsRead, getShabnamHistory, saveShabnamHistory, getAllShabnamSessions, saveAllShabnamSessions, getActiveSessionId, setActiveSessionId, isFollowingShabnam, toggleFollowShabnam };
+export { 
+  UserProfileStore, 
+  showInstagramToast, 
+  getSavedVideos, 
+  getPinnedConversations, 
+  setPinnedConversations, 
+  getMutedConversations, 
+  setMutedConversations, 
+  getDeletedConversations, 
+  setDeletedConversations, 
+  getBlockedConversations, 
+  setBlockedConversations, 
+  getShabnamUnread, 
+  setShabnamUnread, 
+  markShabnamChatAsRead, 
+  getShabnamHistory, 
+  saveShabnamHistory, 
+  getAllShabnamSessions, 
+  saveAllShabnamSessions, 
+  getActiveSessionId, 
+  setActiveSessionId, 
+  isFollowingShabnam, 
+  toggleFollowShabnam,
+  isPostLikedByUser,
+  togglePostLike
+};

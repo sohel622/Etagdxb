@@ -1,6 +1,7 @@
 // Cloudinary Direct Upload Service for Flashgram
 import { supabase } from "../supabaseClient.js";
-import { showInstagramToast } from "../utils/storage.js";
+import { showInstagramToast, UserProfileStore } from "../utils/storage.js";
+import { getCurrentUserId, resolveCurrentUserId, toValidUUID } from "./avatarService.js";
 
 export const CLOUD_NAME = 
   (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_CLOUDINARY_CLOUD_NAME) || 

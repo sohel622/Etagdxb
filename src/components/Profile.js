@@ -95,28 +95,55 @@ function renderOtherUserPillActions(userId, username) {
 async function loadAndRenderOtherUserProfile(userId, fallbackUsername, fallbackAvatar) {
   let targetProfile = null;
   const defaultAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400";
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   if (supabase) {
     try {
-      const { data: profRow } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
+      const isIntegerId = /^\d+$/.test(String(userId || '').trim());
+      if (isIntegerId) {
+        const { data: profRow } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', parseInt(userId, 10))
+          .maybeSingle();
+        if (profRow) targetProfile = profRow;
+      }
 
-      if (profRow) {
-        targetProfile = profRow;
-      } else {
+      if (!targetProfile) {
         const { data: profs } = await supabase.from('profiles').select('*');
         if (Array.isArray(profs)) {
-          targetProfile = profs.find(p => 
-            String(p.id) === String(userId) ||
-            (p.avatar_url && String(userId) && p.avatar_url.includes(String(userId))) ||
-            (fallbackUsername && (p.username === fallbackUsername || p.display_name === fallbackUsername))
-          );
+          const searchKey = String(userId || '').toLowerCase().trim();
+          const fallbackUser = String(fallbackUsername || '').toLowerCase().trim();
+
+          targetProfile = profs.find(p => {
+            const pId = String(p.id);
+            const pUser = String(p.username || '').toLowerCase();
+            const pDisp = String(p.display_name || '').toLowerCase();
+            const pEmail = String(p.email || '').toLowerCase();
+            const pAvatar = String(p.avatar_url || '');
+
+            if (isIntegerId && pId === searchKey) return true;
+            if (pAvatar && searchKey && pAvatar.toLowerCase().includes(searchKey)) return true;
+            if (fallbackUser && (pUser === fallbackUser || pDisp === fallbackUser)) return true;
+            if (searchKey && (pUser === searchKey || pDisp === searchKey || pEmail === searchKey)) return true;
+            return false;
+          });
         }
       }
     } catch (_) {}
+  }
+
+  // Resolve authentic UUID for target creator
+  let authenticUserId = String(userId || '');
+  if (!uuidRegex.test(authenticUserId) && targetProfile?.avatar_url) {
+    const match = targetProfile.avatar_url.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    if (match) authenticUserId = match[0];
+  }
+
+  // Ensure viewingProfileUserId points strictly to the creator's authentic UUID
+  viewingProfileUserId = authenticUserId;
+  if (typeof window !== "undefined") {
+    window.viewingProfileUserId = viewingProfileUserId;
   }
 
   // Strictly render authentic username - eliminate any generic 'user' fallback
@@ -127,7 +154,7 @@ async function loadAndRenderOtherUserProfile(userId, fallbackUsername, fallbackA
   const link = targetProfile?.website || targetProfile?.link || `flashgram.me/${username}`;
 
   viewingOtherUserObj = {
-    id: userId,
+    id: authenticUserId,
     username,
     name: displayName,
     avatar: avatarUrl
@@ -330,29 +357,23 @@ export async function syncCurrentLoggedInUserProfile() {
   // Requirement 2: Load Authoritative Profile from Supabase on Mount (Fix Refresh Wipeout)
   let profileData = null;
   try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', currentUserId)
-      .single();
-
-    if (!error && data) {
-      profileData = data;
-    } else {
-      const { data: maybeData } = await supabase
+    const isIntegerId = /^\d+$/.test(String(currentUserId).trim());
+    if (isIntegerId) {
+      const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', currentUserId)
+        .eq('id', parseInt(currentUserId, 10))
         .maybeSingle();
-      if (maybeData) {
-        profileData = maybeData;
-      } else if (currentAuthUser?.email) {
-        const { data: emailData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('email', currentAuthUser.email)
-          .maybeSingle();
-        if (emailData) profileData = emailData;
+      if (!error && data) profileData = data;
+    }
+
+    if (!profileData) {
+      const { data: profs } = await supabase.from('profiles').select('*');
+      if (Array.isArray(profs)) {
+        profileData = profs.find(p => 
+          (p.avatar_url && p.avatar_url.includes(String(currentUserId))) ||
+          (currentAuthUser?.email && p.email && p.email.toLowerCase() === currentAuthUser.email.toLowerCase())
+        );
       }
     }
   } catch (e) {
@@ -632,14 +653,17 @@ window.addEventListener("popstate", (e) => {
         let userPosts = [];
         const activeUid = viewingProfileUserId || getCurrentUserId();
 
-        // Include any locally created posts for active user
+        // Include any locally created posts strictly matching this active user
         if (!viewingProfileUserId) {
-          const localUserPosts = (inMemoryLocalPosts || []).filter(p => !p.user_id || p.isCurrentUser);
+          const localUserPosts = (inMemoryLocalPosts || []).filter(p => {
+            if (p.user_id) return String(p.user_id) === String(activeUid);
+            return Boolean(p.isCurrentUser);
+          });
           userPosts = [...localUserPosts];
         }
 
-        // Requirement 4: Isolate uploaded posts strictly by user_id
-        if (supabase && activeUid) {
+        // Strictly isolate and load uploaded posts belonging strictly to this user_id
+        if (supabase && activeUid && activeUid !== "shabnam_ai") {
           const { data, count, error } = await supabase
             .from('posts')
             .select('*', { count: 'exact' })
@@ -701,7 +725,7 @@ window.addEventListener("popstate", (e) => {
           videoSrc: vidSrc,
           poster: posterUrl,
           badge,
-          likes: p.likes_count ? String(p.likes_count) : (p.likesCount ? String(p.likesCount) : '1'),
+          likes: p.likes_count !== undefined && p.likes_count !== null ? String(p.likes_count) : (p.likesCount !== undefined && p.likesCount !== null ? String(p.likesCount) : '0'),
           views: '1'
         };
       });
@@ -1218,13 +1242,13 @@ export function openProfilePostModal(post) {
     `;
   } else if (post.video_url || (post.url && (post.url.includes('.mp4') || post.url.includes('.webm')))) {
     mediaHtml = `
-      <div class="relative w-full aspect-[4/5] bg-black flex items-center justify-center">
-        <video src="${getOptimizedVideoUrl(post.video_url || post.url)}" poster="${post.thumbnail_url || ''}" class="w-full h-full object-cover" autoplay loop muted playsinline></video>
+      <div class="relative w-full aspect-[4/5] bg-black flex items-center justify-center overflow-hidden">
+        <video src="${getOptimizedVideoUrl(post.video_url || post.url)}" poster="${post.thumbnail_url || ''}" class="w-full h-full object-contain" autoplay loop muted playsinline></video>
       </div>
     `;
   } else {
     mediaHtml = `
-      <div class="relative w-full aspect-[4/5] bg-black flex items-center justify-center">
+      <div class="relative w-full aspect-[4/5] bg-black flex items-center justify-center overflow-hidden">
         <img src="${post.url || post.thumbnail_url || post.thumbnail}" class="w-full h-full object-cover" alt="Post" />
       </div>
     `;
@@ -1237,6 +1261,8 @@ export function openProfilePostModal(post) {
       <div class="music-wave-bars"><span></span><span></span><span></span></div>
     </div>
   ` : '';
+
+  const initialLikes = post.likes_count !== undefined && post.likes_count !== null ? post.likes_count : (post.likesCount !== undefined && post.likesCount !== null ? post.likesCount : 0);
 
   modal.innerHTML = `
     <div class="profile-post-modal-card" data-post-id="${post.id}">
@@ -1265,7 +1291,7 @@ export function openProfilePostModal(post) {
           <i class="fa-regular fa-bookmark cursor-pointer text-lg text-white"></i>
         </div>
         ${musicHtml}
-        <div class="font-bold text-xs mt-1.5 text-white">${(post.likesCount || post.likes_count || 1).toLocaleString()} likes</div>
+        <div class="font-bold text-xs mt-1.5 text-white"><span class="modal-likes-count">${initialLikes.toLocaleString()}</span> likes</div>
         <div class="text-xs mt-1 text-white">
           <span class="font-bold mr-1">${authorName}</span>
           <span class="text-neutral-300">${post.caption || ''}</span>
@@ -1278,6 +1304,30 @@ export function openProfilePostModal(post) {
   // Start 30-second audio playback if attached music
   if (post.music) {
     audio30sController.playTrackForPost(post.id, post.music);
+  }
+
+  // Handle modal like button with persistence
+  const modalLikeBtn = modal.querySelector(".like-btn");
+  const modalLikesSpan = modal.querySelector(".modal-likes-count");
+  let currentModalLikes = initialLikes;
+  let isModalLiked = false;
+  if (modalLikeBtn) {
+    modalLikeBtn.onclick = async () => {
+      isModalLiked = !isModalLiked;
+      modalLikeBtn.classList.toggle("liked", isModalLiked);
+      modalLikeBtn.classList.toggle("fa-solid", isModalLiked);
+      modalLikeBtn.classList.toggle("fa-regular", !isModalLiked);
+      currentModalLikes = Math.max(0, currentModalLikes + (isModalLiked ? 1 : -1));
+      if (modalLikesSpan) modalLikesSpan.textContent = currentModalLikes.toLocaleString();
+      post.likes_count = currentModalLikes;
+      post.likesCount = currentModalLikes;
+
+      if (supabase && post.id && !String(post.id).startsWith("pending_") && !String(post.id).startsWith("post_1")) {
+        try {
+          await supabase.from('posts').update({ likes_count: currentModalLikes }).eq('id', post.id);
+        } catch (_) {}
+      }
+    };
   }
 
   // Handle carousel swipe dots

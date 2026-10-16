@@ -80,6 +80,8 @@
 }
 
 /* To hide only the PiP icon from the screen */
-.pip-icon, button.pip-btn i, .reel-action-btn:has(svg.pip-icon) {
+.pip-icon, button.pip-btn, .pip-btn, .reel-action-btn.pip-btn, button.pip-btn i, .reel-action-btn:has(svg.pip-icon) {
     display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
 }

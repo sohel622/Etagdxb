@@ -5,13 +5,37 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
 let realtimeAvatarChannel = null;
 
 /**
- * Get current user identifier from Supabase session or localStorage
+ * Deterministically convert any user ID (numeric, string, or UUID) into a valid UUID
+ */
+export function toValidUUID(rawId) {
+  if (!rawId) return null;
+  const str = String(rawId).trim();
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidRegex.test(str)) return str.toLowerCase();
+
+  // Deterministically hash non-UUID strings into standard UUID format (8-4-4-4-12)
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  const part1 = ((h1 ^ (h1 >>> 16)) >>> 0).toString(16).padStart(8, '0');
+  const part2 = ((h2 ^ (h2 >>> 16)) >>> 0).toString(16).padStart(8, '0');
+  const part3 = ((Math.imul(parseInt(part1, 16) || 1, 31) >>> 0).toString(16) + '00000000').slice(0, 8);
+  const part4 = ((Math.imul(parseInt(part2, 16) || 1, 37) >>> 0).toString(16) + '00000000').slice(0, 8);
+
+  const hex32 = (part1 + part2 + part3 + part4).slice(0, 32);
+  return `${hex32.slice(0, 8)}-${hex32.slice(8, 12)}-4${hex32.slice(13, 16)}-a${hex32.slice(17, 20)}-${hex32.slice(20, 32)}`.toLowerCase();
+}
+
+/**
+ * Get current user identifier from active account, Supabase session, or localStorage
  */
 export function getCurrentUserId() {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   try {
     const activeAccId = localStorage.getItem("flashgram_active_account_id");
-    if (activeAccId && uuidRegex.test(activeAccId.trim())) return activeAccId.trim();
+    if (activeAccId && activeAccId.trim()) return activeAccId.trim();
   } catch (_) {}
 
   try {
@@ -19,9 +43,7 @@ export function getCurrentUserId() {
     if (sessionStr) {
       const parsed = JSON.parse(sessionStr);
       const uid = parsed?.uid || parsed?.id;
-      if (uid && uuidRegex.test(uid)) {
-        return uid;
-      }
+      if (uid) return String(uid).trim();
     }
   } catch (_) {}
 
@@ -29,34 +51,48 @@ export function getCurrentUserId() {
     if (supabase && supabase.auth) {
       if (typeof supabase.auth.user === "function") {
         const sessionUser = supabase.auth.user();
-        if (sessionUser && sessionUser.id && uuidRegex.test(sessionUser.id)) return sessionUser.id;
+        if (sessionUser && sessionUser.id) return String(sessionUser.id).trim();
       }
     }
   } catch (_) {}
 
-  return "5611f2e8-0005-482f-9929-69d2efab41df";
+  if (UserProfileStore?.state?.id) {
+    return String(UserProfileStore.state.id).trim();
+  }
+
+  // Persistent unique client ID if no active account
+  try {
+    let localUid = localStorage.getItem("flashgram_local_user_id");
+    if (!localUid) {
+      localUid = "user_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
+      localStorage.setItem("flashgram_local_user_id", localUid);
+    }
+    return localUid;
+  } catch (_) {
+    return "flashgram_user_default";
+  }
 }
 
 /**
- * Resolve authentic user UUID from Supabase Auth
+ * Resolve authentic user UUID from Supabase Auth or persistent session
  */
 export async function resolveCurrentUserId() {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   try {
     const activeAccId = localStorage.getItem("flashgram_active_account_id");
-    if (activeAccId && uuidRegex.test(activeAccId.trim())) return activeAccId.trim();
+    if (activeAccId && activeAccId.trim()) return activeAccId.trim();
   } catch (_) {}
 
   if (supabase && supabase.auth) {
     try {
       const { data } = await supabase.auth.getUser();
-      if (data?.user?.id && uuidRegex.test(data.user.id)) return data.user.id;
+      if (data?.user?.id) return data.user.id;
     } catch (_) {}
     try {
       const { data } = await supabase.auth.getSession();
-      if (data?.session?.user?.id && uuidRegex.test(data.session.user.id)) return data.session.user.id;
+      if (data?.session?.user?.id) return data.session.user.id;
     } catch (_) {}
   }
+
   return getCurrentUserId();
 }
 
@@ -154,12 +190,16 @@ export function liveSyncUserProfile(userId, { username, avatarUrl, name } = {}) 
     if (newAvatar) localStorage.setItem("user_custom_avatar_data", newAvatar);
   } catch (_) {}
 
-  // 3. Live Sync all Home Feed post cards authored by this user
+  // 3. Live Sync all Home Feed post cards authored strictly by this user
   const postCards = document.querySelectorAll(".post-card");
+  const validCurrentUUID = toValidUUID(currentUserId);
   postCards.forEach(card => {
     const cardUserId = card.dataset.userId;
     const isCurrentUserPost = card.dataset.currentUserPost === "true" ||
-      (cardUserId && (cardUserId === String(currentUserId) || cardUserId.includes("sohel") || cardUserId.includes(newUsername)));
+      (cardUserId && (
+        String(cardUserId).toLowerCase() === String(currentUserId).toLowerCase() ||
+        (validCurrentUUID && String(cardUserId).toLowerCase() === String(validCurrentUUID).toLowerCase())
+      ));
 
     if (isCurrentUserPost) {
       if (newUsername) {
@@ -175,12 +215,27 @@ export function liveSyncUserProfile(userId, { username, avatarUrl, name } = {}) 
     }
   });
 
-  // 4. Live Sync all Reels cards authored by this user
+  // 4. Live Sync all Reels cards authored strictly by this user
   const reelItems = document.querySelectorAll(".reel-item");
   reelItems.forEach(item => {
     const reelUserId = item.dataset.userId;
     const isCurrentUserReel = item.dataset.isCurrentUser === "true" ||
-      (reelUserId && (reelUserId === String(currentUserId) || reelUserId.includes("sohel") || reelUserId.includes(newUsername)));
+      (reelUserId && (
+        String(reelUserId).toLowerCase() === String(currentUserId).toLowerCase() ||
+        (validCurrentUUID && String(reelUserId).toLowerCase() === String(validCurrentUUID).toLowerCase())
+      ));
+
+    if (isCurrentUserReel) {
+      if (newUsername) {
+        const rUsername = item.querySelector(".reels-username");
+        if (rUsername) rUsername.textContent = newUsername;
+      }
+      if (newAvatar) {
+        const rAvatar = item.querySelector(".reels-user-avatar");
+        if (rAvatar) rAvatar.src = newAvatar;
+      }
+    }
+  });
 
     if (isCurrentUserReel) {
       if (newUsername) {
@@ -478,6 +533,8 @@ if (typeof window !== "undefined") {
   window.uploadUserAvatar = uploadUserAvatar;
   window.initAvatarRealtimeSync = initAvatarRealtimeSync;
   window.getCurrentUserId = getCurrentUserId;
+  window.resolveCurrentUserId = resolveCurrentUserId;
+  window.toValidUUID = toValidUUID;
   window.updateUserProfileState = updateUserProfileState;
   window.syncProfileToSupabase = syncProfileToSupabase;
   window.liveSyncUserProfile = liveSyncUserProfile;

@@ -235,10 +235,11 @@
     /* Strict Video Dimensions & Scaling: Instagram Home Feed (4:5 / 1080x1350 px) */
     .home-post-video-container {
       width: 100%;
+      max-width: 100%;
       aspect-ratio: 4 / 5;
       max-height: 80vh;
       background-color: #000000;
-      overflow: hidden;
+      overflow: hidden !important;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -248,8 +249,10 @@
     .home-post-video-player {
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain !important;
+      object-position: center !important;
       display: block;
+      background: #000000 !important;
     }
 
     .home-post-video-container,
@@ -257,10 +260,11 @@
     .post-video-container,
     .post-media-container {
       width: 100%;
+      max-width: 100%;
       aspect-ratio: 4 / 5 !important;
       max-height: 80vh;
       background-color: #000000;
-      overflow: hidden;
+      overflow: hidden !important;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -279,23 +283,20 @@
 
     .home-post-video-player,
     .home-video-player,
-    .home-video-poster,
-    .home-video-container video,
-    .home-video-container img,
-    .post-video-container video,
-    .post-video-container img,
     .post-video-player,
+    .home-video-container video,
+    .post-video-container video,
     .post-media-container video,
-    .post-media-container img,
     .home-post-video-container video {
       width: 100% !important;
       height: 100% !important;
       max-height: 80vh;
       aspect-ratio: 4 / 5;
-      object-fit: cover !important;
+      object-fit: contain !important; /* Prevents vertical videos from over-zooming/stretching/cropping */
       object-position: center !important;
       display: block !important;
       vertical-align: bottom !important; /* Removes standard inline-block baseline gap */
+      background: #000000 !important;
       margin: 0 !important;
       padding: 0 !important;
     }
@@ -303,7 +304,7 @@
     .home-video-poster {
       width: 100%;
       height: 100%;
-      object-fit: cover !important;
+      object-fit: contain !important;
       object-position: center !important;
       display: block !important;
       vertical-align: bottom !important;
@@ -313,13 +314,29 @@
       z-index: 1;
       opacity: 1;
       transition: opacity 0.22s ease;
-      background: transparent !important;
+      background: #000000 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    .home-post-video-container > img:not(.home-video-poster),
+    .home-video-container > img:not(.home-video-poster),
+    .post-video-container > img:not(.home-video-poster),
+    .post-media-container > img:not(.home-video-poster) {
+      width: 100% !important;
+      height: 100% !important;
+      max-height: 80vh;
+      aspect-ratio: 4 / 5;
+      object-fit: cover !important;
+      object-position: center !important;
+      display: block !important;
+      vertical-align: bottom !important;
       margin: 0 !important;
       padding: 0 !important;
     }
 
     .dark .home-video-poster {
-      background: transparent !important;
+      background: #000000 !important;
     }
 
     .home-video-container.is-playing .home-video-poster {
@@ -370,14 +387,14 @@
     .post-video-player {
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain !important;
       object-position: center;
       display: block;
       vertical-align: bottom;
       position: absolute;
       top: 0;
       left: 0;
-      background: transparent !important;
+      background: #000000 !important;
       z-index: 3;
       margin: 0 !important;
       padding: 0 !important;

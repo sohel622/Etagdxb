@@ -51,7 +51,7 @@ export function buildPostCardElement(post, options = {}) {
         <div class="home-post-video-container home-video-container post-video-container relative" data-post-id="${post.id}" data-video-url="${post.video_url || post.media_url || optimizedMediaUrl}" data-poster-url="${poster}" style="cursor: pointer;" title="Watch Reel">
           <div class="home-video-skeleton"></div>
           <video
-            class="home-post-video-player w-full h-full object-cover"
+            class="home-post-video-player w-full h-full object-contain"
             src="${post.video_url || post.media_url || optimizedMediaUrl}"
             poster="${poster}"
             playsinline

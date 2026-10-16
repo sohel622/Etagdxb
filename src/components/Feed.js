@@ -173,7 +173,7 @@ function createPostCardElement(post, index = 0) {
         <div class="home-post-video-container home-video-container post-video-container relative" data-post-id="${post.id}" data-video-url="${post.video_url || post.media_url || videoSrc}" data-poster-url="${post.thumbnail_url || posterImg}" style="cursor: pointer;" title="Watch Reel">
           <div class="home-video-skeleton"></div>
           <video
-            class="home-post-video-player w-full h-full object-cover"
+            class="home-post-video-player w-full h-full object-contain"
             src="${post.video_url || post.media_url || videoSrc}"
             poster="${post.thumbnail_url || posterImg}"
             playsinline
@@ -233,12 +233,12 @@ function createPostCardElement(post, index = 0) {
       <i class="fa-regular fa-bookmark action-btn bookmark-btn"></i>
     </div>
     <div class="post-details">
-      <div class="post-likes"><span class="likes-count">${(post.likesCount || 1248).toLocaleString()}</span> likes</div>
+      <div class="post-likes"><span class="likes-count">${(post.likes_count !== undefined && post.likes_count !== null ? post.likes_count : (post.likesCount !== undefined && post.likesCount !== null ? post.likesCount : 0)).toLocaleString()}</span> likes</div>
       <div class="post-caption">
         <span class="caption-user ${usernameClass}" ${userClickAttr}>${displayUser}</span>
         <span>${post.caption}</span>
       </div>
-      <div class="post-comments-link" style="cursor: pointer;" data-post-id="${post.id}">View all ${initialCommentsCount} comments</div>
+      <div class="post-comments-link" style="cursor: pointer;" data-post-id="${post.id}">View all ${post.comments_count !== undefined && post.comments_count !== null ? post.comments_count : (post.commentsCount !== undefined && post.commentsCount !== null ? post.commentsCount : 0)} comments</div>
       <div class="post-time">${post.time || '2 HOURS AGO'}</div>
     </div>
   `;
@@ -249,7 +249,7 @@ function createPostCardElement(post, index = 0) {
   const likeBtn = card.querySelector(".like-btn");
   const bookmarkBtn = card.querySelector(".bookmark-btn");
   const likesSpan = card.querySelector(".likes-count");
-  let currentLikes = post.likesCount || 1248;
+  let currentLikes = post.likes_count !== undefined && post.likes_count !== null ? post.likes_count : (post.likesCount !== undefined && post.likesCount !== null ? post.likesCount : 0);
   let isLiked = false;
 
   card._postData = post;
@@ -292,13 +292,21 @@ function createPostCardElement(post, index = 0) {
     });
   }
 
-  likeBtn.onclick = () => {
+  likeBtn.onclick = async () => {
     isLiked = !isLiked;
     likeBtn.classList.toggle("liked", isLiked);
     likeBtn.classList.toggle("fa-solid", isLiked);
     likeBtn.classList.toggle("fa-regular", !isLiked);
-    currentLikes += isLiked ? 1 : -1;
+    currentLikes = Math.max(0, currentLikes + (isLiked ? 1 : -1));
     likesSpan.textContent = currentLikes.toLocaleString();
+    post.likes_count = currentLikes;
+    post.likesCount = currentLikes;
+
+    if (supabase && post.id && !String(post.id).startsWith("pending_") && !String(post.id).startsWith("post_1")) {
+      try {
+        await supabase.from('posts').update({ likes_count: currentLikes }).eq('id', post.id);
+      } catch (_) {}
+    }
   };
 
   bookmarkBtn.onclick = () => {
@@ -367,73 +375,21 @@ async function renderHomeFeed() {
       }
     }
 
-    if (!livePosts && !isOfflineFeedMode && supabase) {
+    if (!livePosts && !isOfflineFeedMode && !isOffline()) {
       try {
-        console.log("[Feed] Executing Supabase query: posts joined with author profiles...");
-        let { data: posts, error } = await supabase
-          .from('posts')
-          .select(`
-            id,
-            video_url,
-            thumbnail_url,
-            caption,
-            created_at,
-            user_id,
-            profiles:user_id (
-              id,
-              username,
-              avatar_url
-            )
-          `)
-          .order('created_at', { ascending: false });
-
-        if (error) {
-          console.warn("[Feed] profiles:user_id join note, trying standard profiles join:", error.message || error);
-          const fallbackRes = await supabase
-            .from('posts')
-            .select(`
-              id,
-              video_url,
-              thumbnail_url,
-              caption,
-              created_at,
-              user_id,
-              profiles (
-                id,
-                username,
-                avatar_url
-              )
-            `)
-            .order('created_at', { ascending: false });
-          if (!fallbackRes.error && Array.isArray(fallbackRes.data) && fallbackRes.data.length > 0) {
-            posts = fallbackRes.data;
-            error = null;
-          }
-        }
-
-        if (error) {
-          console.warn("[Feed] Supabase posts join query note:", error.message || error);
-        } else if (Array.isArray(posts) && posts.length > 0) {
-          console.log(`[Feed] Successfully retrieved ${posts.length} live posts directly from Supabase join.`);
-          livePosts = posts;
-        }
+        console.log("[Feed] Loading live posts with author profiles mapping via fetchSupabasePosts...");
+        livePosts = await fetchSupabasePosts();
       } catch (qErr) {
         console.warn("[Feed] Supabase posts query exception:", qErr);
       }
     }
 
     if (!livePosts || livePosts.length === 0) {
-      if (!isOffline()) {
-        console.log("[Feed] Using fetchSupabasePosts fallback controller...");
-        livePosts = await fetchSupabasePosts();
-      }
-      if (!livePosts || livePosts.length === 0) {
-        // Fallback to offline watched posts if network returned zero posts or device lost connection
-        const offlinePosts = await getOfflineWatchedPosts();
-        if (offlinePosts && offlinePosts.length > 0) {
-          livePosts = offlinePosts.map(p => ({ ...p, isOfflineCached: true }));
-          isOfflineFeedMode = true;
-        }
+      // Fallback to offline watched posts if network returned zero posts or device lost connection
+      const offlinePosts = await getOfflineWatchedPosts();
+      if (offlinePosts && offlinePosts.length > 0) {
+        livePosts = offlinePosts.map(p => ({ ...p, isOfflineCached: true }));
+        isOfflineFeedMode = true;
       }
     }
 
@@ -474,8 +430,8 @@ async function renderHomeFeed() {
         isCurrentUser: isMine,
         location: p.location || 'Original Audio',
         caption: p.caption || 'Flashgram Video Post! ✨ #lifestyle',
-        likesCount: p.likes_count || 1248,
-        commentsCount: p.comments_count || 24,
+        likesCount: p.likes_count !== undefined && p.likes_count !== null ? p.likes_count : (p.likesCount !== undefined && p.likesCount !== null ? p.likesCount : 0),
+        commentsCount: p.comments_count !== undefined && p.comments_count !== null ? p.comments_count : (p.commentsCount !== undefined && p.commentsCount !== null ? p.commentsCount : 0),
         time: p.created_at ? 'RECENT' : 'JUST NOW'
       };
     });
@@ -649,7 +605,7 @@ async function mountAndPlayVideo(container) {
   let video = container.querySelector("video");
   if (!video) {
     video = document.createElement("video");
-    video.className = "home-post-video-player home-video-player post-video-player w-full h-full object-cover";
+    video.className = "home-post-video-player home-video-player post-video-player w-full h-full object-contain";
     video.loop = true;
     video.autoplay = true;
     video.playsInline = true;

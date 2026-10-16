@@ -264,9 +264,11 @@ import {
           }
         }
 
-        const likesDisplay = reel.likes || (reel.likes_count ? String(reel.likes_count) : '1.2K');
-        const commentsDisplay = reel.comments || (reel.comments_count ? String(reel.comments_count) : '24');
-        const sharesDisplay = reel.shares || '18';
+        const initialReelLikes = reel.likes_count !== undefined && reel.likes_count !== null ? reel.likes_count : (parseInt(reel.likes) || 0);
+        const initialReelComments = reel.comments_count !== undefined && reel.comments_count !== null ? reel.comments_count : (parseInt(reel.comments) || 0);
+        const likesDisplay = String(initialReelLikes);
+        const commentsDisplay = String(initialReelComments);
+        const sharesDisplay = reel.shares || '0';
 
         item.innerHTML = `
           <div class="reel-video-wrapper reels-video-container reels-fullscreen-viewport">
@@ -431,16 +433,30 @@ import {
         });
 
         const likeBtn = item.querySelector(".like-btn");
+        const likesSpan = item.querySelector(".like-btn span");
+        let reelLikes = initialReelLikes;
+        let isReelLiked = false;
+
+        const handleReelLike = async (e) => {
+          if (e) e.stopPropagation();
+          isReelLiked = !isReelLiked;
+          likeIcon.classList.toggle("liked", isReelLiked);
+          reelLikes = Math.max(0, reelLikes + (isReelLiked ? 1 : -1));
+          if (likesSpan) likesSpan.textContent = reelLikes.toLocaleString();
+          reel.likes_count = reelLikes;
+          reel.likesCount = reelLikes;
+
+          if (supabase && reel.id && !String(reel.id).startsWith("pending_") && !String(reel.id).startsWith("sample_") && !String(reel.id).startsWith("shabnam_")) {
+            try {
+              await supabase.from('posts').update({ likes_count: reelLikes }).eq('id', reel.id);
+            } catch (_) {}
+          }
+        };
+
         if (likeBtn) {
-          likeBtn.onclick = (e) => {
-            e.stopPropagation();
-            likeIcon.classList.toggle("liked");
-          };
-        } else {
-          likeIcon.onclick = (e) => {
-            e.stopPropagation();
-            likeIcon.classList.toggle("liked");
-          };
+          likeBtn.onclick = handleReelLike;
+        } else if (likeIcon) {
+          likeIcon.onclick = handleReelLike;
         }
 
         const soundBadge = item.querySelector(".sound-status-badge");
