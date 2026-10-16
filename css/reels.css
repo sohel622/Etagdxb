@@ -41,14 +41,13 @@
   width: 100% !important;
   height: 100% !important;
   max-width: 100% !important;
-   max-width: 100% !important;
-max-height: 100% !important;
-object-fit: contain !important;
+  max-height: 100% !important;
+  object-fit: cover !important;
   object-position: center !important;
   display: block !important;
 }
 
-/* Reels Right Action Column (strictly Like, Comment, Share,  More) */
+/* Reels Right Action Column (strictly Like, Comment, Share, More) */
 .reels-sidebar {
   position: absolute;
   right: 12px;
@@ -80,8 +79,8 @@ object-fit: contain !important;
 .reel-action-btn i {
   font-size: 24px;
 }
+
 /* To hide only the PiP icon from the screen */
 .pip-icon, button.pip-btn i, .reel-action-btn:has(svg.pip-icon) {
     display: none !important;
 }
-
