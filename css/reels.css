@@ -44,7 +44,7 @@
   max-height: 100vh !important;
   max-height: 100dvh !important;
   aspect-ratio: 9 / 16 !important;
-  object-fit: cover !important;
+   object-fit: contain !important;
   object-position: center !important;
   display: block !important;
 }
