@@ -32,7 +32,6 @@
   justify-content: center;
   background-color: #000000;
   overflow: hidden;
-  aspect-ratio: 9 / 16 !important;
 }
 
 .reels-video-player,
@@ -42,7 +41,7 @@
   height: 100% !important;
   max-width: 100% !important;
   max-height: 100% !important;
-  object-fit: cover !important;
+  object-fit: contain !important; /* জুম বন্ধ করার জন্য contain ব্যবহার করা হয়েছে */
   object-position: center !important;
   display: block !important;
 }
