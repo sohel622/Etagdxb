@@ -38,7 +38,7 @@ export function buildReelItemElement(reel, index) {
         </div>
       </div>
 
-      <!-- Clean right action column: strictly Like, Comment, Share, PiP, More -->
+      <!-- Clean right action column: strictly Like, Comment, Share, More -->
       <div class="reels-sidebar">
         <div class="reel-action-btn like-btn">
           <i class="fa-solid fa-heart"></i>
@@ -51,10 +51,6 @@ export function buildReelItemElement(reel, index) {
         <div class="reel-action-btn share-btn" title="Share">
           <i class="fa-regular fa-paper-plane"></i>
           <span>Share</span>
-        </div>
-        <div class="reel-action-btn pip-btn" title="Picture in Picture">
-          <i class="fa-solid fa-arrow-up-right-from-square"></i>
-          <span>PiP</span>
         </div>
         <div class="reel-action-btn more-btn">
           <i class="fa-solid fa-ellipsis"></i>

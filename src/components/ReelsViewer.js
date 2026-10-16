@@ -301,10 +301,6 @@ import {
                 <i class="fa-regular fa-paper-plane"></i>
                 <span>${sharesDisplay}</span>
               </div>
-              <div class="reel-action-btn pip-btn" title="Picture in Picture">
-                <i class="fa-solid fa-arrow-up-right-from-square"></i>
-                <span>PiP</span>
-              </div>
               <div class="reel-action-btn more-btn">
                 <i class="fa-solid fa-ellipsis"></i>
               </div>

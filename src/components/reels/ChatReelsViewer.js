@@ -123,7 +123,7 @@ export function openChatReelsViewer({ videos = [], initialIndex = 0 } = {}) {
 
     item.innerHTML = `
       <div class="reel-video-wrapper w-full h-full relative flex items-center justify-center bg-black">
-        <video class="reel-video w-full h-full object-cover" src="${optVidUrl}" poster="${thumbUrl}" loop playsinline webkit-playsinline preload="metadata" ${isMuted ? 'muted' : ''}></video>
+        <video class="reel-video w-full h-full object-contain" src="${optVidUrl}" poster="${thumbUrl}" loop playsinline webkit-playsinline preload="metadata" ${isMuted ? 'muted' : ''}></video>
         
         <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
 
