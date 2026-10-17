@@ -232,37 +232,16 @@
       cursor: pointer;
     }
 
-    /* Strict Video Dimensions & Scaling: Instagram Home Feed (4:5 / 1080x1350 px) */
-    .home-post-video-container {
-      width: 100%;
-      max-width: 100%;
-      aspect-ratio: 4 / 5;
-      max-height: 80vh;
-      background-color: #000000;
-      overflow: hidden !important;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 0px;
-    }
-
-    .home-post-video-player {
-      width: 100%;
-      height: 100%;
-      object-fit: contain !important;
-      object-position: center !important;
-      display: block;
-      background: #000000 !important;
-    }
-
+    /* Video Dimensions & Scaling: Instagram Dynamic Home Feed */
     .home-post-video-container,
     .home-video-container,
     .post-video-container,
     .post-media-container {
-      width: 100%;
-      max-width: 100%;
-      aspect-ratio: 4 / 5 !important;
-      max-height: 80vh;
+      width: 100% !important;
+      max-width: 100% !important;
+      aspect-ratio: 4 / 5; /* Clean Instagram default before video metadata initializes */
+      height: auto;
+      background: #000000;
       background-color: #000000;
       overflow: hidden !important;
       display: flex;
@@ -273,6 +252,25 @@
       margin: 0 !important;
       padding: 0 !important;
       contain: layout paint;
+    }
+
+    /* Dynamic aspect ratios matching video source without letterboxing or black gaps */
+    .home-post-video-container.is-portrait,
+    .home-video-container.is-portrait,
+    .post-video-container.is-portrait {
+      aspect-ratio: 4 / 5 !important;
+    }
+
+    .home-post-video-container.is-square,
+    .home-video-container.is-square,
+    .post-video-container.is-square {
+      aspect-ratio: 1 / 1 !important;
+    }
+
+    .home-post-video-container.is-landscape,
+    .home-video-container.is-landscape,
+    .post-video-container.is-landscape {
+      aspect-ratio: 16 / 9 !important;
     }
 
     .dark .home-post-video-container,
@@ -290,21 +288,19 @@
     .home-post-video-container video {
       width: 100% !important;
       height: 100% !important;
-      max-height: 80vh;
-      aspect-ratio: 4 / 5;
-      object-fit: contain !important; /* Prevents vertical videos from over-zooming/stretching/cropping */
+      object-fit: cover !important; /* Fills frame cleanly without black bars or letterboxing */
       object-position: center !important;
       display: block !important;
-      vertical-align: bottom !important; /* Removes standard inline-block baseline gap */
-      background: #000000 !important;
+      vertical-align: bottom !important;
+      background: #000000;
       margin: 0 !important;
       padding: 0 !important;
     }
 
     .home-video-poster {
-      width: 100%;
-      height: 100%;
-      object-fit: contain !important;
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover !important;
       object-position: center !important;
       display: block !important;
       vertical-align: bottom !important;
@@ -314,7 +310,7 @@
       z-index: 1;
       opacity: 1;
       transition: opacity 0.22s ease;
-      background: #000000 !important;
+      background: #000000;
       margin: 0 !important;
       padding: 0 !important;
     }
@@ -325,12 +321,11 @@
     .post-media-container > img:not(.home-video-poster) {
       width: 100% !important;
       height: 100% !important;
-      max-height: 80vh;
-      aspect-ratio: 4 / 5;
       object-fit: cover !important;
       object-position: center !important;
       display: block !important;
       vertical-align: bottom !important;
+      background: #000000;
       margin: 0 !important;
       padding: 0 !important;
     }
@@ -385,16 +380,16 @@
     .home-post-video-player,
     .home-video-player,
     .post-video-player {
-      width: 100%;
-      height: 100%;
-      object-fit: contain !important;
-      object-position: center;
-      display: block;
-      vertical-align: bottom;
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover !important;
+      object-position: center !important;
+      display: block !important;
+      vertical-align: bottom !important;
       position: absolute;
       top: 0;
       left: 0;
-      background: #000000 !important;
+      background: #000000;
       z-index: 3;
       margin: 0 !important;
       padding: 0 !important;

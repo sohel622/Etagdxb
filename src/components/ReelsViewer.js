@@ -1,6 +1,6 @@
 // ReelsViewer Component (Fullscreen Reels Player, Observer & Progress Bar)
 import { db } from "../services/database.js";
-import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowShabnam } from "../utils/storage.js";
+import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowShabnam, isPostLikedByUser, togglePostLike } from "../utils/storage.js";
 import { openReelsShareSheet, openReelsCommentsSheet, disableReelsClearMode, setActiveClearModeReelId, openPostOptionsSheet } from "./reels/index.js";
 import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl, getOptimizedVideoUrl } from "../services/cloudinaryService.js";
 import { openProfile } from "./Profile.js";
@@ -435,11 +435,15 @@ import {
         const likeBtn = item.querySelector(".like-btn");
         const likesSpan = item.querySelector(".like-btn span");
         let reelLikes = initialReelLikes;
-        let isReelLiked = false;
+        let isReelLiked = isPostLikedByUser(reel.id, currentUserId);
+        if (likeIcon) {
+          likeIcon.classList.toggle("liked", isReelLiked);
+        }
 
         const handleReelLike = async (e) => {
           if (e) e.stopPropagation();
-          isReelLiked = !isReelLiked;
+          const { isLiked: nextLiked } = togglePostLike(reel.id, currentUserId);
+          isReelLiked = nextLiked;
           likeIcon.classList.toggle("liked", isReelLiked);
           reelLikes = Math.max(0, reelLikes + (isReelLiked ? 1 : -1));
           if (likesSpan) likesSpan.textContent = reelLikes.toLocaleString();

@@ -2,6 +2,7 @@
 import { supabase } from "../../supabaseClient.js";
 import { uploadVideoToCloudinary, deriveCloudinaryThumbnailUrl } from "../../services/cloudinaryService.js";
 import { showInstagramToast, UserProfileStore } from "../../utils/storage.js";
+import { getCurrentUserId, resolveCurrentUserId, toValidUUID } from "../../services/avatarService.js";
 
 /**
  * Direct Server Upload (Supabase Storage / Cloudinary Backend):
@@ -219,27 +220,25 @@ export const uploadAndSaveVideoPost = async (videoFile, caption, userId) => {
     // Generate image thumbnail URL directly from Cloudinary video public ID (e.g. .mp4 -> .jpg)
     const permanentThumbnailUrl = permanentVideoUrl.replace(/\.[^/.]+$/, ".jpg");
 
-    // Resolve authenticated user UUID
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    let targetUid = userId;
-    if (!targetUid || !uuidRegex.test(targetUid)) {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user && user.id && uuidRegex.test(user.id)) targetUid = user.id;
-      } catch (_) {}
-    }
-    if (!targetUid || !uuidRegex.test(targetUid)) {
-      targetUid = "5611f2e8-0005-482f-9929-69d2efab41df";
-    }
+    // Resolve authentic user UUID
+    const rawUid = userId || (typeof resolveCurrentUserId === "function" ? await resolveCurrentUserId() : null) || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null);
+    const targetUid = toValidUUID(rawUid) || rawUid;
+    const authorUsername = UserProfileStore?.state?.username || 'creator';
+    const authorAvatar = UserProfileStore?.state?.avatar || '/assets/default-avatar.png';
 
     // 2. Insert into Supabase table with verified permanent URLs (NO blob: URLs)
     let savedRow = null;
     const postPayload = {
       user_id: targetUid,
       video_url: permanentVideoUrl,
+      media_url: permanentVideoUrl,
       thumbnail_url: permanentThumbnailUrl,
       caption: caption || '',
       media_type: 'video',
+      username: authorUsername,
+      user_avatar: authorAvatar,
+      likes_count: 0,
+      comments_count: 0,
       created_at: new Date().toISOString()
     };
 
@@ -297,15 +296,20 @@ export const uploadAndSaveVideoPost = async (videoFile, caption, userId) => {
  * @param {string} caption - Post caption
  * @param {string} [mediaType='video'] - 'video' | 'photo'
  */
-export const handlePublishPost = async (cloudinaryVideoUrl, caption, mediaType = 'video') => {
+export const handlePublishPost = async (cloudinaryVideoUrl, caption, mediaType = 'video', userId = null) => {
+  const rawUid = userId || (typeof resolveCurrentUserId === "function" ? await resolveCurrentUserId() : null) || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null);
+  const finalUserId = toValidUUID(rawUid) || rawUid;
+  const username = UserProfileStore?.state?.username || 'creator';
+  const userAvatar = UserProfileStore?.state?.avatar || '/assets/default-avatar.png';
+
   // Guard: NEVER save temporary local blob links to Supabase
   if (!cloudinaryVideoUrl || String(cloudinaryVideoUrl).startsWith("blob:")) {
     console.warn("[Post Creation] Skipping Supabase insertion for temporary blob preview:", cloudinaryVideoUrl);
     const localPost = {
       id: 'post_' + Date.now(),
-      user_id: "5611f2e8-0005-482f-9929-69d2efab41df",
-      username: UserProfileStore?.state?.username || 'sohelmommy_077',
-      user_avatar: UserProfileStore?.state?.avatar || '/assets/default-avatar.png',
+      user_id: finalUserId,
+      username: username,
+      user_avatar: userAvatar,
       media_url: cloudinaryVideoUrl,
       video_url: cloudinaryVideoUrl,
       thumbnail_url: cloudinaryVideoUrl,
@@ -322,24 +326,6 @@ export const handlePublishPost = async (cloudinaryVideoUrl, caption, mediaType =
   const permanentThumbnailUrl = String(cloudinaryVideoUrl).replace(/\.[^/.]+$/, ".jpg");
 
   try {
-    let user = null;
-    try {
-      const { data } = await supabase.auth.getUser();
-      user = data?.user;
-    } catch (_) {}
-
-    if (!user) {
-      try {
-        const { data: sessData } = await supabase.auth.getSession();
-        user = sessData?.session?.user;
-      } catch (_) {}
-    }
-
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const finalUserId = (user?.id && uuidRegex.test(user.id)) ? user.id : "5611f2e8-0005-482f-9929-69d2efab41df";
-    const username = user?.user_metadata?.username || user?.email?.split('@')[0] || UserProfileStore?.state?.username || 'creator';
-    const userAvatar = user?.user_metadata?.avatar_url || UserProfileStore?.state?.avatar || '/assets/default-avatar.png';
-
     const newPostData = {
       user_id: finalUserId,
       username: username,
@@ -397,9 +383,9 @@ export const handlePublishPost = async (cloudinaryVideoUrl, caption, mediaType =
     console.warn('Notice saving post to Supabase:', err?.message || err);
     const fallbackPost = {
       id: 'post_' + Date.now(),
-      user_id: "5611f2e8-0005-482f-9929-69d2efab41df",
-      username: UserProfileStore?.state?.username || 'sohelmommy_077',
-      user_avatar: UserProfileStore?.state?.avatar || '/assets/default-avatar.png',
+      user_id: finalUserId,
+      username: username,
+      user_avatar: userAvatar,
       media_url: cloudinaryVideoUrl,
       video_url: cloudinaryVideoUrl,
       thumbnail_url: permanentThumbnailUrl,

@@ -526,6 +526,12 @@ import { db } from "../services/database.js";
           showInstagramToast("Unfollowed Shabnam AI");
         }
       }
+    }
+
+    if (typeof window !== "undefined") {
+      window.toggleFollowShabnam = toggleFollowShabnam;
+    }
+
     /**
      * Check if a post is liked by a specific user
      */

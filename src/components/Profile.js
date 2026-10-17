@@ -1,6 +1,6 @@
 // Profile Component (YouTube Style Channel Header, Stats, Tabs & Grid)
 import { db } from "../services/database.js";
-import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowShabnam } from "../utils/storage.js";
+import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowShabnam, isPostLikedByUser, togglePostLike } from "../utils/storage.js";
 import { SHABNAM_AI_PROFILE } from "../utils/mockData.js";
 import { switchTab, activeNavId } from "./BottomNavigation.js";
 import { openShabnamChat } from "./ShabnamAI.js";
@@ -8,7 +8,7 @@ import { playShabnamReelVideo, navigateToReel } from "./ReelsViewer.js";
 import { openEditProfileScreen, openMediaCreationPrompt } from "./Modals.js";
 import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl, getOptimizedVideoUrl } from "../services/cloudinaryService.js";
 import { supabase } from "../supabaseClient.js";
-import { getCurrentUserId } from "../services/avatarService.js";
+import { getCurrentUserId, toValidUUID } from "../services/avatarService.js";
 import { isFollowingUser, toggleFollowUser } from "../services/followService.js";
 import { openDirectChatWithUser } from "./DirectChat.js";
 import { inMemoryLocalPosts } from "./Feed.js";
@@ -133,14 +133,13 @@ async function loadAndRenderOtherUserProfile(userId, fallbackUsername, fallbackA
     } catch (_) {}
   }
 
-  // Resolve authentic UUID for target creator
+  // Resolve authentic ID for target creator
   let authenticUserId = String(userId || '');
-  if (!uuidRegex.test(authenticUserId) && targetProfile?.avatar_url) {
-    const match = targetProfile.avatar_url.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
-    if (match) authenticUserId = match[0];
+  if (targetProfile?.id && !authenticUserId) {
+    authenticUserId = String(targetProfile.id);
   }
 
-  // Ensure viewingProfileUserId points strictly to the creator's authentic UUID
+  // Ensure viewingProfileUserId points strictly to the creator's ID
   viewingProfileUserId = authenticUserId;
   if (typeof window !== "undefined") {
     window.viewingProfileUserId = viewingProfileUserId;
@@ -652,34 +651,62 @@ window.addEventListener("popstate", (e) => {
       try {
         let userPosts = [];
         const activeUid = viewingProfileUserId || getCurrentUserId();
+        const validActiveUUID = toValidUUID(activeUid);
 
         // Include any locally created posts strictly matching this active user
         if (!viewingProfileUserId) {
           const localUserPosts = (inMemoryLocalPosts || []).filter(p => {
-            if (p.user_id) return String(p.user_id) === String(activeUid);
-            return Boolean(p.isCurrentUser);
+            if (p.user_id) {
+              const pUid = String(p.user_id).toLowerCase();
+              return pUid === String(activeUid).toLowerCase() || (validActiveUUID && pUid === String(validActiveUUID).toLowerCase());
+            }
+            return false;
           });
           userPosts = [...localUserPosts];
         }
 
         // Strictly isolate and load uploaded posts belonging strictly to this user_id
         if (supabase && activeUid && activeUid !== "shabnam_ai") {
-          const { data, count, error } = await supabase
+          let { data, error } = await supabase
             .from('posts')
             .select('*', { count: 'exact' })
             .eq('user_id', activeUid)
             .order('created_at', { ascending: false });
 
-          if (!error && Array.isArray(data)) {
+          if ((error || !data || data.length === 0) && validActiveUUID && validActiveUUID !== activeUid) {
+            const retryRes = await supabase
+              .from('posts')
+              .select('*', { count: 'exact' })
+              .eq('user_id', validActiveUUID)
+              .order('created_at', { ascending: false });
+            if (!retryRes.error && Array.isArray(retryRes.data)) {
+              data = retryRes.data;
+            }
+          }
+
+          if (Array.isArray(data)) {
             userPosts = [...userPosts, ...data];
           }
         }
 
-        // Deduplicate posts
+        // Deduplicate posts & strictly ensure every post belongs strictly to this user
         const seenKeys = new Set();
         const uniquePosts = userPosts.filter(p => {
           const key = p.id || p.media_url || p.video_url;
           if (!key || seenKeys.has(key)) return false;
+
+          const pUid = String(p.user_id || '').toLowerCase();
+          const matchesUid = pUid === String(activeUid).toLowerCase() || (validActiveUUID && pUid === String(validActiveUUID).toLowerCase());
+          const matchesUsername = viewingOtherUserObj?.username && (
+            p.username === viewingOtherUserObj.username ||
+            p.author_name === viewingOtherUserObj.username
+          );
+          const isOwn = !viewingProfileUserId && p.isCurrentUser;
+
+          if (!matchesUid && !matchesUsername && !isOwn) {
+            return false;
+          }
+
           seenKeys.add(key);
           return true;
         });
@@ -1310,10 +1337,14 @@ export function openProfilePostModal(post) {
   const modalLikeBtn = modal.querySelector(".like-btn");
   const modalLikesSpan = modal.querySelector(".modal-likes-count");
   let currentModalLikes = initialLikes;
-  let isModalLiked = false;
+  let isModalLiked = isPostLikedByUser(post.id);
   if (modalLikeBtn) {
+    modalLikeBtn.classList.toggle("liked", isModalLiked);
+    modalLikeBtn.classList.toggle("fa-solid", isModalLiked);
+    modalLikeBtn.classList.toggle("fa-regular", !isModalLiked);
     modalLikeBtn.onclick = async () => {
-      isModalLiked = !isModalLiked;
+      const { isLiked: nextLiked } = togglePostLike(post.id);
+      isModalLiked = nextLiked;
       modalLikeBtn.classList.toggle("liked", isModalLiked);
       modalLikeBtn.classList.toggle("fa-solid", isModalLiked);
       modalLikeBtn.classList.toggle("fa-regular", !isModalLiked);

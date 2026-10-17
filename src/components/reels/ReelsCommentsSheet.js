@@ -1,6 +1,8 @@
 // ReelsCommentsSheet Component (Half-Panel Comments Drawer, Video Resizing & Own Comment Interactions)
 import { SHABNAM_AI_PROFILE } from "../../utils/mockData.js";
 import { UserProfileStore, showInstagramToast } from "../../utils/storage.js";
+import { getCurrentUserId } from "../../services/avatarService.js";
+import { supabase } from "../../supabaseClient.js";
 
 let activeReelId = null;
 let activeReelData = null;
@@ -56,6 +58,13 @@ function saveComments(reelId, comments) {
     localStorage.setItem(`flashgram_reel_comments_${normalizedId}`, JSON.stringify(comments));
     localStorage.setItem(`flashgram_post_comments_${normalizedId}`, JSON.stringify(comments));
   } catch (_) {}
+
+  // Sync comments_count in Supabase posts table
+  if (supabase && !normalizedId.startsWith("pending_") && !normalizedId.startsWith("sample_") && !normalizedId.startsWith("shabnam_")) {
+    try {
+      supabase.from('posts').update({ comments_count: comments.length }).eq('id', normalizedId).then(() => {}).catch(() => {});
+    } catch (_) {}
+  }
 
   updateReelItemCommentCount(normalizedId, comments.length);
 }
@@ -131,10 +140,13 @@ function setupCommentsSheetListeners(backdrop) {
       const text = input.value.trim();
       if (!text || !activeReelId) return;
 
+      const curUid = typeof getCurrentUserId === "function" ? getCurrentUserId() : null;
+      const curUsername = UserProfileStore.state.username || "creator";
       const newComment = {
         id: "own_" + Date.now(),
-        user: UserProfileStore.state.username || "sohel_077",
-        username: UserProfileStore.state.username || "sohel_077",
+        user_id: curUid,
+        user: curUsername,
+        username: curUsername,
         avatar: UserProfileStore.state.avatar,
         isVerified: false,
         text: text,

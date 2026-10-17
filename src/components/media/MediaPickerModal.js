@@ -1041,9 +1041,9 @@ async function handleSharePost() {
   const captionInput = document.getElementById("mpCaptionInput");
   const caption = (captionInput?.value || "").trim() || (isVideo ? "Flashgram Reel! ✨ #reels" : "Moments ✨ #lifestyle");
 
-  const currentUsername = UserProfileStore?.state?.username || "sohelmommy_077";
+  const currentUsername = UserProfileStore?.state?.username || "creator";
   const currentAvatar = UserProfileStore?.state?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400";
-  const currentUserId = UserProfileStore?.state?.id || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null) || "5611f2e8-0005-482f-9929-69d2efab41df";
+  const currentUserId = (typeof getCurrentUserId === "function" ? getCurrentUserId() : null) || UserProfileStore?.state?.id || "flashgram_user";
 
   // Derive immediate preview thumbnail & media URL for instant UI feedback
   const previewThumb = primaryItem.thumbnail || primaryItem.url || (primaryItem.file ? URL.createObjectURL(primaryItem.file) : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100');
@@ -1052,6 +1052,7 @@ async function handleSharePost() {
   const pendingPostId = "pending_" + Date.now();
   const pendingPostData = {
     id: pendingPostId,
+    user_id: currentUserId,
     user: currentUsername,
     author_name: currentUsername,
     avatar: currentAvatar,
@@ -1128,7 +1129,7 @@ async function handleSharePost() {
 
           if (uploadedMediaUrl && !uploadedMediaUrl.startsWith("blob:")) {
             try {
-              finalSavedRecord = await handlePublishPost(uploadedMediaUrl, caption, 'photo');
+              finalSavedRecord = await handlePublishPost(uploadedMediaUrl, caption, 'photo', currentUserId);
             } catch (err) {
               console.warn("Photo handlePublishPost notice:", err);
             }

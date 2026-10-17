@@ -51,7 +51,7 @@ export function buildPostCardElement(post, options = {}) {
         <div class="home-post-video-container home-video-container post-video-container relative" data-post-id="${post.id}" data-video-url="${post.video_url || post.media_url || optimizedMediaUrl}" data-poster-url="${poster}" style="cursor: pointer;" title="Watch Reel">
           <div class="home-video-skeleton"></div>
           <video
-            class="home-post-video-player w-full h-full object-contain"
+            class="home-post-video-player w-full h-full object-cover"
             src="${post.video_url || post.media_url || optimizedMediaUrl}"
             poster="${poster}"
             playsinline
@@ -108,6 +108,33 @@ export function buildPostCardElement(post, options = {}) {
       <div class="post-time">${post.time || 'JUST NOW'}</div>
     </div>
   `;
+
+  const videoBox = card.querySelector(".home-post-video-container");
+  if (videoBox) {
+    const vid = videoBox.querySelector("video");
+    const img = videoBox.querySelector("img");
+    const adaptLayout = (el) => {
+      const w = el.videoWidth || el.naturalWidth || el.width;
+      const h = el.videoHeight || el.naturalHeight || el.height;
+      if (!w || !h) return;
+      const rawRatio = w / h;
+      const clampedRatio = Math.max(0.8, Math.min(1.91, rawRatio));
+      videoBox.style.aspectRatio = `${clampedRatio}`;
+      videoBox.style.height = "auto";
+      videoBox.classList.remove("is-landscape", "is-square", "is-portrait");
+      if (rawRatio > 1.15) videoBox.classList.add("is-landscape");
+      else if (rawRatio >= 0.88 && rawRatio <= 1.15) videoBox.classList.add("is-square");
+      else videoBox.classList.add("is-portrait");
+    };
+
+    if (vid) {
+      if (vid.readyState >= 1) adaptLayout(vid);
+      else vid.addEventListener("loadedmetadata", () => adaptLayout(vid), { once: true });
+    } else if (img) {
+      if (img.complete && img.naturalWidth) adaptLayout(img);
+      else img.addEventListener("load", () => adaptLayout(img), { once: true });
+    }
+  }
 
   return card;
 }

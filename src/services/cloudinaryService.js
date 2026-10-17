@@ -315,26 +315,18 @@ export async function fetchSupabasePosts() {
         const uidStr = String(post.user_id || "").toLowerCase();
         const pr = profilesMap.get(uidStr) || profilesMap.get(String(post.user_id)) || {};
 
-        let usernameVal = pr.username || pr.display_name;
+        let usernameVal = pr.username || pr.display_name || post.username || post.author_name;
         if (!usernameVal) {
-          if (uidStr.includes("5611f2e8") || uidStr.includes("5ecfe4ef")) {
-            usernameVal = "sohelmommy_077";
-          } else if (uidStr.includes("7f5e8185")) {
-            usernameVal = "sohel_mommy";
-          } else if (uidStr.includes("9c5db14c")) {
-            usernameVal = "syyyyyy";
-          } else {
-            // Strictly render 'creator', NO random generator string or generic 'user'!
-            usernameVal = "creator";
-          }
+          usernameVal = "creator";
         }
 
-        const avatarVal = pr.avatar_url || (uidStr.includes("5611f2e8") ? "https://oppwfervzdiogunonbot.supabase.co/storage/v1/object/public/avatars/5611f2e8-0005-482f-9929-69d2efab41df/1788541590088_8943.png" : defaultAvatar);
+        const avatarVal = pr.avatar_url || post.user_avatar || post.avatar || defaultAvatar;
         const stableId = post.id || `post_${post.created_at || idx}`;
 
         return {
           ...post,
           id: stableId,
+          user_id: post.user_id,
           profiles: {
             id: pr.id || post.user_id,
             username: usernameVal,
@@ -361,8 +353,8 @@ export async function fetchSupabasePosts() {
     if (Array.isArray(pr)) pr = pr[0];
     if (!pr || typeof pr !== 'object') pr = {};
 
-    const genuineUsername = pr.username || pr.display_name || post.author_name || 'creator';
-    const genuineAvatar = pr.avatar_url || post.avatar || defaultAvatar;
+    const genuineUsername = pr.username || pr.display_name || post.username || post.author_name || 'creator';
+    const genuineAvatar = pr.avatar_url || post.user_avatar || post.avatar || defaultAvatar;
     const stableId = post.id || `post_${post.created_at || idx}`;
     const rawUrl = post.media_url || post.video_url || post.url || '';
     const optimizedUrl = getOptimizedVideoUrl(rawUrl);
@@ -371,6 +363,7 @@ export async function fetchSupabasePosts() {
     return {
       ...post,
       id: stableId,
+      user_id: post.user_id,
       url: optimizedUrl,
       video_url: optimizedUrl,
       media_url: optimizedUrl,
@@ -391,12 +384,12 @@ export async function fetchSupabasePosts() {
 /**
  * Guarantee Supabase Database Insertion for newly uploaded Cloudinary video
  */
-export async function savePostToSupabase({ videoUrl, thumbnailUrl, caption, userId }) {
+export async function savePostToSupabase({ videoUrl, thumbnailUrl, caption, userId, mediaType = 'video' }) {
   if (!supabase) {
     throw new Error("Supabase client is not initialized");
   }
 
-  // Obtain current authenticated user: const { data: { user } } = await supabase.auth.getUser();
+  // Obtain current authenticated user
   let user = null;
   if (supabase.auth) {
     try {
@@ -411,11 +404,10 @@ export async function savePostToSupabase({ videoUrl, thumbnailUrl, caption, user
     }
   }
 
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  const rawUid = userId || user?.id || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null);
-  const effectiveUserId = (rawUid && uuidRegex.test(rawUid)) ? rawUid : "5611f2e8-0005-482f-9929-69d2efab41df";
-  const username = user?.user_metadata?.username || user?.email?.split('@')[0] || (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.username) || 'creator';
-  const userAvatar = user?.user_metadata?.avatar_url || (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.avatar) || '/assets/default-avatar.png';
+  const rawUid = userId || user?.id || (typeof resolveCurrentUserId === "function" ? await resolveCurrentUserId() : null) || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null);
+  const effectiveUserId = toValidUUID(rawUid) || rawUid;
+  const username = (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.username) || user?.user_metadata?.username || user?.email?.split('@')[0] || 'creator';
+  const userAvatar = (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.avatar) || user?.user_metadata?.avatar_url || '/assets/default-avatar.png';
 
   // Guard: NEVER save temporary local blob links to Supabase
   if (videoUrl && String(videoUrl).startsWith('blob:')) {
@@ -436,7 +428,7 @@ export async function savePostToSupabase({ videoUrl, thumbnailUrl, caption, user
     user_id: effectiveUserId,
     video_url: videoUrl,
     media_url: videoUrl, // Explicit Cloudinary secure_url
-    media_type: 'video',
+    media_type: mediaType,
     thumbnail_url: permanentThumb,
     caption: caption || '',
     username: username,

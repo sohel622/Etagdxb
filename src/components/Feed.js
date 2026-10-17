@@ -1,6 +1,6 @@
 // Feed Component (Home Post Feed & Observer with Aggressive Video Memory Cleanup)
 import { db } from "../services/database.js";
-import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
+import { UserProfileStore, showInstagramToast, isPostLikedByUser, togglePostLike } from "../utils/storage.js";
 import { SAMPLE_VIDEOS, SHABNAM_AI_PROFILE } from "../utils/mockData.js";
 import { isGlobalAudioMuted } from "./Navbar.js";
 import { openMyProfileTab, navigateToReel } from "./ReelsViewer.js";
@@ -69,6 +69,34 @@ function getPostThumbnail(post) {
   }
   // High quality fallback cover for uploaded videos without a separate static cover image
   return "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80";
+}
+
+/**
+ * Adaptively balances container aspect-ratio to match the video's natural ratio
+ * (square, portrait, landscape) clamped between 4:5 and 1.91:1 without rigid height
+ * or letterboxing black spaces, using object-fit: cover for edge-to-edge presentation.
+ */
+function adaptVideoContainerLayout(container, mediaEl) {
+  if (!container || !mediaEl) return;
+  const w = mediaEl.videoWidth || mediaEl.naturalWidth || mediaEl.width;
+  const h = mediaEl.videoHeight || mediaEl.naturalHeight || mediaEl.height;
+  if (!w || !h) return;
+
+  const rawRatio = w / h;
+  // Instagram standard: clamped between 0.8 (4:5 maximum vertical height) and 1.91 (horizontal landscape)
+  const clampedRatio = Math.max(0.8, Math.min(1.91, rawRatio));
+
+  container.style.aspectRatio = `${clampedRatio}`;
+  container.style.height = "auto";
+
+  container.classList.remove("is-landscape", "is-square", "is-portrait");
+  if (rawRatio > 1.15) {
+    container.classList.add("is-landscape");
+  } else if (rawRatio >= 0.88 && rawRatio <= 1.15) {
+    container.classList.add("is-square");
+  } else {
+    container.classList.add("is-portrait");
+  }
 }
 
 /* =======================================================
@@ -173,7 +201,7 @@ function createPostCardElement(post, index = 0) {
         <div class="home-post-video-container home-video-container post-video-container relative" data-post-id="${post.id}" data-video-url="${post.video_url || post.media_url || videoSrc}" data-poster-url="${post.thumbnail_url || posterImg}" style="cursor: pointer;" title="Watch Reel">
           <div class="home-video-skeleton"></div>
           <video
-            class="home-post-video-player w-full h-full object-contain"
+            class="home-post-video-player w-full h-full object-cover"
             src="${post.video_url || post.media_url || videoSrc}"
             poster="${post.thumbnail_url || posterImg}"
             playsinline
@@ -250,14 +278,38 @@ function createPostCardElement(post, index = 0) {
   const bookmarkBtn = card.querySelector(".bookmark-btn");
   const likesSpan = card.querySelector(".likes-count");
   let currentLikes = post.likes_count !== undefined && post.likes_count !== null ? post.likes_count : (post.likesCount !== undefined && post.likesCount !== null ? post.likesCount : 0);
-  let isLiked = false;
+  let isLiked = isPostLikedByUser(post.id, currentUserId);
+  if (likeBtn) {
+    likeBtn.classList.toggle("liked", isLiked);
+    likeBtn.classList.toggle("fa-solid", isLiked);
+    likeBtn.classList.toggle("fa-regular", !isLiked);
+  }
 
   card._postData = post;
 
   if (videoBox) {
-    // Strict 4:5 Home Feed aspect ratio constraint (1080x1350 px standard)
-    videoBox.classList.remove("is-landscape", "is-square");
+    // Standard Home Feed video container
     videoBox._postData = post;
+
+    const vidEl = videoBox.querySelector("video");
+    const imgEl = videoBox.querySelector("img");
+    if (vidEl) {
+      if (vidEl.readyState >= 1) {
+        adaptVideoContainerLayout(videoBox, vidEl);
+      } else {
+        vidEl.addEventListener("loadedmetadata", () => {
+          adaptVideoContainerLayout(videoBox, vidEl);
+        }, { once: true });
+      }
+    } else if (imgEl) {
+      if (imgEl.complete && imgEl.naturalWidth) {
+        adaptVideoContainerLayout(videoBox, imgEl);
+      } else {
+        imgEl.addEventListener("load", () => {
+          adaptVideoContainerLayout(videoBox, imgEl);
+        }, { once: true });
+      }
+    }
 
     // Single tap immediately navigates to the full-screen Reels viewer with this video active
     videoBox.addEventListener("click", (e) => {
@@ -293,7 +345,8 @@ function createPostCardElement(post, index = 0) {
   }
 
   likeBtn.onclick = async () => {
-    isLiked = !isLiked;
+    const { isLiked: nextLiked } = togglePostLike(post.id, currentUserId);
+    isLiked = nextLiked;
     likeBtn.classList.toggle("liked", isLiked);
     likeBtn.classList.toggle("fa-solid", isLiked);
     likeBtn.classList.toggle("fa-regular", !isLiked);
@@ -605,7 +658,7 @@ async function mountAndPlayVideo(container) {
   let video = container.querySelector("video");
   if (!video) {
     video = document.createElement("video");
-    video.className = "home-post-video-player home-video-player post-video-player w-full h-full object-contain";
+    video.className = "home-post-video-player home-video-player post-video-player w-full h-full object-cover";
     video.loop = true;
     video.autoplay = true;
     video.playsInline = true;
@@ -638,14 +691,31 @@ async function mountAndPlayVideo(container) {
     // Automatic Cache on 100% Watched (timeupdate >= 0.95 or ended)
     trackVideoProgressForCaching(video, postData);
 
-    // Enforce strict 4:5 aspect ratio on feed video container
+    // Adaptively scale feed video container layout for balanced display
     video.onloadedmetadata = () => {
-      container.classList.remove("is-landscape", "is-square");
+      adaptVideoContainerLayout(container, video);
     };
+    if (video.readyState >= 1) {
+      adaptVideoContainerLayout(container, video);
+    }
 
     container.appendChild(video);
   } else if (!video.src || video.src === window.location.href) {
     video.src = resolvedVideoSrc;
+    video.onloadedmetadata = () => {
+      adaptVideoContainerLayout(container, video);
+    };
+    if (video.readyState >= 1) {
+      adaptVideoContainerLayout(container, video);
+    }
+  } else {
+    if (video.readyState >= 1) {
+      adaptVideoContainerLayout(container, video);
+    } else {
+      video.addEventListener("loadedmetadata", () => {
+        adaptVideoContainerLayout(container, video);
+      }, { once: true });
+    }
   }
 
   // Requirement 4: Strictly guarantee that ONLY the active video post plays audio

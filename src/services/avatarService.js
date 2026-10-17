@@ -237,18 +237,6 @@ export function liveSyncUserProfile(userId, { username, avatarUrl, name } = {}) 
     }
   });
 
-    if (isCurrentUserReel) {
-      if (newUsername) {
-        const rUsername = item.querySelector(".reels-username");
-        if (rUsername) rUsername.textContent = newUsername;
-      }
-      if (newAvatar) {
-        const rAvatar = item.querySelector(".reels-user-avatar");
-        if (rAvatar) rAvatar.src = newAvatar;
-      }
-    }
-  });
-
   // 5. Update Story avatar & Profile header & Bottom navbar avatar
   const storyAvatar = document.getElementById("myStoryAvatarImg");
   if (storyAvatar && newAvatar) storyAvatar.src = newAvatar;
