@@ -5,7 +5,7 @@ import { renderHomeFeed, addNewPostToFeed } from "../Feed.js";
 import { renderProfileGrid, updateProfilePostsCount } from "../Profile.js";
 import { switchTab } from "../BottomNavigation.js";
 import { uploadPostMedia, uploadAndSaveVideoPost, handlePublishPost, appendPostToLocalFeed } from "../../features/upload-service/uploadService.js";
-import { searchYouTubeAudio } from "../../services/youtubeMusicService.js";
+import { fetchSongsFromSupabase, fetchTrendingSongs, formatSongDuration, DEFAULT_MUSIC_COVER } from "../../services/songsService.js";
 import { savePostToSupabase } from "../../services/cloudinaryService.js";
 import { showUploadProgressBanner, updateUploadProgressBanner, completeUploadProgressBanner, failUploadProgressBanner } from "../UploadProgressBanner.js";
 import { updateUploadProgress } from "../../services/notificationService.js";
@@ -254,9 +254,9 @@ function injectMediaPickerDOM() {
 
         <!-- Trending Music Suggestions Pills -->
         <div class="p-4">
-          <div class="text-xs font-semibold text-neutral-400 mb-2.5">Trending Tracks (YouTube Audio)</div>
+          <div class="text-xs font-semibold text-neutral-400 mb-2.5">Trending Tracks</div>
           <div class="flex flex-wrap gap-2" id="mpTrendingPills">
-            <!-- Populated from YouTube API -->
+            <!-- Populated from Supabase songs table -->
           </div>
         </div>
       </div>
@@ -284,11 +284,11 @@ function injectMediaPickerDOM() {
       <div class="music-picker-search">
         <div class="music-search-box">
           <i class="fa-solid fa-magnifying-glass text-neutral-400 text-sm"></i>
-          <input type="text" id="mpMusicSearchInput" placeholder="Search real YouTube songs or artists..." />
+          <input type="text" id="mpMusicSearchInput" placeholder="Search songs or artists..." />
         </div>
       </div>
       <div class="music-picker-list" id="mpMusicTracksList">
-        <!-- YouTube Track items injected here -->
+        <!-- Supabase Song items injected here -->
       </div>
     </div>
   `;
@@ -878,7 +878,7 @@ function renderAlbumFolders() {
 }
 
 // -------------------------------------------------------------
-// YouTube Audio Selection & Real Music Integration
+// Supabase Songs Table Integration: Real Music Selection & Trending Tracks
 // -------------------------------------------------------------
 
 async function renderMusicTracksList(filterQuery = "") {
@@ -888,27 +888,30 @@ async function renderMusicTracksList(filterQuery = "") {
   list.innerHTML = `
     <div class="py-10 text-center text-neutral-400 text-xs">
       <i class="fa-solid fa-spinner fa-spin text-lg text-pink-500 mb-2"></i>
-      <div>Searching YouTube audio catalog...</div>
+      <div>Loading songs from Supabase...</div>
     </div>
   `;
 
   try {
-    const tracks = await searchYouTubeAudio(filterQuery || "trending songs");
+    const tracks = await fetchSongsFromSupabase(filterQuery);
     list.innerHTML = "";
 
     if (!tracks || !tracks.length) {
-      list.innerHTML = `<div class="p-6 text-center text-neutral-500 text-xs">No tracks found. Try searching another song.</div>`;
+      list.innerHTML = `<div class="p-6 text-center text-neutral-500 text-xs">No songs found in catalog. Try searching another song or artist.</div>`;
       return;
     }
 
     tracks.forEach(track => {
       const item = document.createElement("div");
       item.className = "music-track-item";
+      const coverImg = track.cover_url || track.coverUrl || track.cover || DEFAULT_MUSIC_COVER;
+      const durationFormatted = track.formattedDuration || formatSongDuration(track.duration);
+
       item.innerHTML = `
-        <img src="${track.coverUrl || track.cover}" class="music-track-cover" alt="${track.title}" />
+        <img src="${coverImg}" class="music-track-cover" alt="${track.title}" onerror="this.src='${DEFAULT_MUSIC_COVER}'" />
         <div class="music-track-info">
           <div class="music-track-title">${track.title}</div>
-          <div class="music-track-artist">${track.artist} • 0:30</div>
+          <div class="music-track-artist">${track.artist} • ${durationFormatted}</div>
         </div>
         <button type="button" class="music-track-play-btn" title="Preview audio">
           <i class="fa-solid fa-play"></i>
@@ -929,12 +932,15 @@ async function renderMusicTracksList(filterQuery = "") {
     });
   } catch (err) {
     console.error("renderMusicTracksList error:", err);
-    list.innerHTML = `<div class="p-6 text-center text-neutral-500 text-xs">Unable to load songs. Tap a trending pill below.</div>`;
+    list.innerHTML = `<div class="p-6 text-center text-neutral-500 text-xs">Unable to load songs from database.</div>`;
   }
 }
 
 function toggleAudioPreview(track, btn) {
-  if (previewAudioElement && !previewAudioElement.paused && previewAudioElement._trackId === track.id) {
+  const trackId = track.id || track.song_id;
+  const audioSrc = track.audio_url || track.audioUrl;
+
+  if (previewAudioElement && !previewAudioElement.paused && previewAudioElement._trackId === trackId) {
     stopPreviewAudio();
     btn.innerHTML = '<i class="fa-solid fa-play"></i>';
     return;
@@ -942,9 +948,14 @@ function toggleAudioPreview(track, btn) {
 
   stopPreviewAudio();
 
+  if (!audioSrc) {
+    showInstagramToast("Audio preview unavailable for this track");
+    return;
+  }
+
   try {
-    previewAudioElement = new Audio(track.audioUrl);
-    previewAudioElement._trackId = track.id;
+    previewAudioElement = new Audio(audioSrc);
+    previewAudioElement._trackId = trackId;
     previewAudioElement.play().catch((e) => {
       console.warn("Audio preview autoplay note:", e);
     });
@@ -977,20 +988,35 @@ async function renderTrendingPills() {
   const container = document.getElementById("mpTrendingPills");
   if (!container) return;
 
-  container.innerHTML = "";
+  container.innerHTML = `<span class="text-xs text-neutral-500"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i>Loading trending songs...</span>`;
   try {
-    const tracks = await searchYouTubeAudio("viral hits");
-    (tracks || []).slice(0, 4).forEach(track => {
+    const tracks = await fetchTrendingSongs();
+    container.innerHTML = "";
+    if (!tracks || !tracks.length) {
+      container.innerHTML = `<span class="text-xs text-neutral-500">No trending tracks available</span>`;
+      return;
+    }
+    tracks.slice(0, 6).forEach(track => {
       const pill = document.createElement("button");
       pill.type = "button";
-      pill.className = "px-3 py-1.5 rounded-full bg-neutral-800 hover:bg-neutral-700 text-xs text-white font-medium flex items-center gap-1.5 transition-colors";
-      pill.innerHTML = `<i class="fa-solid fa-music text-[11px] text-pink-400"></i> <span>${track.title}</span>`;
+      pill.className = "px-3 py-1.5 rounded-full bg-neutral-800 hover:bg-neutral-700 text-xs text-white font-medium flex items-center gap-1.5 transition-colors border border-neutral-700/60";
+      const coverImg = track.cover_url || track.coverUrl || DEFAULT_MUSIC_COVER;
+      const durationFormatted = track.formattedDuration || formatSongDuration(track.duration);
+      pill.innerHTML = `
+        <img src="${coverImg}" class="w-3.5 h-3.5 rounded-full object-cover" onerror="this.style.display='none'" />
+        <i class="fa-solid fa-music text-[10px] text-pink-400"></i>
+        <span>${track.title}</span>
+        <span class="text-neutral-400 font-normal">(${durationFormatted})</span>
+      `;
       pill.onclick = () => {
         selectTrackToAttach(track);
       };
       container.appendChild(pill);
     });
-  } catch (_) {}
+  } catch (err) {
+    console.warn("renderTrendingPills error:", err);
+    container.innerHTML = `<span class="text-xs text-neutral-500">Trending tracks unavailable</span>`;
+  }
 }
 
 function updateMusicRowUI() {
@@ -1026,14 +1052,34 @@ function updateMusicRowUI() {
 // Direct Server Upload & Share Post Handler
 // -------------------------------------------------------------
 
-// -------------------------------------------------------------
-// Direct Server Upload & Share Post Handler (Non-Blocking In-Feed Background Worker)
-// -------------------------------------------------------------
+let isSubmittingShare = false;
 
 async function handleSharePost() {
+  if (isSubmittingShare) return;
   if (!selectedItems.length) {
     showInstagramToast("No media selected to share");
     return;
+  }
+
+  isSubmittingShare = true;
+  const shareBtn = document.getElementById("mpFinalizeShareBtn");
+  const saveDraftBtn = document.getElementById("mpSaveDraftBtn");
+  const backBtn = document.getElementById("mpFinalizeBackBtn");
+  const originalShareHtml = shareBtn ? shareBtn.innerHTML : "Share";
+
+  // Requirement 3: Disable Share button immediately after user clicks it, showing clear loading spinner/indicator
+  if (shareBtn) {
+    shareBtn.disabled = true;
+    shareBtn.classList.add("opacity-60", "cursor-not-allowed", "pointer-events-none");
+    shareBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> Sharing...`;
+  }
+  if (saveDraftBtn) {
+    saveDraftBtn.disabled = true;
+    saveDraftBtn.classList.add("opacity-50", "pointer-events-none");
+  }
+  if (backBtn) {
+    backBtn.disabled = true;
+    backBtn.classList.add("opacity-50", "pointer-events-none");
   }
 
   const primaryItem = selectedItems[0];
@@ -1069,111 +1115,134 @@ async function handleSharePost() {
     time: "JUST NOW",
     isCurrentUser: true,
     music: attachedMusic ? { ...attachedMusic } : null,
+    song_id: attachedMusic ? (attachedMusic.id || attachedMusic.song_id) : null,
+    audio_url: attachedMusic ? (attachedMusic.audio_url || attachedMusic.audioUrl) : null,
     hasAiLabel: Boolean(document.getElementById("mpAiLabelToggle")?.checked)
   };
 
-  // 1. Immediately save pending post state to local cache
+  // 1. Save pending post state to local cache
   try {
     localStorage.setItem("flashgram_pending_upload", JSON.stringify(pendingPostData));
   } catch (_) {}
 
-  // 2. Immediately close media picker modal and navigate user directly back to the Home Feed (NO blocking overlay)
-  closeInstagramMediaPicker();
-  switchTab("home");
-
-  // 3. Render upload status banner directly underneath the Stories tray on the Home Feed
+  // 2. Render upload status banner
   showUploadProgressBanner({
     thumbnailSrc: previewThumb,
     title: "Posting..."
   });
   showInstagramToast("Posting to Flashgram... ✨");
 
-  // 4. Native Background Upload Worker (continues execution even if minimized or screen is locked)
-  (async () => {
-    let uploadWakeLock = null;
-    try {
-      if ('wakeLock' in navigator) {
-        uploadWakeLock = await navigator.wakeLock.request('screen');
-      }
-    } catch (_) {}
+  let uploadWakeLock = null;
+  try {
+    if ('wakeLock' in navigator) {
+      uploadWakeLock = await navigator.wakeLock.request('screen');
+    }
+  } catch (_) {}
 
-    try {
-      // Connect to native notification tray / lockscreen (Fixed ID: 9999)
-      await updateUploadProgress(10, previewThumb);
-      updateUploadProgressBanner(10);
+  try {
+    // Connect to native notification tray / lockscreen
+    await updateUploadProgress(10, previewThumb);
+    updateUploadProgressBanner(10);
 
-      // Perform real media upload to Cloudinary & Supabase
-      let uploadedMediaUrl = previewMediaUrl;
-      let uploadedThumbUrl = previewThumb;
-      let finalSavedRecord = null;
+    let uploadedMediaUrl = previewMediaUrl;
+    let uploadedThumbUrl = previewThumb;
+    let finalSavedRecord = null;
 
-      if (primaryItem.file) {
-        if (isVideo) {
-          // Strictly await Cloudinary upload & save verified permanent URLs to Supabase
-          updateUploadProgressBanner(40);
-          await updateUploadProgress(40, previewThumb);
+    if (primaryItem.file) {
+      if (isVideo) {
+        // Strictly await Cloudinary upload & save verified permanent URLs to Supabase
+        updateUploadProgressBanner(40);
+        await updateUploadProgress(40, previewThumb);
 
-          finalSavedRecord = await uploadAndSaveVideoPost(primaryItem.file, caption, currentUserId);
-          uploadedMediaUrl = finalSavedRecord.video_url || finalSavedRecord.media_url;
-          uploadedThumbUrl = finalSavedRecord.thumbnail_url || (uploadedMediaUrl ? uploadedMediaUrl.replace(/\.[^/.]+$/, ".jpg") : previewThumb);
-        } else {
-          // Photo upload to Cloudinary / Supabase
-          const uploadResult = await uploadPostMedia(primaryItem.file, (percent, meta) => {
-            const scaledPercent = Math.min(95, Math.max(10, Math.round(percent * 0.95)));
-            updateUploadProgressBanner(scaledPercent, meta);
-            updateUploadProgress(scaledPercent, previewThumb);
-          });
+        // Pass attachedMusic so song_id and audio_url are bound and saved into Supabase
+        finalSavedRecord = await uploadAndSaveVideoPost(primaryItem.file, caption, currentUserId, attachedMusic);
+        uploadedMediaUrl = finalSavedRecord.video_url || finalSavedRecord.media_url;
+        uploadedThumbUrl = finalSavedRecord.thumbnail_url || (uploadedMediaUrl ? uploadedMediaUrl.replace(/\.[^/.]+$/, ".jpg") : previewThumb);
+      } else {
+        // Photo upload to Cloudinary / Supabase
+        const uploadResult = await uploadPostMedia(primaryItem.file, (percent, meta) => {
+          const scaledPercent = Math.min(95, Math.max(10, Math.round(percent * 0.95)));
+          updateUploadProgressBanner(scaledPercent, meta);
+          updateUploadProgress(scaledPercent, previewThumb);
+        });
 
-          uploadedMediaUrl = uploadResult.secure_url || uploadResult.url || previewMediaUrl;
-          uploadedThumbUrl = uploadResult.thumbnail_url || previewThumb;
+        uploadedMediaUrl = uploadResult.secure_url || uploadResult.url || previewMediaUrl;
+        uploadedThumbUrl = uploadResult.thumbnail_url || previewThumb;
 
-          if (uploadedMediaUrl && !uploadedMediaUrl.startsWith("blob:")) {
-            try {
-              finalSavedRecord = await handlePublishPost(uploadedMediaUrl, caption, 'photo', currentUserId);
-            } catch (err) {
-              console.warn("Photo handlePublishPost notice:", err);
-            }
+        if (uploadedMediaUrl && !uploadedMediaUrl.startsWith("blob:")) {
+          try {
+            finalSavedRecord = await handlePublishPost(uploadedMediaUrl, caption, 'photo', currentUserId, attachedMusic);
+          } catch (err) {
+            console.warn("Photo handlePublishPost notice:", err);
           }
         }
       }
-
-      updateUploadProgressBanner(98);
-      await updateUploadProgress(98, previewThumb);
-
-      const publishedPost = {
-        ...pendingPostData,
-        id: String(finalSavedRecord?.id || ('post_' + Date.now())),
-        url: uploadedMediaUrl,
-        video_url: isVideo ? uploadedMediaUrl : null,
-        media_url: uploadedMediaUrl,
-        thumbnail: uploadedThumbUrl,
-        thumbnail_url: uploadedThumbUrl,
-        isPending: false
-      };
-
-      // Upload reaches 100%
-      updateUploadProgressBanner(100);
-      await updateUploadProgress(100, previewThumb);
-
-      // When upload reaches 100%, animate banner smoothly disappearing and immediately inject post at index 0 of Home Feed
-      completeUploadProgressBanner(publishedPost);
-      try {
-        localStorage.removeItem("flashgram_pending_upload");
-      } catch (_) {}
-
-      updateProfilePostsCount();
-      renderProfileGrid();
-      showInstagramToast("Shared to feed ✨");
-    } catch (uploadErr) {
-      console.error("Native background upload error:", uploadErr);
-      failUploadProgressBanner(uploadErr.message || "Upload failed");
-      showInstagramToast("Upload failed. Please try again.");
-    } finally {
-      if (uploadWakeLock) {
-        try { await uploadWakeLock.release(); } catch (_) {}
-      }
     }
-  })();
+
+    updateUploadProgressBanner(98);
+    await updateUploadProgress(98, previewThumb);
+
+    const publishedPost = {
+      ...pendingPostData,
+      id: String(finalSavedRecord?.id || ('post_' + Date.now())),
+      url: uploadedMediaUrl,
+      video_url: isVideo ? uploadedMediaUrl : null,
+      media_url: uploadedMediaUrl,
+      thumbnail: uploadedThumbUrl,
+      thumbnail_url: uploadedThumbUrl,
+      music: attachedMusic ? { ...attachedMusic } : null,
+      song_id: attachedMusic ? (attachedMusic.id || attachedMusic.song_id) : null,
+      audio_url: attachedMusic ? (attachedMusic.audio_url || attachedMusic.audioUrl) : null,
+      isPending: false
+    };
+
+    // Upload reaches 100%
+    updateUploadProgressBanner(100);
+    await updateUploadProgress(100, previewThumb);
+
+    completeUploadProgressBanner(publishedPost);
+    try {
+      localStorage.removeItem("flashgram_pending_upload");
+    } catch (_) {}
+
+    updateProfilePostsCount();
+    renderProfileGrid();
+    showInstagramToast("Shared to feed ✨");
+
+    // Keep button disabled until media upload and Supabase database insertion are completely finished,
+    // THEN navigate away or reset the state:
+    closeInstagramMediaPicker();
+    switchTab("home");
+
+    // Reset picker state
+    selectedItems = [];
+    attachedMusic = null;
+    selectedLocation = null;
+    if (captionInput) captionInput.value = "";
+    updateMusicRowUI();
+  } catch (uploadErr) {
+    console.error("Upload error:", uploadErr);
+    failUploadProgressBanner(uploadErr.message || "Upload failed");
+    showInstagramToast("Upload failed. Please try again.");
+  } finally {
+    isSubmittingShare = false;
+    if (shareBtn) {
+      shareBtn.disabled = false;
+      shareBtn.classList.remove("opacity-60", "cursor-not-allowed", "pointer-events-none");
+      shareBtn.innerHTML = originalShareHtml;
+    }
+    if (saveDraftBtn) {
+      saveDraftBtn.disabled = false;
+      saveDraftBtn.classList.remove("opacity-50", "pointer-events-none");
+    }
+    if (backBtn) {
+      backBtn.disabled = false;
+      backBtn.classList.remove("opacity-50", "pointer-events-none");
+    }
+    if (uploadWakeLock) {
+      try { await uploadWakeLock.release(); } catch (_) {}
+    }
+  }
 }
 
 // Expose on window for global access and backwards compatibility

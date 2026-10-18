@@ -89,8 +89,14 @@ export function showVolumeHUD(percent) {
   // Sync active video element volume and mute status
   const currentVideo = document.querySelector("video.active-reel") || document.querySelector("#reelsView video:not([paused])");
   if (currentVideo) {
-    currentVideo.volume = safePercent / 100;
-    currentVideo.muted = (safePercent === 0);
+    if (typeof window !== "undefined" && window.reelAudioMixer && window.reelAudioMixer.audioElement) {
+      currentVideo.muted = true;
+      window.reelAudioMixer.setVolume(safePercent / 100);
+      window.reelAudioMixer.setMuted(safePercent === 0);
+    } else {
+      currentVideo.volume = safePercent / 100;
+      currentVideo.muted = (safePercent === 0);
+    }
   }
 
   // Fade-in animation

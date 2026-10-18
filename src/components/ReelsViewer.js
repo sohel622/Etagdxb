@@ -15,6 +15,7 @@ import {
   isOffline,
   trackVideoProgressForCaching
 } from "../services/offlineCacheService.js";
+import { decodePostCaptionAndSong, reelAudioMixer, DEFAULT_MUSIC_COVER } from "../services/songsService.js";
 
     /* =======================================================
        Web Video Picture-in-Picture (PiP) Helper
@@ -58,6 +59,27 @@ import {
     }
     window.toggleReelFollowBtn = toggleReelFollowBtn;
 
+    function applyReelAudioState(reelItem, video) {
+      if (!video) return;
+      const reelData = (reelItem && reelItem._reelData) || {};
+      const songData = (reelItem && reelItem._songData) || reelData._songData || reelData.music;
+
+      if (songData && (songData.audio_url || songData.audioUrl)) {
+        // When a user selects a background track for a reel:
+        // 1. Mute or disable original recorded video audio during playback and rendering
+        video.muted = true;
+        // 2. Play the chosen track from Supabase songs table as the primary background audio
+        const reelId = (reelItem && reelItem.dataset.id) || reelData.id || 'reel';
+        reelAudioMixer.playSongForReel(reelId, songData, video);
+        if (typeof isGlobalAudioMuted !== "undefined") {
+          reelAudioMixer.setMuted(isGlobalAudioMuted);
+        }
+      } else {
+        reelAudioMixer.stop();
+        video.muted = typeof isGlobalAudioMuted !== "undefined" ? isGlobalAudioMuted : false;
+      }
+    }
+
     function playShabnamReelVideo() {
       const reelsBtn = document.querySelector('.nav-btn[data-id="reels"]');
       switchTab("reels", reelsBtn);
@@ -75,8 +97,8 @@ import {
           const targetVid = target.querySelector("video");
           if (targetVid) {
             pauseAllReels(targetVid);
-            targetVid.muted = isGlobalAudioMuted;
             targetVid.currentTime = 0;
+            applyReelAudioState(target, targetVid);
             targetVid.play().catch(() => {});
             attachVideoProgressTracker(targetVid);
           }
@@ -139,7 +161,7 @@ import {
           if (targetVid) {
             pauseAllReels(targetVid);
             targetVid.currentTime = 0;
-            targetVid.muted = false;
+            applyReelAudioState(target, targetVid);
             targetVid.play().catch(() => {
               targetVid.muted = true;
               targetVid.play().catch(() => {});
@@ -270,6 +292,31 @@ import {
         const commentsDisplay = String(initialReelComments);
         const sharesDisplay = reel.shares || '0';
 
+        const { caption: cleanCaption, song: decodedSong } = decodePostCaptionAndSong(reel.caption || '');
+        const songData = reel.music || decodedSong || (reel.audio_url ? {
+          id: reel.song_id || '',
+          song_id: reel.song_id || '',
+          title: reel.soundTitle || 'Featured Track',
+          artist: reel.soundArtist || 'Artist',
+          audio_url: reel.audio_url,
+          audioUrl: reel.audio_url,
+          cover_url: reel.soundCover || DEFAULT_MUSIC_COVER,
+          coverUrl: reel.soundCover || DEFAULT_MUSIC_COVER,
+          duration: reel.duration || 30
+        } : null);
+
+        const hasCustomSong = Boolean(songData && (songData.audio_url || songData.audioUrl));
+        const soundTitle = songData ? `${songData.title} • ${songData.artist}` : (reel.soundTitle || 'Original Audio');
+        const soundCover = songData ? (songData.cover_url || songData.coverUrl || songData.cover || DEFAULT_MUSIC_COVER) : (reel.soundCover || displayAvatar);
+
+        reel._songData = songData;
+        reel._hasCustomSong = hasCustomSong;
+        reel._soundTitle = soundTitle;
+        reel._soundCover = soundCover;
+
+        item._songData = songData;
+        item._hasCustomSong = hasCustomSong;
+
         item.innerHTML = `
           <div class="reel-video-wrapper reels-video-container reels-fullscreen-viewport">
             <video class="reel-video reels-player reels-video-player" src="${vidUrl}" poster="${thumbUrl}" playsinline webkit-playsinline preload="metadata"></video>
@@ -283,10 +330,12 @@ import {
                 ${isShabnamReel ? '<span class="text-sky-400 text-[12px] ml-1" title="Verified"><i class="fa-solid fa-circle-check"></i></span>' : ''}
                 ${followBtnHtml}
               </div>
-              <div class="reels-caption">${reel.caption || 'Flashgram Reel! ✨ #reels'}</div>
-              <div class="reels-audio-badge" title="Audio">
-                <i class="fa-solid fa-music"></i>
-                <span class="truncate">${reel.soundTitle || reel.music?.title || 'Original audio'}</span>
+              <div class="reels-caption">${cleanCaption || 'Flashgram Reel! ✨ #reels'}</div>
+              <div class="reels-audio-badge" title="${soundTitle}">
+                ${hasCustomSong ? `
+                  <img src="${soundCover}" class="w-4 h-4 rounded-full object-cover border border-white/60 animate-spin-slow inline-block mr-1 flex-shrink-0" alt="" onerror="this.src='${DEFAULT_MUSIC_COVER}'" />
+                ` : '<i class="fa-solid fa-music text-[11px] mr-1"></i>'}
+                <span class="truncate">${soundTitle}</span>
               </div>
             </div>
 
@@ -305,6 +354,10 @@ import {
               </div>
               <div class="reel-action-btn more-btn">
                 <i class="fa-solid fa-ellipsis"></i>
+              </div>
+              <!-- Rotating Song Cover Art Disc -->
+              <div class="reel-sound-disc-wrapper" title="${soundTitle}">
+                <img src="${soundCover}" class="reel-sound-disc animate-spin-slow" alt="Sound cover" onerror="this.src='${DEFAULT_MUSIC_COVER}'" />
               </div>
             </div>
 
@@ -789,13 +842,13 @@ import {
           if (entry.isIntersecting) {
             pauseAllReels(video);
             video.currentTime = 0;
-            video.muted = isGlobalAudioMuted;
 
             const reelItem = entry.target;
             const reelData = reelItem._reelData || {
               id: reelItem.dataset.id,
               video_url: reelItem.dataset.url || video.src
             };
+            applyReelAudioState(reelItem, video);
 
             // Video Source Resolver: check if cached blob exists in IndexedDB
             const reelId = reelItem.dataset.id;
@@ -871,7 +924,7 @@ import {
           if (video !== currentActiveReelVideo || video.paused) {
             setActiveClearModeReelId(null);
             pauseAllReels(video);
-            video.muted = isGlobalAudioMuted;
+            applyReelAudioState(closestItem, video);
             video.play().catch(() => {});
             currentActiveReelVideo = video;
             setActiveReelVideo(video);
@@ -886,6 +939,15 @@ import {
         setActiveReelVideo(e.target);
         if (currentActiveReelVideo !== e.target) {
           attachVideoProgressTracker(e.target);
+        }
+        reelAudioMixer.resume();
+      }
+    }, true);
+
+    reelsView.addEventListener("pause", (e) => {
+      if (e.target && (e.target.classList.contains("reel-video") || e.target.tagName === "VIDEO")) {
+        if (e.target === currentActiveReelVideo) {
+          reelAudioMixer.pause();
         }
       }
     }, true);
@@ -922,7 +984,7 @@ import {
           pauseAllReels(nextVideo);
           nextItem.scrollIntoView({ behavior: "smooth", block: "start" });
           nextVideo.currentTime = 0;
-          nextVideo.muted = isGlobalAudioMuted;
+          applyReelAudioState(nextItem, nextVideo);
           nextVideo.play().catch(() => {});
           currentActiveReelVideo = nextVideo;
           setActiveReelVideo(nextVideo);
@@ -956,7 +1018,7 @@ import {
           pauseAllReels(prevVideo);
           prevItem.scrollIntoView({ behavior: "smooth", block: "start" });
           prevVideo.currentTime = 0;
-          prevVideo.muted = isGlobalAudioMuted;
+          applyReelAudioState(prevItem, prevVideo);
           prevVideo.play().catch(() => {});
           currentActiveReelVideo = prevVideo;
           setActiveReelVideo(prevVideo);
@@ -971,8 +1033,10 @@ import {
 
       if (currentVideo.paused) {
         currentVideo.play().catch(() => {});
+        reelAudioMixer.resume();
       } else {
         currentVideo.pause();
+        reelAudioMixer.pause();
       }
     }
 
@@ -996,6 +1060,9 @@ import {
           v.pause();
         }
       });
+      if (!excludeVideo) {
+        reelAudioMixer.stop();
+      }
     }
 
     /* Auto Picture-in-Picture when user presses home button or switches apps */

@@ -272,6 +272,42 @@
       opacity: 0.95;
     }
 
+    @keyframes spinSlow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .animate-spin-slow {
+      animation: spinSlow 6s linear infinite;
+    }
+
+    .reel-sound-disc-wrapper {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #111111;
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+      margin-top: 8px;
+      cursor: pointer;
+      pointer-events: auto;
+      transition: transform 0.2s ease;
+    }
+    .reel-sound-disc-wrapper:hover {
+      transform: scale(1.08);
+    }
+
+    .reel-sound-disc {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+    }
+
     /* =======================================================
        বটম নেভিগেশন বার - স্ট্যান্ডার্ড ও লিকুইড গ্লাস মোড
     ======================================================= */

@@ -3,6 +3,7 @@ import { supabase } from "../../supabaseClient.js";
 import { uploadVideoToCloudinary, deriveCloudinaryThumbnailUrl } from "../../services/cloudinaryService.js";
 import { showInstagramToast, UserProfileStore } from "../../utils/storage.js";
 import { getCurrentUserId, resolveCurrentUserId, toValidUUID } from "../../services/avatarService.js";
+import { encodePostCaptionWithSong, normalizeSongRecord } from "../../services/songsService.js";
 
 /**
  * Direct Server Upload (Supabase Storage / Cloudinary Backend):
@@ -128,13 +129,18 @@ export const appendPostToLocalFeed = (postRecord) => {
     thumbnail_url: posterUrl,
     thumbnail: posterUrl,
     caption: postRecord.caption || '',
+    music: postRecord.music || null,
+    song_id: postRecord.song_id || null,
+    audio_url: postRecord.audio_url || null,
+    soundTitle: postRecord.soundTitle || (postRecord.music ? `${postRecord.music.title} • ${postRecord.music.artist}` : 'Original Audio'),
+    soundCover: postRecord.soundCover || postRecord.music?.coverUrl || postRecord.music?.cover_url || null,
     likesCount: postRecord.likes_count ?? (postRecord.likesCount || 0),
     likes_count: postRecord.likes_count ?? 0,
     commentsCount: postRecord.comments_count ?? (postRecord.commentsCount || 0),
     comments_count: postRecord.comments_count ?? 0,
     time: postRecord.time || 'JUST NOW',
     isCurrentUser: true,
-    location: postRecord.location || 'Original Audio',
+    location: postRecord.location || (postRecord.music ? `${postRecord.music.title} • ${postRecord.music.artist}` : 'Original Audio'),
     isCarousel: Boolean(postRecord.isCarousel),
     carouselItems: postRecord.carouselItems || null
   };
@@ -163,7 +169,7 @@ export const appendPostToLocalFeed = (postRecord) => {
  * @param {string} caption - Post caption
  * @param {string} [userId] - Optional authentic user UUID
  */
-export const uploadAndSaveVideoPost = async (videoFile, caption, userId) => {
+export const uploadAndSaveVideoPost = async (videoFile, caption, userId, music = null) => {
   try {
     if (!videoFile) {
       throw new Error("No video file provided for upload");
@@ -226,6 +232,9 @@ export const uploadAndSaveVideoPost = async (videoFile, caption, userId) => {
     const authorUsername = UserProfileStore?.state?.username || 'creator';
     const authorAvatar = UserProfileStore?.state?.avatar || '/assets/default-avatar.png';
 
+    // Encode selected song metadata into caption to guarantee 100% persistence in Supabase
+    const captionToSave = encodePostCaptionWithSong(caption, music);
+
     // 2. Insert into Supabase table with verified permanent URLs (NO blob: URLs)
     let savedRow = null;
     const postPayload = {
@@ -233,7 +242,7 @@ export const uploadAndSaveVideoPost = async (videoFile, caption, userId) => {
       video_url: permanentVideoUrl,
       media_url: permanentVideoUrl,
       thumbnail_url: permanentThumbnailUrl,
-      caption: caption || '',
+      caption: captionToSave,
       media_type: 'video',
       username: authorUsername,
       user_avatar: authorAvatar,
@@ -241,6 +250,11 @@ export const uploadAndSaveVideoPost = async (videoFile, caption, userId) => {
       comments_count: 0,
       created_at: new Date().toISOString()
     };
+
+    if (music && (music.id || music.song_id)) {
+      postPayload.song_id = music.id || music.song_id;
+      postPayload.audio_url = music.audio_url || music.audioUrl;
+    }
 
     const { data, error } = await supabase
       .from('posts')
@@ -256,7 +270,7 @@ export const uploadAndSaveVideoPost = async (videoFile, caption, userId) => {
         user_id: targetUid,
         video_url: permanentVideoUrl,
         thumbnail_url: permanentThumbnailUrl,
-        caption: caption || '',
+        caption: captionToSave,
         likes_count: 0,
         comments_count: 0,
         created_at: new Date().toISOString()
@@ -278,7 +292,12 @@ export const uploadAndSaveVideoPost = async (videoFile, caption, userId) => {
       thumbnail_url: permanentThumbnailUrl,
       media_url: permanentVideoUrl,
       url: permanentVideoUrl,
-      caption: caption || ''
+      caption: caption || '',
+      music: music ? { ...music } : null,
+      song_id: music?.id || music?.song_id || null,
+      audio_url: music?.audio_url || music?.audioUrl || null,
+      soundTitle: music ? `${music.title} • ${music.artist}` : 'Original Audio',
+      soundCover: music?.coverUrl || music?.cover_url || null
     };
 
     appendPostToLocalFeed(finalPost);
@@ -296,11 +315,13 @@ export const uploadAndSaveVideoPost = async (videoFile, caption, userId) => {
  * @param {string} caption - Post caption
  * @param {string} [mediaType='video'] - 'video' | 'photo'
  */
-export const handlePublishPost = async (cloudinaryVideoUrl, caption, mediaType = 'video', userId = null) => {
+export const handlePublishPost = async (cloudinaryVideoUrl, caption, mediaType = 'video', userId = null, music = null) => {
   const rawUid = userId || (typeof resolveCurrentUserId === "function" ? await resolveCurrentUserId() : null) || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null);
   const finalUserId = toValidUUID(rawUid) || rawUid;
   const username = UserProfileStore?.state?.username || 'creator';
   const userAvatar = UserProfileStore?.state?.avatar || '/assets/default-avatar.png';
+
+  const captionToSave = encodePostCaptionWithSong(caption, music);
 
   // Guard: NEVER save temporary local blob links to Supabase
   if (!cloudinaryVideoUrl || String(cloudinaryVideoUrl).startsWith("blob:")) {
@@ -315,6 +336,11 @@ export const handlePublishPost = async (cloudinaryVideoUrl, caption, mediaType =
       thumbnail_url: cloudinaryVideoUrl,
       media_type: mediaType,
       caption: caption || '',
+      music: music ? { ...music } : null,
+      song_id: music?.id || music?.song_id || null,
+      audio_url: music?.audio_url || music?.audioUrl || null,
+      soundTitle: music ? `${music.title} • ${music.artist}` : 'Original Audio',
+      soundCover: music?.coverUrl || music?.cover_url || null,
       likes_count: 0,
       comments_count: 0,
       created_at: new Date().toISOString()
@@ -334,11 +360,16 @@ export const handlePublishPost = async (cloudinaryVideoUrl, caption, mediaType =
       video_url: cloudinaryVideoUrl,
       thumbnail_url: permanentThumbnailUrl,
       media_type: mediaType,
-      caption: caption || '',
+      caption: captionToSave,
       likes_count: 0,
       comments_count: 0,
       created_at: new Date().toISOString()
     };
+
+    if (music && (music.id || music.song_id)) {
+      newPostData.song_id = music.id || music.song_id;
+      newPostData.audio_url = music.audio_url || music.audioUrl;
+    }
 
     let savedRecord = null;
     const { data, error: insertError } = await supabase
@@ -355,7 +386,7 @@ export const handlePublishPost = async (cloudinaryVideoUrl, caption, mediaType =
         user_id: finalUserId,
         video_url: cloudinaryVideoUrl,
         thumbnail_url: permanentThumbnailUrl,
-        caption: caption || '',
+        caption: captionToSave,
         likes_count: 0,
         comments_count: 0,
         created_at: new Date().toISOString()
