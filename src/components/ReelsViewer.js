@@ -306,19 +306,16 @@ import { decodePostCaptionAndSong, reelAudioMixer, DEFAULT_MUSIC_COVER } from ".
           artist: reel.song_artist || reel.soundArtist || decodedSong?.artist || 'Artist',
           audio_url: reel.audio_url || decodedSong?.audio_url || '',
           audioUrl: reel.audio_url || decodedSong?.audio_url || '',
-          cover_url: reel.song_cover || reel.soundCover || reel.cover_url || decodedSong?.cover_url || DEFAULT_MUSIC_COVER,
-          coverUrl: reel.song_cover || reel.soundCover || reel.cover_url || decodedSong?.cover_url || DEFAULT_MUSIC_COVER,
+          cover_url: reel.song_cover || reel || reel.cover_url || decodedSong?.cover_url || DEFAULT_MUSIC_COVER,
+          coverUrl: reel.song_cover || reel. || reel.cover_url || decodedSong?.cover_url || DEFAULT_MUSIC_COVER,
           duration: reel.duration || 30
         } : null);
 
         const hasCustomSong = Boolean(songData && (songData.audio_url || songData.title || isVideoMerged));
         const soundTitle = songData ? `${songData.title} • ${songData.artist}` : (reel.soundTitle || 'Original Audio');
-        const soundCover = songData ? (songData.cover_url || songData.coverUrl || songData.cover || DEFAULT_MUSIC_COVER) : (reel.soundCover || displayAvatar);
+        const  = songData ? (songData.cover_url || songData.coverUrl || songData.cover || DEFAULT_MUSIC_COVER) : (reel.soundCover || displayAvatar);
 
-        reel._songData = songData;
-        reel._hasCustomSong = hasCustomSong;
-        reel._soundTitle = soundTitle;
-        reel._soundCover = soundCover;
+
 
         item._songData = songData;
         item._hasCustomSong = hasCustomSong;
@@ -339,7 +336,7 @@ import { decodePostCaptionAndSong, reelAudioMixer, DEFAULT_MUSIC_COVER } from ".
               <div class="reels-caption">${cleanCaption || 'Flashgram Reel! ✨ #reels'}</div>
               <div class="reels-audio-badge" title="${soundTitle}">
                 ${hasCustomSong ? `
-                  <img src="${soundCover}" class="w-4 h-4 rounded-full object-cover border border-white/60 animate-spin-slow inline-block mr-1 flex-shrink-0" alt="" onerror="this.src='${DEFAULT_MUSIC_COVER}'" />
+                  <img src="${" class="w-4 h-4 rounded-full object-cover border border-white/60 animate-spin-slow inline-block mr-1 flex-shrink-0" alt="" onerror="this.src='${DEFAULT_MUSIC_COVER}'" />
                 ` : '<i class="fa-solid fa-music text-[11px] mr-1"></i>'}
                 <span class="truncate">${soundTitle}</span>
               </div>
