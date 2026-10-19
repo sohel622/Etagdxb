@@ -495,8 +495,16 @@ function bindMediaPickerEvents() {
     }
   });
 
-  // Share Button -> Uploads to Cloud Storage & Posts
-  document.getElementById("mpFinalizeShareBtn")?.addEventListener("click", () => {
+  // Share Button -> Instantly disables on click to avoid duplicate API requests
+  const shareBtn = document.getElementById("mpFinalizeShareBtn");
+  shareBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (isSubmittingShare) return;
+    isSubmittingShare = true;
+    shareBtn.disabled = true;
+    shareBtn.style.pointerEvents = "none";
+    shareBtn.classList.add("opacity-60", "cursor-not-allowed", "pointer-events-none");
+    shareBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> Sharing...`;
     handleSharePost();
   });
 }

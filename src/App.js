@@ -23,6 +23,7 @@ import { openOfflineDB, initNetworkListener } from "./services/offlineCacheServi
 import { App as CapApp } from "@capacitor/app";
 import { initMusicView } from "./components/music/MusicView.js";
 import { initInstagramMediaPicker } from "./components/media/MediaPickerModal.js";
+import { isChatOrMessageRoute, syncBottomNavVisibility } from "./components/navigation/BottomNavbar.js";
 
 export const App = {
   async init() {
@@ -118,10 +119,14 @@ export const App = {
     // 15. Header Logo Long-Press Easter Egg (App Icon Changer)
     setupHeaderLogoEasterEgg();
     if (typeof window !== "undefined") {
+      if (isChatOrMessageRoute(window.location.pathname)) {
+        syncBottomNavVisibility();
+      }
       if (window.location.pathname === "/change-app-icon") {
         setTimeout(openAppIconChanger, 350);
       }
       window.addEventListener("popstate", () => {
+        syncBottomNavVisibility();
         if (window.location.pathname === "/change-app-icon") {
           openAppIconChanger();
         } else {

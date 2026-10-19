@@ -85,17 +85,13 @@ function checkNavPressMove(clientX, clientY) {
 
 function updateActivePillPosition(btnElement) {
   const activePill = document.getElementById("navActivePill");
-  const navBar = document.getElementById("bottomNavBar") || bottomNavBar;
   if (!activePill || !btnElement) return;
-  if (!navBar || !navBar.classList.contains("liquid-glass-mode")) {
-    activePill.style.opacity = "0";
-    return;
-  }
+
   activePill.style.opacity = "1";
-  const left = btnElement.offsetLeft + 4;
-  const width = Math.max(btnElement.offsetWidth - 8, 36);
+  const pillWidth = Math.min(Math.max(btnElement.offsetWidth - 12, 46), 64);
+  const left = btnElement.offsetLeft + (btnElement.offsetWidth - pillWidth) / 2;
   activePill.style.transform = `translateX(${left}px)`;
-  activePill.style.width = `${width}px`;
+  activePill.style.width = `${pillWidth}px`;
 }
 
 function renderNavBtnContent(item, isActive) {
@@ -240,6 +236,44 @@ if (typeof window !== "undefined") {
   window.setReelsActiveState = setReelsActiveState;
 }
 
+export function isChatOrMessageRoute(pathname = (typeof window !== "undefined" ? window.location.pathname : '')) {
+  if (!pathname) return false;
+  const p = pathname.toLowerCase();
+  return p === '/messages' || p.startsWith('/messages/') ||
+         p === '/chat' || p.startsWith('/chat/') ||
+         p === '/direct' || p.startsWith('/direct/');
+}
+
+export function syncBottomNavVisibility() {
+  const navBar = document.getElementById("bottomNavBar") || document.querySelector(".bottom-bar");
+  const appC = document.getElementById("appContainer") || document.querySelector(".app-container");
+  const currentPath = typeof window !== "undefined" ? window.location.pathname : '';
+  const isChatRoute = isChatOrMessageRoute(currentPath);
+  const isMessagesTab = (typeof activeNavId !== "undefined" && activeNavId === "messages") || (typeof window !== "undefined" && window.activeNavId === "messages");
+  const isDirectChatActive = Boolean(document.getElementById("directUserChatContainer")?.style.display === "flex");
+  const isViewingOtherUserProfile = Boolean(typeof window !== "undefined" && window.viewingProfileUserId);
+
+  if (isChatRoute || isMessagesTab || isDirectChatActive || isViewingOtherUserProfile) {
+    if (navBar) {
+      navBar.style.display = "none";
+      navBar.classList.add("nav-hidden", "translate-y-full", "opacity-0");
+    }
+    if (appC && (isChatRoute || isMessagesTab || isDirectChatActive)) {
+      appC.classList.add("in-chats-view");
+    }
+  } else {
+    if (appC) {
+      appC.classList.remove("in-chats-view");
+      appC.classList.remove("in-active-chat");
+    }
+    if (navBar) {
+      navBar.style.display = "";
+      navBar.classList.remove("nav-hidden", "translate-y-full", "opacity-0");
+      navBar.classList.add("translate-y-0");
+    }
+  }
+}
+
 function navigate(route) {
   try {
     window.history.pushState({ route }, "", route);
@@ -263,21 +297,32 @@ function navigate(route) {
     setReelsActiveState(false);
   }
 
+  if (isChatOrMessageRoute(route)) {
+    switchTab("messages");
+    syncBottomNavVisibility();
+    return;
+  }
+
   if (route === "/" || route === "/home") {
     switchTab("home");
   } else if (route === "/reels") {
     switchTab("reels");
-  } else if (route === "/messages") {
-    switchTab("messages");
   } else if (route === "/search") {
     switchTab("search");
   } else if (route === "/profile") {
     switchTab("profile");
+  } else {
+    switchTab("home");
   }
+
+  syncBottomNavVisibility();
 }
 
 if (typeof window !== "undefined") {
   window.navigate = navigate;
+  window.isChatOrMessageRoute = isChatOrMessageRoute;
+  window.syncBottomNavVisibility = syncBottomNavVisibility;
+
   window.addEventListener("popstate", () => {
     const path = window.location.pathname;
     if (path.startsWith("/reel/") || path.startsWith("/reels/")) {
@@ -291,13 +336,25 @@ if (typeof window !== "undefined") {
     } else if (path === "/reels") {
       setReelsActiveState(true);
       switchTab("reels");
+    } else if (isChatOrMessageRoute(path)) {
+      setReelsActiveState(false);
+      switchTab("messages");
+    } else if (path === "/search") {
+      setReelsActiveState(false);
+      switchTab("search");
+    } else if (path === "/profile") {
+      setReelsActiveState(false);
+      switchTab("profile");
     } else {
       setReelsActiveState(false);
-      if (path === "/messages") switchTab("messages");
-      else if (path === "/search") switchTab("search");
-      else if (path === "/profile") switchTab("profile");
-      else switchTab("home");
+      switchTab("home");
     }
+    syncBottomNavVisibility();
+  });
+
+  window.addEventListener("resize", () => {
+    const activeBtn = document.querySelector('.nav-btn.active');
+    if (activeBtn) updateActivePillPosition(activeBtn);
   });
 }
 

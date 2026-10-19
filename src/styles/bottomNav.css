@@ -47,23 +47,36 @@
       opacity: 0 !important;
     }
 
-    /* Active Item Floating Pill Indicator (Soft Frosted Glow with Elastic Transitions) */
+    /* Active Item Floating Pill Indicator (Smooth Rounded Pill Background) */
     .nav-active-pill {
       position: absolute;
-      top: 5px;
-      bottom: 5px;
+      top: 6px;
+      height: 38px;
       left: 0;
-      border-radius: var(--lg-radius, 9999px);
-      background: rgba(255, 255, 255, 0.16);
-      border: 1px solid rgba(255, 255, 255, 0.28);
-      box-shadow: 0 0 14px rgba(255, 255, 255, 0.15),
-                  inset 0 1px 1.5px rgba(255, 255, 255, 0.45);
+      border-radius: 9999px;
+      background: #f1f5f9;
+      background-color: #f1f5f9;
+      border: 1px solid rgba(0, 0, 0, 0.04);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
       pointer-events: none;
       z-index: 1;
       opacity: 0;
-      transition: transform 0.38s cubic-bezier(0.34, 1.45, 0.64, 1),
-                  width 0.25s ease,
-                  opacity 0.25s ease;
+      transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+                  width 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+                  background-color 0.2s ease-in-out,
+                  border-color 0.2s ease-in-out,
+                  opacity 0.2s ease-in-out !important;
+      will-change: transform, width;
+    }
+
+    /* Dark Theme & Reels Mode: Dark grey rounded pill background (#27272a / rgba(255,255,255,0.12)) */
+    .app-container.dark-mode-active .nav-active-pill,
+    .app-container.reels-active .nav-active-pill,
+    .dark .nav-active-pill {
+      background: #27272a !important;
+      background-color: #27272a !important;
+      border: 1px solid rgba(255, 255, 255, 0.10) !important;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.08) !important;
     }
 
     /* Liquid Glassmorphism Effect */
@@ -88,7 +101,8 @@
     }
 
     .app-container.dark-mode-active .bottom-bar.liquid-glass-mode:not(.style-neon):not(.style-cyberpunk),
-    .app-container.reels-active .bottom-bar.liquid-glass-mode:not(.style-neon):not(.style-cyberpunk) {
+    .app-container.reels-active .bottom-bar.liquid-glass-mode:not(.style-neon):not(.style-cyberpunk),
+    .dark .bottom-bar.liquid-glass-mode:not(.style-neon):not(.style-cyberpunk) {
       background: rgba(22, 22, 28, var(--lg-opacity, 0.50)) !important;
     }
 
@@ -113,9 +127,15 @@
 
     .bottom-bar.liquid-glass-mode .nav-active-pill {
       opacity: 1;
-      background: rgba(0, 0, 0, 0.06);
-      border: 1px solid rgba(0, 0, 0, 0.08);
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+      background: #f1f5f9;
+      border: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    .app-container.dark-mode-active .bottom-bar.liquid-glass-mode .nav-active-pill,
+    .app-container.reels-active .bottom-bar.liquid-glass-mode .nav-active-pill,
+    .dark .bottom-bar.liquid-glass-mode .nav-active-pill {
+      background: #27272a !important;
+      border: 1px solid rgba(255, 255, 255, 0.12) !important;
     }
 
     /* Nav Item Buttons */
@@ -128,72 +148,75 @@
       justify-content: center;
       position: relative;
       z-index: 2;
-      color: #000000;
+      color: #64748b;
       font-size: 20px;
-      transition: color 0.15s ease, transform 0.15s ease;
+      transition: all 0.2s ease-in-out !important;
       -webkit-tap-highlight-color: transparent;
+      border-radius: 9999px;
     }
 
     .nav-btn:hover {
-      color: #262626;
+      color: #0f172a;
     }
 
-    .app-container.dark-mode-active .nav-btn {
+    .app-container.dark-mode-active .nav-btn,
+    .dark .nav-btn {
+      color: #a1a1aa;
+    }
+
+    .app-container.dark-mode-active .nav-btn:hover,
+    .dark .nav-btn:hover {
       color: #ffffff;
     }
 
-    .app-container.dark-mode-active .nav-btn:hover {
-      color: #e2e8f0;
-    }
-
+    /* Light Theme Active: Dark active icon */
     .nav-btn.active {
-      color: #000000;
-      transform: scale(1.06);
+      color: #0f172a !important;
+      font-weight: 700;
+      transform: scale(1.02);
     }
 
-    .app-container.dark-mode-active .nav-btn.active {
-      color: #ffffff;
-      transform: scale(1.06);
+    /* Dark Theme Active: White active icon */
+    .app-container.dark-mode-active .nav-btn.active,
+    .app-container.reels-active .nav-btn.active,
+    .dark .nav-btn.active {
+      color: #ffffff !important;
+      font-weight: 700;
+      transform: scale(1.02);
     }
 
     .bottom-bar.liquid-glass-mode .nav-btn {
-      color: rgba(20, 20, 24, 0.80);
+      color: rgba(20, 20, 24, 0.70);
       font-size: 19px;
-      transition: color 0.15s ease, transform 0.15s cubic-bezier(0.34, 1.45, 0.64, 1);
+      transition: all 0.2s ease-in-out !important;
     }
 
     .bottom-bar.liquid-glass-mode .nav-btn:hover {
-      color: #000000;
+      color: #0f172a;
     }
 
     .bottom-bar.liquid-glass-mode .nav-btn.active {
-      color: #000000;
-      transform: scale(1.05);
+      color: #0f172a !important;
+      transform: scale(1.02);
     }
 
-    /* Dark Mode & Reels View: Pure glowing white icons and frosted pill (Image 1 & 3) */
     .app-container.dark-mode-active .bottom-bar.liquid-glass-mode .nav-btn,
-    .app-container.reels-active .bottom-bar.liquid-glass-mode .nav-btn {
-      color: rgba(255, 255, 255, 0.75);
+    .app-container.reels-active .bottom-bar.liquid-glass-mode .nav-btn,
+    .dark .bottom-bar.liquid-glass-mode .nav-btn {
+      color: rgba(255, 255, 255, 0.70);
     }
 
     .app-container.dark-mode-active .bottom-bar.liquid-glass-mode .nav-btn:hover,
-    .app-container.reels-active .bottom-bar.liquid-glass-mode .nav-btn:hover {
+    .app-container.reels-active .bottom-bar.liquid-glass-mode .nav-btn:hover,
+    .dark .bottom-bar.liquid-glass-mode .nav-btn:hover {
       color: #ffffff;
     }
 
     .app-container.dark-mode-active .bottom-bar.liquid-glass-mode .nav-btn.active,
-    .app-container.reels-active .bottom-bar.liquid-glass-mode .nav-btn.active {
-      color: #ffffff;
-      transform: scale(1.05);
-    }
-
-    .app-container.dark-mode-active .bottom-bar.liquid-glass-mode .nav-active-pill,
-    .app-container.reels-active .bottom-bar.liquid-glass-mode .nav-active-pill {
-      background: rgba(255, 255, 255, 0.16);
-      border: 1px solid rgba(255, 255, 255, 0.28);
-      box-shadow: 0 0 14px rgba(255, 255, 255, 0.15),
-                  inset 0 1px 1.5px rgba(255, 255, 255, 0.45);
+    .app-container.reels-active .bottom-bar.liquid-glass-mode .nav-btn.active,
+    .dark .bottom-bar.liquid-glass-mode .nav-btn.active {
+      color: #ffffff !important;
+      transform: scale(1.02);
     }
 
     .nav-btn .nav-icon {
