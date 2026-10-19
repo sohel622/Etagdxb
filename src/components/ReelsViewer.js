@@ -360,13 +360,8 @@ import { decodePostCaptionAndSong, reelAudioMixer, DEFAULT_MUSIC_COVER } from ".
               </div>
               <!-- Rotating Song Cover Art Disc -->
               <div class="reel-sound-disc-wrapper" title="${soundTitle}" 
-
-            <!-- Independent Per-Card Progress Bar (Moves naturally with card on vertical scroll) -->
-            <div class="reel-card-progress-bar-container" title="Video Progress • Click or drag to seek">
-              <div class="reel-card-progress-bar-fill"></div>
-            </div>
-          </div>
-        `;
+              </div 
+              
 
         const wrapper = item.querySelector(".reel-video-wrapper");
         const video = item.querySelector(".reel-video");
