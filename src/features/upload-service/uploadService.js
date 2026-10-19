@@ -1,9 +1,16 @@
 // Upload Service (Direct Supabase Storage / Cloudinary Backend with Fallbacks)
 import { supabase } from "../../supabaseClient.js";
-import { uploadVideoToCloudinary, deriveCloudinaryThumbnailUrl } from "../../services/cloudinaryService.js";
+import { 
+  uploadVideoToCloudinary, 
+  deriveCloudinaryThumbnailUrl,
+  uploadAudioTrackToCloudinary,
+  generateCloudinaryAudioMergedVideoUrl,
+  generateCloudinaryMutedVideoUrl,
+  saveReelToSupabase
+} from "../../services/cloudinaryService.js";
 import { showInstagramToast, UserProfileStore } from "../../utils/storage.js";
 import { getCurrentUserId, resolveCurrentUserId, toValidUUID } from "../../services/avatarService.js";
-import { encodePostCaptionWithSong, normalizeSongRecord } from "../../services/songsService.js";
+import { encodePostCaptionWithSong, normalizeSongRecord, DEFAULT_MUSIC_COVER } from "../../services/songsService.js";
 
 /**
  * Direct Server Upload (Supabase Storage / Cloudinary Backend):
@@ -223,81 +230,71 @@ export const uploadAndSaveVideoPost = async (videoFile, caption, userId, music =
       throw new Error('Refusing to save non-remote URL to Supabase: ' + permanentVideoUrl);
     }
 
-    // Generate image thumbnail URL directly from Cloudinary video public ID (e.g. .mp4 -> .jpg)
-    const permanentThumbnailUrl = permanentVideoUrl.replace(/\.[^/.]+$/, ".jpg");
+    // 2. Dynamic Audio Replacement via Cloudinary Media Processing:
+    // When a user selects a background song from the Supabase `songs` table:
+    // Use Cloudinary's video transformation API to replace/mute the original video audio track with the selected song.
+    // Generates a permanent standalone video URL natively embedding the selected song.
+    let finalVideoUrl = permanentVideoUrl;
+    const normalizedMusic = music ? normalizeSongRecord(music) : null;
+
+    if (normalizedMusic && (normalizedMusic.audio_url || normalizedMusic.id)) {
+      console.log(`[UploadService] Merging selected background track '${normalizedMusic.title}' into video via Cloudinary...`);
+      try {
+        const audioUploadResult = await uploadAudioTrackToCloudinary(normalizedMusic);
+        if (audioUploadResult && audioUploadResult.public_id) {
+          finalVideoUrl = generateCloudinaryAudioMergedVideoUrl(permanentVideoUrl, audioUploadResult.public_id);
+          console.log(`[UploadService] ✅ Cloudinary standalone audio-video merged URL ready:`, finalVideoUrl);
+        } else {
+          finalVideoUrl = generateCloudinaryMutedVideoUrl(permanentVideoUrl);
+          console.log(`[UploadService] Muted original video audio via Cloudinary transformation:`, finalVideoUrl);
+        }
+      } catch (mergeErr) {
+        console.warn("[UploadService] Notice merging audio with Cloudinary, muting original video audio:", mergeErr);
+        finalVideoUrl = generateCloudinaryMutedVideoUrl(permanentVideoUrl);
+      }
+    }
+
+    // Generate crisp image thumbnail URL directly from Cloudinary video public ID
+    const permanentThumbnailUrl = deriveCloudinaryThumbnailUrl(finalVideoUrl) || finalVideoUrl.replace(/\.[^/.]+$/, ".jpg");
 
     // Resolve authentic user UUID
     const rawUid = userId || (typeof resolveCurrentUserId === "function" ? await resolveCurrentUserId() : null) || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null);
     const targetUid = toValidUUID(rawUid) || rawUid;
-    const authorUsername = UserProfileStore?.state?.username || 'creator';
-    const authorAvatar = UserProfileStore?.state?.avatar || '/assets/default-avatar.png';
 
-    // Encode selected song metadata into caption to guarantee 100% persistence in Supabase
-    const captionToSave = encodePostCaptionWithSong(caption, music);
-
-    // 2. Insert into Supabase table with verified permanent URLs (NO blob: URLs)
+    // 3. Database Link: Save the final transformed/merged Cloudinary video URL directly into the
+    // Supabase `reels` table along with the associated song title and cover art details.
     let savedRow = null;
-    const postPayload = {
-      user_id: targetUid,
-      video_url: permanentVideoUrl,
-      media_url: permanentVideoUrl,
-      thumbnail_url: permanentThumbnailUrl,
-      caption: captionToSave,
-      media_type: 'video',
-      username: authorUsername,
-      user_avatar: authorAvatar,
-      likes_count: 0,
-      comments_count: 0,
-      created_at: new Date().toISOString()
-    };
-
-    if (music && (music.id || music.song_id)) {
-      postPayload.song_id = music.id || music.song_id;
-      postPayload.audio_url = music.audio_url || music.audioUrl;
+    try {
+      savedRow = await saveReelToSupabase({
+        videoUrl: finalVideoUrl,
+        thumbnailUrl: permanentThumbnailUrl,
+        caption: caption,
+        userId: targetUid,
+        music: normalizedMusic
+      });
+    } catch (saveErr) {
+      console.warn("[UploadService] saveReelToSupabase notice:", saveErr);
     }
 
-    const { data, error } = await supabase
-      .from('posts')
-      .insert([postPayload])
-      .select()
-      .single();
-
-    if (!error && data) {
-      savedRow = data;
-    } else if (error) {
-      console.warn("Schema notice on media_type column, attempting schema compatibility insert:", error.message || error);
-      const compatPayload = {
-        user_id: targetUid,
-        video_url: permanentVideoUrl,
-        thumbnail_url: permanentThumbnailUrl,
-        caption: captionToSave,
-        likes_count: 0,
-        comments_count: 0,
-        created_at: new Date().toISOString()
-      };
-      const { data: cData, error: cError } = await supabase
-        .from('posts')
-        .insert([compatPayload])
-        .select()
-        .single();
-
-      if (cError) throw cError;
-      savedRow = { ...postPayload, ...cData };
-    }
+    const soundTitle = normalizedMusic ? `${normalizedMusic.title} • ${normalizedMusic.artist}` : 'Original Audio';
+    const soundCover = normalizedMusic?.cover_url || normalizedMusic?.coverUrl || null;
 
     const finalPost = {
       ...savedRow,
       id: String(savedRow?.id || ('post_' + Date.now())),
-      video_url: permanentVideoUrl,
+      video_url: finalVideoUrl,
       thumbnail_url: permanentThumbnailUrl,
-      media_url: permanentVideoUrl,
-      url: permanentVideoUrl,
+      media_url: finalVideoUrl,
+      url: finalVideoUrl,
       caption: caption || '',
-      music: music ? { ...music } : null,
-      song_id: music?.id || music?.song_id || null,
-      audio_url: music?.audio_url || music?.audioUrl || null,
-      soundTitle: music ? `${music.title} • ${music.artist}` : 'Original Audio',
-      soundCover: music?.coverUrl || music?.cover_url || null
+      music: normalizedMusic ? { ...normalizedMusic } : null,
+      song_id: normalizedMusic?.id || normalizedMusic?.song_id || null,
+      song_title: normalizedMusic?.title || null,
+      song_artist: normalizedMusic?.artist || null,
+      song_cover: soundCover,
+      audio_url: normalizedMusic?.audio_url || normalizedMusic?.audioUrl || null,
+      soundTitle: soundTitle,
+      soundCover: soundCover
     };
 
     appendPostToLocalFeed(finalPost);
@@ -321,7 +318,8 @@ export const handlePublishPost = async (cloudinaryVideoUrl, caption, mediaType =
   const username = UserProfileStore?.state?.username || 'creator';
   const userAvatar = UserProfileStore?.state?.avatar || '/assets/default-avatar.png';
 
-  const captionToSave = encodePostCaptionWithSong(caption, music);
+  const normalizedMusic = music ? normalizeSongRecord(music) : null;
+  const captionToSave = encodePostCaptionWithSong(caption, normalizedMusic);
 
   // Guard: NEVER save temporary local blob links to Supabase
   if (!cloudinaryVideoUrl || String(cloudinaryVideoUrl).startsWith("blob:")) {
@@ -336,11 +334,14 @@ export const handlePublishPost = async (cloudinaryVideoUrl, caption, mediaType =
       thumbnail_url: cloudinaryVideoUrl,
       media_type: mediaType,
       caption: caption || '',
-      music: music ? { ...music } : null,
-      song_id: music?.id || music?.song_id || null,
-      audio_url: music?.audio_url || music?.audioUrl || null,
-      soundTitle: music ? `${music.title} • ${music.artist}` : 'Original Audio',
-      soundCover: music?.coverUrl || music?.cover_url || null,
+      music: normalizedMusic ? { ...normalizedMusic } : null,
+      song_id: normalizedMusic?.id || null,
+      song_title: normalizedMusic?.title || null,
+      song_artist: normalizedMusic?.artist || null,
+      song_cover: normalizedMusic?.cover_url || null,
+      audio_url: normalizedMusic?.audio_url || null,
+      soundTitle: normalizedMusic ? `${normalizedMusic.title} • ${normalizedMusic.artist}` : 'Original Audio',
+      soundCover: normalizedMusic?.cover_url || null,
       likes_count: 0,
       comments_count: 0,
       created_at: new Date().toISOString()
@@ -349,62 +350,104 @@ export const handlePublishPost = async (cloudinaryVideoUrl, caption, mediaType =
     return localPost;
   }
 
-  const permanentThumbnailUrl = String(cloudinaryVideoUrl).replace(/\.[^/.]+$/, ".jpg");
+  // If this is a video with attached music and not yet merged, perform server-side Cloudinary merge
+  let effectiveVideoUrl = cloudinaryVideoUrl;
+  if (mediaType === 'video' && normalizedMusic && !cloudinaryVideoUrl.includes('l_video:')) {
+    try {
+      const audioResult = await uploadAudioTrackToCloudinary(normalizedMusic);
+      if (audioResult && audioResult.public_id) {
+        effectiveVideoUrl = generateCloudinaryAudioMergedVideoUrl(cloudinaryVideoUrl, audioResult.public_id);
+      } else {
+        effectiveVideoUrl = generateCloudinaryMutedVideoUrl(cloudinaryVideoUrl);
+      }
+    } catch (_) {
+      effectiveVideoUrl = generateCloudinaryMutedVideoUrl(cloudinaryVideoUrl);
+    }
+  }
+
+  const permanentThumbnailUrl = deriveCloudinaryThumbnailUrl(effectiveVideoUrl) || String(effectiveVideoUrl).replace(/\.[^/.]+$/, ".jpg");
 
   try {
-    const newPostData = {
-      user_id: finalUserId,
-      username: username,
-      user_avatar: userAvatar,
-      media_url: cloudinaryVideoUrl, // Ensure this is the real Cloudinary secure_url
-      video_url: cloudinaryVideoUrl,
-      thumbnail_url: permanentThumbnailUrl,
-      media_type: mediaType,
-      caption: captionToSave,
-      likes_count: 0,
-      comments_count: 0,
-      created_at: new Date().toISOString()
-    };
-
-    if (music && (music.id || music.song_id)) {
-      newPostData.song_id = music.id || music.song_id;
-      newPostData.audio_url = music.audio_url || music.audioUrl;
-    }
-
     let savedRecord = null;
-    const { data, error: insertError } = await supabase
-      .from('posts')
-      .insert([newPostData])
-      .select()
-      .single();
-
-    if (!insertError && data) {
-      savedRecord = data;
-    } else if (insertError) {
-      console.warn("Notice on full schema insert, trying standard columns insert:", insertError.message || insertError);
-      const compatData = {
+    if (mediaType === 'video') {
+      savedRecord = await saveReelToSupabase({
+        videoUrl: effectiveVideoUrl,
+        thumbnailUrl: permanentThumbnailUrl,
+        caption: caption,
+        userId: finalUserId,
+        music: normalizedMusic
+      });
+    } else {
+      const newPostData = {
         user_id: finalUserId,
-        video_url: cloudinaryVideoUrl,
+        username: username,
+        user_avatar: userAvatar,
+        media_url: effectiveVideoUrl,
+        video_url: null,
         thumbnail_url: permanentThumbnailUrl,
+        media_type: 'photo',
         caption: captionToSave,
         likes_count: 0,
         comments_count: 0,
         created_at: new Date().toISOString()
       };
-      const { data: cData, error: cError } = await supabase
+
+      if (normalizedMusic && (normalizedMusic.id || normalizedMusic.song_id)) {
+        newPostData.song_id = normalizedMusic.id || normalizedMusic.song_id;
+        newPostData.audio_url = normalizedMusic.audio_url || normalizedMusic.audioUrl;
+      }
+
+      const { data, error: insertError } = await supabase
         .from('posts')
-        .insert([compatData])
+        .insert([newPostData])
         .select()
         .single();
 
-      if (!cError && cData) {
-        savedRecord = { ...newPostData, ...cData };
+      if (!insertError && data) {
+        savedRecord = data;
+      } else {
+        const compatData = {
+          user_id: finalUserId,
+          thumbnail_url: permanentThumbnailUrl,
+          caption: captionToSave,
+          likes_count: 0,
+          comments_count: 0,
+          created_at: new Date().toISOString()
+        };
+        const { data: cData } = await supabase.from('posts').insert([compatData]).select().single();
+        if (cData) savedRecord = { ...newPostData, ...cData };
       }
     }
 
-    const finalPost = savedRecord || {
-      ...newPostData,
-      id: 'post_' + Date.now()
+    const soundTitle = normalizedMusic ? `${normalizedMusic.title} • ${normalizedMusic.artist}` : 'Original Audio';
+    const soundCover = normalizedMusic?.cover_url || null;
+
+    const finalPost = {
+      ...(savedRecord || {}),
+      id: String(savedRecord?.id || ('post_' + Date.now())),
+      user_id: finalUserId,
+      username: username,
+      author_name: username,
+      avatar: userAvatar,
+      user_avatar: userAvatar,
+      media_url: effectiveVideoUrl,
+      video_url: mediaType === 'video' ? effectiveVideoUrl : null,
+      url: effectiveVideoUrl,
+      thumbnail_url: permanentThumbnailUrl,
+      thumbnail: permanentThumbnailUrl,
+      media_type: mediaType,
+      caption: caption || '',
+      music: normalizedMusic,
+      song_id: normalizedMusic?.id || null,
+      song_title: normalizedMusic?.title || null,
+      song_artist: normalizedMusic?.artist || null,
+      song_cover: soundCover,
+      soundTitle: soundTitle,
+      soundCover: soundCover,
+      audio_url: normalizedMusic?.audio_url || null,
+      likes_count: 0,
+      comments_count: 0,
+      created_at: new Date().toISOString()
     };
 
     // Immediately update feed & local cache state
@@ -417,8 +460,8 @@ export const handlePublishPost = async (cloudinaryVideoUrl, caption, mediaType =
       user_id: finalUserId,
       username: username,
       user_avatar: userAvatar,
-      media_url: cloudinaryVideoUrl,
-      video_url: cloudinaryVideoUrl,
+      media_url: effectiveVideoUrl,
+      video_url: mediaType === 'video' ? effectiveVideoUrl : null,
       thumbnail_url: permanentThumbnailUrl,
       media_type: mediaType,
       caption: caption || '',

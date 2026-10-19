@@ -2,8 +2,10 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import os from 'os';
 import { execSync } from 'child_process';
 import { GoogleGenAI } from '@google/genai';
+import multer from 'multer';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,7 +13,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3000;
 
-app.use(express.json({ limit: '25mb' }));
+app.use(express.json({ limit: '50mb' }));
 
 // Shared Gemini client utility
 let geminiClient = null;
@@ -384,6 +386,139 @@ app.get('/api/music/search', async (req, res) => {
 app.get('/api/music/trending', (req, res) => {
   return res.json({ success: true, items: VIRAL_EDIT_TRACKS });
 });
+
+// -------------------------------------------------------------
+// Server-Side Audio-Video Merging & Cloudinary Upload Engine
+// Permanently muxes video with selected background song track using FFmpeg
+// -------------------------------------------------------------
+const uploadDisk = multer({
+  dest: os.tmpdir(),
+  limits: { fileSize: 100 * 1024 * 1024 }
+});
+
+const CLOUDINARY_UPLOAD_URL = 'https://api.cloudinary.com/v1_1/yrfaotod/video/upload';
+const CLOUDINARY_PRESET = 'flashgram_videos';
+
+const handleAudioVideoMergeAndUpload = async (req, res) => {
+  const tempFilesToCleanup = [];
+  try {
+    let audioUrl = (req.body?.audioUrl || req.body?.audio_url || '').trim();
+    const videoUrl = (req.body?.videoUrl || req.body?.video_url || '').trim();
+
+    // Domain correction for Supabase storage if necessary
+    if (audioUrl.includes('gxotjbncfpwhisehvbcff')) {
+      audioUrl = audioUrl.replace('gxotjbncfpwhisehvbcff', 'gxoajbncfpwhisehvbcf');
+    }
+
+    let inputVideoPath = null;
+    if (req.file && req.file.path) {
+      inputVideoPath = req.file.path;
+      tempFilesToCleanup.push(inputVideoPath);
+    } else if (videoUrl) {
+      const tempVid = path.join(os.tmpdir(), `in_vid_${Date.now()}_${Math.random().toString(36).substring(7)}.mp4`);
+      execSync(`curl -sL "${videoUrl}" -o "${tempVid}"`, { timeout: 35000 });
+      if (fs.existsSync(tempVid) && fs.statSync(tempVid).size > 100) {
+        inputVideoPath = tempVid;
+        tempFilesToCleanup.push(tempVid);
+      }
+    }
+
+    if (!inputVideoPath || !fs.existsSync(inputVideoPath)) {
+      return res.status(400).json({ success: false, error: 'No video file or valid videoUrl provided' });
+    }
+
+    let finalUploadFilePath = inputVideoPath;
+
+    // If a background song was selected, dynamically replace/mute original video audio and mux with the song
+    if (audioUrl) {
+      console.log(`[AudioVideoMerge] Merging background song: ${audioUrl} into video...`);
+      const tempAud = path.join(os.tmpdir(), `in_aud_${Date.now()}_${Math.random().toString(36).substring(7)}.m4a`);
+      execSync(`curl -sL "${audioUrl}" -o "${tempAud}"`, { timeout: 35000 });
+      tempFilesToCleanup.push(tempAud);
+
+      if (fs.existsSync(tempAud) && fs.statSync(tempAud).size > 100) {
+        const mergedOutputPath = path.join(os.tmpdir(), `merged_${Date.now()}_${Math.random().toString(36).substring(7)}.mp4`);
+        tempFilesToCleanup.push(mergedOutputPath);
+
+        let muxSuccess = false;
+        // Fast stream copy mode first: copies video frames without re-encoding, muxes background song with AAC
+        try {
+          execSync(
+            `ffmpeg -y -i "${inputVideoPath}" -stream_loop -1 -i "${tempAud}" -c:v copy -map 0:v:0 -map 1:a:0 -shortest -c:a aac -b:a 192k "${mergedOutputPath}"`,
+            { timeout: 30000, stdio: 'pipe' }
+          );
+          if (fs.existsSync(mergedOutputPath) && fs.statSync(mergedOutputPath).size > 1000) {
+            muxSuccess = true;
+            finalUploadFilePath = mergedOutputPath;
+            console.log('[AudioVideoMerge] Fast stream-copy muxing succeeded.');
+          }
+        } catch (copyErr) {
+          console.warn('[AudioVideoMerge] Stream-copy notice, attempting re-encode muxing:', copyErr.message || copyErr);
+        }
+
+        // Robust re-encode fallback if stream copy failed on container format
+        if (!muxSuccess) {
+          try {
+            execSync(
+              `ffmpeg -y -i "${inputVideoPath}" -stream_loop -1 -i "${tempAud}" -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p -map 0:v:0 -map 1:a:0 -shortest -c:a aac -b:a 192k "${mergedOutputPath}"`,
+              { timeout: 60000, stdio: 'pipe' }
+            );
+            if (fs.existsSync(mergedOutputPath) && fs.statSync(mergedOutputPath).size > 1000) {
+              muxSuccess = true;
+              finalUploadFilePath = mergedOutputPath;
+              console.log('[AudioVideoMerge] Re-encode muxing succeeded.');
+            }
+          } catch (encodeErr) {
+            console.error('[AudioVideoMerge] Re-encode muxing failed:', encodeErr);
+          }
+        }
+      }
+    }
+
+    // Upload the final muxed video directly to Cloudinary
+    const fileBuffer = fs.readFileSync(finalUploadFilePath);
+    const blob = new Blob([fileBuffer], { type: 'video/mp4' });
+    const formData = new FormData();
+    formData.append('file', blob, 'reel_muxed.mp4');
+    formData.append('upload_preset', CLOUDINARY_PRESET);
+    formData.append('resource_type', 'video');
+
+    const cldResponse = await fetch(CLOUDINARY_UPLOAD_URL, {
+      method: 'POST',
+      body: formData
+    });
+
+    const cldData = await cldResponse.json();
+    if (!cldResponse.ok || !cldData || (!cldData.secure_url && !cldData.url)) {
+      throw new Error(cldData?.error?.message || 'Cloudinary upload failed: ' + JSON.stringify(cldData));
+    }
+
+    const secureUrl = cldData.secure_url || cldData.url;
+    const thumbnailUrl = secureUrl.replace(/\.[^/.]+$/, ".jpg");
+
+    return res.json({
+      success: true,
+      secure_url: secureUrl,
+      url: secureUrl,
+      thumbnail_url: thumbnailUrl,
+      public_id: cldData.public_id,
+      duration: cldData.duration,
+      format: cldData.format
+    });
+  } catch (err) {
+    console.error('[AudioVideoMerge] Exception:', err);
+    return res.status(500).json({ success: false, error: err.message || 'Muxing/upload failed' });
+  } finally {
+    for (const f of tempFilesToCleanup) {
+      try {
+        if (fs.existsSync(f)) fs.unlinkSync(f);
+      } catch (_) {}
+    }
+  }
+};
+
+app.post('/api/reel/merge-and-upload', uploadDisk.single('video'), handleAudioVideoMergeAndUpload);
+app.post('/api/reel/merge-audio', uploadDisk.single('video'), handleAudioVideoMergeAndUpload);
 
 // Ensure production build exists for reliable module resolution
 const distDir = path.join(__dirname, 'dist');

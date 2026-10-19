@@ -7,7 +7,7 @@ import { loadReels } from "./ReelsViewer.js";
 import { renderHomeFeed, pauseAllHomeVideos, prependPostToHomeFeed } from "./Feed.js";
 import { updateProfilePostsCount, renderProfileGrid } from "./Profile.js";
 import { switchTab } from "./navigation/BottomNavbar.js";
-import { uploadVideoToCloudinary, deriveCloudinaryThumbnailUrl, savePostToSupabase } from "../services/cloudinaryService.js";
+import { uploadVideoToCloudinary, deriveCloudinaryThumbnailUrl, savePostToSupabase, saveReelToSupabase } from "../services/cloudinaryService.js";
 import { uploadUserAvatar, getCurrentUserId, liveSyncUserProfile, syncProfileToSupabase } from "../services/avatarService.js";
 import { showUploadProgressBanner, updateUploadProgressBanner, completeUploadProgressBanner, failUploadProgressBanner } from "./UploadProgressBanner.js";
 import { createUploadSession, updateUploadProgress, notifyUploadProgress, notifyUploadSuccess, notifyUploadError } from "../services/notificationService.js";
@@ -1137,8 +1137,8 @@ function startRecordingSession() {
             } catch (_) {}
           }
 
-          // Do NOT save the post to Supabase until Cloudinary returns HTTP 200 with the live secure_url
-          const savedRecord = await savePostToSupabase({
+          // Save reel directly to Supabase reels table (and posts table)
+          const savedRecord = await saveReelToSupabase({
             videoUrl: cldData.secure_url,
             thumbnailUrl: posterJpg,
             caption: 'Recorded Reel! ✨ #lifestyle',
@@ -1291,8 +1291,8 @@ function initMediaCreationAndCamera() {
             } catch (_) {}
           }
 
-          // Do NOT save the post to Supabase until Cloudinary returns HTTP 200 with the live secure_url
-          const savedRecord = await savePostToSupabase({
+          // Save reel directly to Supabase reels table (and posts table)
+          const savedRecord = await saveReelToSupabase({
             videoUrl: cldData.secure_url,
             thumbnailUrl: posterJpg,
             caption: 'Uploaded Video Post! ✨ #lifestyle',

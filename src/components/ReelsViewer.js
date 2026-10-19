@@ -63,12 +63,17 @@ import { decodePostCaptionAndSong, reelAudioMixer, DEFAULT_MUSIC_COVER } from ".
       if (!video) return;
       const reelData = (reelItem && reelItem._reelData) || {};
       const songData = (reelItem && reelItem._songData) || reelData._songData || reelData.music;
+      const isVideoMerged = video.src && (video.src.includes("l_video:") || video.src.includes("ac_none"));
 
-      if (songData && (songData.audio_url || songData.audioUrl)) {
-        // When a user selects a background track for a reel:
-        // 1. Mute or disable original recorded video audio during playback and rendering
+      if (isVideoMerged) {
+        // Standalone Video URL Compatibility: The output Cloudinary video natively includes
+        // the selected song as its embedded audio track and muted original noise.
+        // No client-side dual-player syncing needed!
+        reelAudioMixer.stop();
+        video.muted = typeof isGlobalAudioMuted !== "undefined" ? isGlobalAudioMuted : false;
+      } else if (songData && (songData.audio_url || songData.audioUrl)) {
+        // Fallback for unmerged legacy posts: mute video and play attached track
         video.muted = true;
-        // 2. Play the chosen track from Supabase songs table as the primary background audio
         const reelId = (reelItem && reelItem.dataset.id) || reelData.id || 'reel';
         reelAudioMixer.playSongForReel(reelId, songData, video);
         if (typeof isGlobalAudioMuted !== "undefined") {
@@ -293,19 +298,20 @@ import { decodePostCaptionAndSong, reelAudioMixer, DEFAULT_MUSIC_COVER } from ".
         const sharesDisplay = reel.shares || '0';
 
         const { caption: cleanCaption, song: decodedSong } = decodePostCaptionAndSong(reel.caption || '');
-        const songData = reel.music || decodedSong || (reel.audio_url ? {
+        const isVideoMerged = vidUrl && (vidUrl.includes("l_video:") || vidUrl.includes("ac_none"));
+        const songData = reel.music || decodedSong || ((reel.audio_url || reel.song_title || reel.soundTitle || isVideoMerged) ? {
           id: reel.song_id || '',
           song_id: reel.song_id || '',
-          title: reel.soundTitle || 'Featured Track',
-          artist: reel.soundArtist || 'Artist',
-          audio_url: reel.audio_url,
-          audioUrl: reel.audio_url,
-          cover_url: reel.soundCover || DEFAULT_MUSIC_COVER,
-          coverUrl: reel.soundCover || DEFAULT_MUSIC_COVER,
+          title: reel.song_title || reel.soundTitle || decodedSong?.title || 'Featured Track',
+          artist: reel.song_artist || reel.soundArtist || decodedSong?.artist || 'Artist',
+          audio_url: reel.audio_url || decodedSong?.audio_url || '',
+          audioUrl: reel.audio_url || decodedSong?.audio_url || '',
+          cover_url: reel.song_cover || reel.soundCover || reel.cover_url || decodedSong?.cover_url || DEFAULT_MUSIC_COVER,
+          coverUrl: reel.song_cover || reel.soundCover || reel.cover_url || decodedSong?.cover_url || DEFAULT_MUSIC_COVER,
           duration: reel.duration || 30
         } : null);
 
-        const hasCustomSong = Boolean(songData && (songData.audio_url || songData.audioUrl));
+        const hasCustomSong = Boolean(songData && (songData.audio_url || songData.title || isVideoMerged));
         const soundTitle = songData ? `${songData.title} • ${songData.artist}` : (reel.soundTitle || 'Original Audio');
         const soundCover = songData ? (songData.cover_url || songData.coverUrl || songData.cover || DEFAULT_MUSIC_COVER) : (reel.soundCover || displayAvatar);
 
