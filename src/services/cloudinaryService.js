@@ -85,10 +85,14 @@ function singleCloudinaryUpload(file, resourceType, preset, onProgress) {
   const endpoint = `https://api.cloudinary.com/v1_1/${CLOUD_NAME || 'yrfaotod'}/${resourceType}/upload`;
 
   if (typeof XMLHttpRequest === "undefined") {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 75000);
     return fetch(endpoint, {
       method: "POST",
-      body: formData
+      body: formData,
+      signal: controller.signal
     }).then(async (res) => {
+      clearTimeout(timeoutId);
       const data = await res.json();
       if (res.ok && (data.secure_url || data.url)) {
         const secure_url = data.secure_url || data.url;
@@ -101,17 +105,24 @@ function singleCloudinaryUpload(file, resourceType, preset, onProgress) {
         };
       }
       throw new Error(data?.error?.message || `Cloudinary upload failed (status: ${res.status})`);
+    }).catch(err => {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        throw new Error("Cloudinary upload timed out (75s). Please check your internet connection.");
+      }
+      throw err;
     });
   }
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", endpoint, true);
+    xhr.timeout = 75000; // 75 seconds network timeout
 
     if (xhr.upload && typeof onProgress === "function") {
       xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          const percent = Math.round((e.loaded / e.total) * 100);
+        if (e.lengthComputable && e.total > 0) {
+          const percent = Math.min(100, Math.max(0, Math.round((e.loaded / e.total) * 100)));
           const uploadedMB = (e.loaded / (1024 * 1024)).toFixed(1);
           const totalMB = (e.total / (1024 * 1024)).toFixed(1);
           onProgress(percent, {
@@ -124,6 +135,10 @@ function singleCloudinaryUpload(file, resourceType, preset, onProgress) {
         }
       };
     }
+
+    xhr.ontimeout = () => {
+      reject(new Error("Cloudinary upload request timed out (75s). Please check your network connection and try again."));
+    };
 
     xhr.onload = () => {
       if (xhr.status === 200 || xhr.status === 201) {
@@ -155,7 +170,11 @@ function singleCloudinaryUpload(file, resourceType, preset, onProgress) {
     };
 
     xhr.onerror = () => {
-      reject(new Error("Network error during Cloudinary upload"));
+      reject(new Error("Network connection error during Cloudinary upload"));
+    };
+
+    xhr.onabort = () => {
+      reject(new Error("Cloudinary upload was aborted"));
     };
 
     xhr.send(formData);

@@ -18,11 +18,12 @@ export function initExploreView() {
   // Render shell once
   if (!exploreMounted || !container.querySelector(".explore-content-container")) {
     container.innerHTML = "";
-    container.className = "view-section bg-white dark:bg-black text-neutral-900 dark:text-white transition-colors duration-200";
+    container.className = "view-section active bg-white dark:bg-black text-neutral-900 dark:text-white transition-colors duration-200 flex flex-col";
+    container.style.display = "flex";
 
     // 1. Sticky Top Search Header
     const searchHeader = buildSearchBarElement({
-      onSearchClick: () => openSearchActiveOverlay(),
+      onSearchClick: (query) => openSearchActiveOverlay(query),
       onBookmarkClick: () => {
         showInstagramToast("Saved Collections • 14 Bookmarks 📌");
       }

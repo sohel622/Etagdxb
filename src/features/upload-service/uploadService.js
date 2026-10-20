@@ -176,52 +176,21 @@ export const appendPostToLocalFeed = (postRecord) => {
  * @param {string} caption - Post caption
  * @param {string} [userId] - Optional authentic user UUID
  */
-export const uploadAndSaveVideoPost = async (videoFile, caption, userId, music = null) => {
+export const uploadAndSaveVideoPost = async (videoFile, caption, userId, music = null, onProgress = null) => {
   try {
     if (!videoFile) {
       throw new Error("No video file provided for upload");
     }
 
-    // 1. Upload to Cloudinary first
-    const formData = new FormData();
-    if (videoFile instanceof Blob && !(videoFile instanceof File)) {
-      formData.append('file', videoFile, 'recorded_reel.mp4');
-    } else {
-      formData.append('file', videoFile);
-    }
-
-    // Target verified preset 'flashgram_videos' or 'flashgram_preset'
-    formData.append('upload_preset', 'flashgram_videos');
-    formData.append('resource_type', 'video');
-
-    let cloudinaryData = null;
-    const candidateEndpoints = [
-      'https://api.cloudinary.com/v1_1/yrfaotod/video/upload',
-      'https://api.cloudinary.com/v1_1/yrfactod/video/upload'
-    ];
-
-    let lastUploadError = null;
-    for (const endpoint of candidateEndpoints) {
-      try {
-        const cloudinaryRes = await fetch(endpoint, {
-          method: 'POST',
-          body: formData
-        });
-
-        const data = await cloudinaryRes.json();
-        if (cloudinaryRes.ok && data && (data.secure_url || data.url)) {
-          cloudinaryData = data;
-          break;
-        } else {
-          lastUploadError = new Error(data?.error?.message || 'Cloudinary upload failed');
-        }
-      } catch (err) {
-        lastUploadError = err;
+    // 1. Upload to Cloudinary using XMLHttpRequest with exact progress reporting (0% to 100%)
+    const cloudinaryData = await uploadVideoToCloudinary(videoFile, (percent, meta) => {
+      if (typeof onProgress === "function") {
+        onProgress(percent, meta);
       }
-    }
+    });
 
     if (!cloudinaryData || (!cloudinaryData.secure_url && !cloudinaryData.url)) {
-      throw lastUploadError || new Error('Cloudinary upload failed: ' + JSON.stringify(cloudinaryData));
+      throw new Error('Cloudinary upload failed: no secure URL received');
     }
 
     // Permanent Video URL from Cloudinary

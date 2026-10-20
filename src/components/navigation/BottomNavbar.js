@@ -636,6 +636,7 @@ function switchTab(tabId, btnElement) {
         window.setupHomeFeedObserver();
       }
     } else if (tabId === "profile") {
+      hideTopNavbar();
       if (typeof pauseAllHomeVideos === "function") pauseAllHomeVideos();
       if (hView) hView.classList.remove("active");
       if (rView) rView.classList.remove("active");
@@ -652,6 +653,7 @@ function switchTab(tabId, btnElement) {
         renderProfileGrid();
       }
     } else if (tabId === "messages") {
+      hideTopNavbar();
       if (typeof pauseAllHomeVideos === "function") pauseAllHomeVideos();
       if (hView) hView.classList.remove("active");
       if (rView) rView.classList.remove("active");
@@ -668,6 +670,7 @@ function switchTab(tabId, btnElement) {
       }
       applyCurrentDynamicTheme();
     } else if (tabId === "search") {
+      hideTopNavbar();
       if (typeof pauseAllHomeVideos === "function") pauseAllHomeVideos();
       if (hView) hView.classList.remove("active");
       if (rView) rView.classList.remove("active");

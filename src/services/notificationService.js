@@ -1,7 +1,7 @@
 // notificationService.js - Instagram-style Reel Upload Notifications & Permissions
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Capacitor } from '@capacitor/core';
-import { updateUploadProgressBanner } from '../components/UploadProgressBanner.js';
+import { updateUploadProgressBanner, showUploadProgressToast, hideUploadProgressToast } from '../components/UploadProgressBanner.js';
 
 let channelCreated = false;
 const activeUploads = new Map();
@@ -14,6 +14,26 @@ export const COMPLETION_NOTIFICATION_ID = 10000;
 let lastUpdatedPercent = -1;
 let lastUpdatedTime = 0;
 let lastUpdate = 0;
+let lastWebNotificationPercent = -1;
+let lastWebNotificationTime = 0;
+
+/**
+ * Request Web Notification permission from user
+ */
+export async function requestNotificationPermission() {
+  if (typeof Notification !== 'undefined') {
+    if (Notification.permission === 'default') {
+      try {
+        const res = await Notification.requestPermission();
+        return res === 'granted';
+      } catch (err) {
+        console.warn('[NotificationService] Web notification permission error:', err);
+      }
+    }
+    return Notification.permission === 'granted';
+  }
+  return false;
+}
 
 /**
  * Initialize Notification Channels for Android 8.0+
@@ -225,6 +245,28 @@ export const updateUploadProgress = async (progressPercent, videoThumbnailUrl) =
     }
   }
 
+  // Web Notification for browsers / PWA
+  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    const timeSinceLastWeb = now - lastWebNotificationTime;
+    if (
+      safePercent === 0 || 
+      safePercent >= 100 || 
+      (Math.abs(safePercent - lastWebNotificationPercent) >= 20 && timeSinceLastWeb >= 1500)
+    ) {
+      lastWebNotificationPercent = safePercent;
+      lastWebNotificationTime = now;
+      try {
+        new Notification('Flashgram', {
+          body: safePercent >= 100 ? 'Flashgram: Video uploaded successfully!' : `Flashgram: Uploading reel... ${safePercent}%`,
+          icon: videoThumbnailUrl || undefined,
+          tag: 'flashgram_upload_progress',
+          renotify: false,
+          silent: true
+        });
+      } catch (_) {}
+    }
+  }
+
   if (safePercent >= 100) {
     if (typeof window !== 'undefined' && window.NativeUploadBridge && typeof window.NativeUploadBridge.finishUploadService === 'function') {
       try {
@@ -269,8 +311,9 @@ export async function notifyUploadProgress(notificationId, { loaded, total, perc
   const uploadedMB = (loaded / (1024 * 1024)).toFixed(1);
   const totalMB = (total / (1024 * 1024)).toFixed(1);
 
-  // Update in-app progress banner
+  // Update in-app progress banner & floating toast
   updateUploadProgressBanner(safePercent, { uploadedMB, totalMB });
+  showUploadProgressToast(safePercent);
 
   // Update smooth notification with fixed ID 9999 and throttling
   await updateUploadProgress(safePercent, videoThumbnailUrl);
@@ -289,6 +332,8 @@ export async function notifyUploadSuccess(notificationId, videoThumbnailUrl) {
   lastUpdatedPercent = -1;
   lastUpdatedTime = 0;
   lastUpdate = 0;
+  lastWebNotificationPercent = -1;
+  lastWebNotificationTime = 0;
 
   if (typeof window !== 'undefined' && window.NativeUploadBridge && typeof window.NativeUploadBridge.finishUploadService === 'function') {
     try {
@@ -330,9 +375,11 @@ export async function notifyUploadSuccess(notificationId, videoThumbnailUrl) {
     }
   } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     try {
-      new Notification('Posted!', {
-        body: 'Your video has been shared to Flashgram.',
-        icon: thumb || '/android/app/src/main/res/drawable/splash.png'
+      new Notification('Flashgram', {
+        body: 'Flashgram: Video uploaded successfully!',
+        icon: thumb || '/android/app/src/main/res/drawable/splash.png',
+        tag: 'flashgram_upload_progress',
+        renotify: true
       });
     } catch (_) {}
   }
@@ -346,6 +393,9 @@ export async function notifyUploadError(notificationId, errorMessage) {
   lastUpdatedPercent = -1;
   lastUpdatedTime = 0;
   lastUpdate = 0;
+  lastWebNotificationPercent = -1;
+  lastWebNotificationTime = 0;
+  hideUploadProgressToast();
 
   if (typeof window !== 'undefined' && window.NativeUploadBridge && typeof window.NativeUploadBridge.finishUploadService === 'function') {
     try {
@@ -381,6 +431,14 @@ export async function notifyUploadError(notificationId, errorMessage) {
     } catch (err) {
       console.warn('[NotificationService] Native error notice:', err);
     }
+  } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    try {
+      new Notification('Flashgram', {
+        body: `Flashgram: Upload failed (${errorMessage || 'Please try again'})`,
+        tag: 'flashgram_upload_progress',
+        renotify: true
+      });
+    } catch (_) {}
   }
 }
 

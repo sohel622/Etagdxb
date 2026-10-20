@@ -4,6 +4,8 @@ import { openProfile } from "../../components/Profile.js";
 import { navigateToReel } from "../../components/ReelsViewer.js";
 import { openProfilePostModal } from "../../components/Profile.js";
 import { searchYouTubeAudio } from "../../services/youtubeMusicService.js";
+import { openDirectChatWithUser } from "../../components/DirectChat.js";
+import { searchSupabaseUsers } from "../../services/chatService.js";
 
 let activeOverlayInstance = null;
 let currentFilter = "Top"; // "Top" | "Accounts" | "Audio" | "Tags" | "Reels"
@@ -16,7 +18,7 @@ export function buildSearchActiveOverlayElement() {
 
   overlay.innerHTML = `
     <!-- Top Active Header Bar -->
-    <header class="explore-active-header flex items-center gap-2.5 px-3 h-[52px] border-b border-neutral-100 dark:border-neutral-800/80 shrink-0">
+    <header class="explore-active-header flex items-center gap-2.5 px-3 min-h-[52px] pt-[max(var(--safe-area-top,24px),env(safe-area-inset-top,24px),24px)] pb-2 border-b border-neutral-100 dark:border-neutral-800/80 shrink-0 bg-white dark:bg-black">
       <button 
         type="button" 
         id="exploreSearchBackBtn" 
@@ -122,7 +124,7 @@ function bindSearchOverlayEvents(overlay) {
   });
 }
 
-export function openSearchActiveOverlay() {
+export function openSearchActiveOverlay(initialQuery = "") {
   let overlay = document.getElementById("exploreSearchActiveOverlay");
   if (!overlay) {
     const host = document.getElementById("exploreView") || document.body;
@@ -134,7 +136,15 @@ export function openSearchActiveOverlay() {
   overlay.classList.add("pointer-events-auto", "opacity-100");
 
   const input = overlay.querySelector("#exploreSearchActiveInput");
-  renderDefaultSearchState(overlay);
+  const clearBtn = overlay.querySelector("#exploreSearchClearInputBtn");
+
+  if (initialQuery && initialQuery.trim()) {
+    if (input) input.value = initialQuery.trim();
+    clearBtn?.classList.remove("hidden");
+    executeSearch(initialQuery.trim(), overlay);
+  } else {
+    renderDefaultSearchState(overlay);
+  }
 
   setTimeout(() => {
     if (input) {
@@ -259,7 +269,7 @@ function renderDefaultSearchState(overlay) {
   });
 }
 
-function executeSearch(query, overlay) {
+async function executeSearch(query, overlay) {
   const list = overlay.querySelector("#exploreSearchResultsList");
   if (!list) return;
 
@@ -269,30 +279,57 @@ function executeSearch(query, overlay) {
     return;
   }
 
-  const { accounts, tags, items } = exploreService.search(trimmed, currentFilter);
+  // 1. Local explore content search (tags, reels, items)
+  const { accounts: localAccounts, tags, items } = exploreService.search(trimmed, currentFilter);
+
+  // 2. Query Supabase users live
+  let supabaseAccounts = [];
+  try {
+    supabaseAccounts = await searchSupabaseUsers(trimmed);
+  } catch (err) {
+    console.warn("Notice querying Supabase profiles:", err);
+  }
+
+  // Merge unique accounts, prioritizing real Supabase accounts
+  const mergedAccounts = [...supabaseAccounts];
+  (localAccounts || []).forEach(la => {
+    if (!mergedAccounts.some(ma => String(ma.username).toLowerCase() === String(la.username).toLowerCase())) {
+      mergedAccounts.push(la);
+    }
+  });
 
   let html = "";
 
   if (currentFilter === "Top" || currentFilter === "Accounts") {
-    if (accounts.length > 0) {
+    if (mergedAccounts.length > 0) {
       html += `
         <div class="py-2">
-          <div class="text-[12px] font-bold text-neutral-400 uppercase tracking-wider mb-2">Accounts</div>
+          <div class="text-[12px] font-bold text-neutral-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+            <span>Accounts</span>
+            ${supabaseAccounts.length > 0 ? '<span class="text-[10.5px] text-sky-500 font-semibold lowercase">live from supabase</span>' : ''}
+          </div>
           <div class="space-y-1">
-            ${accounts.map(acc => `
-              <div class="account-search-result-row flex items-center justify-between p-2 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-900/60 cursor-pointer transition-colors" data-user-id="${acc.id}" data-username="${acc.username}">
-                <div class="flex items-center gap-3 min-w-0">
-                  <img src="${acc.avatar}" class="w-11 h-11 rounded-full object-cover border border-neutral-200 dark:border-neutral-800 shrink-0" alt="${acc.username}" />
-                  <div class="min-w-0">
+            ${mergedAccounts.map(acc => `
+              <div 
+                class="account-search-result-row flex items-center justify-between p-2.5 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-900/60 cursor-pointer transition-colors" 
+                data-user-id="${acc.id}" 
+                data-username="${acc.username}" 
+                data-name="${acc.name || acc.username}" 
+                data-avatar="${acc.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}"
+              >
+                <div class="flex items-center gap-3 min-w-0 flex-1">
+                  <img src="${acc.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}" class="w-11 h-11 rounded-full object-cover border border-neutral-200 dark:border-neutral-800 shrink-0" alt="${acc.username}" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100';" />
+                  <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-1.5 leading-tight">
-                      <span class="font-bold text-[14px] text-neutral-900 dark:text-white truncate">${acc.username}</span>
+                      <span class="font-bold text-[14px] text-neutral-900 dark:text-white truncate">@${acc.username}</span>
                       ${acc.isVerified ? '<span class="text-sky-500 text-[12px]"><i class="fa-solid fa-circle-check"></i></span>' : ''}
                     </div>
-                    <div class="text-[12px] text-neutral-500 dark:text-neutral-400 truncate leading-tight">${acc.name} • ${acc.followers} followers</div>
+                    <div class="text-[12px] text-neutral-500 dark:text-neutral-400 truncate leading-tight">${acc.name || acc.username}</div>
                   </div>
                 </div>
-                <button type="button" class="px-3 py-1 text-xs font-semibold rounded-lg bg-sky-500 hover:bg-sky-600 text-white shrink-0">
-                  View
+                <button type="button" class="open-direct-dm-btn px-3 py-1.5 text-xs font-semibold rounded-lg bg-sky-500 hover:bg-sky-600 text-white shrink-0 flex items-center gap-1.5 shadow-2xs">
+                  <i class="fa-regular fa-paper-plane text-[11px]"></i>
+                  <span>Message</span>
                 </button>
               </div>
             `).join('')}
@@ -432,14 +469,21 @@ function executeSearch(query, overlay) {
 
   list.innerHTML = html;
 
-  // Bind result clicks
+  // Bind result clicks -> Direct DM Navigation with user profile info
   list.querySelectorAll(".account-search-result-row").forEach(row => {
     row.addEventListener("click", () => {
       const username = row.dataset.username;
       const uid = row.dataset.userId;
+      const name = row.dataset.name || username;
+      const avatar = row.dataset.avatar;
       exploreService.addRecentSearch(username);
       closeSearchActiveOverlay();
-      openProfile(uid, username);
+      openDirectChatWithUser({
+        id: uid,
+        username,
+        name,
+        avatar
+      });
     });
   });
 

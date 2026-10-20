@@ -206,9 +206,75 @@ export function failUploadProgressBanner(errorMessage = "Upload failed") {
   }, 4000);
 }
 
+/**
+ * On-screen visual Toast showing real-time upload percentage (e.g., "Uploading video... 45%")
+ */
+export function showUploadProgressToast(percent) {
+  let toast = document.getElementById("uploadProgressToast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "uploadProgressToast";
+    document.body.appendChild(toast);
+    toast.style.position = "fixed";
+    toast.style.bottom = "76px";
+    toast.style.left = "50%";
+    toast.style.transform = "translateX(-50%)";
+    toast.style.background = "rgba(24, 24, 27, 0.92)";
+    toast.style.backdropFilter = "blur(12px)";
+    toast.style.webkitBackdropFilter = "blur(12px)";
+    toast.style.color = "#ffffff";
+    toast.style.padding = "8px 18px";
+    toast.style.borderRadius = "9999px";
+    toast.style.fontSize = "13px";
+    toast.style.fontWeight = "600";
+    toast.style.letterSpacing = "0.2px";
+    toast.style.zIndex = "9999999";
+    toast.style.boxShadow = "0 8px 24px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.12)";
+    toast.style.pointerEvents = "none";
+    toast.style.transition = "opacity 0.25s ease, transform 0.25s ease";
+    toast.style.whiteSpace = "nowrap";
+    toast.style.display = "inline-flex";
+    toast.style.alignItems = "center";
+    toast.style.justifyContent = "center";
+    toast.style.gap = "8px";
+  }
+
+  const safePercent = Math.min(100, Math.max(0, Math.round(percent)));
+  toast.style.display = "inline-flex";
+  toast.style.opacity = "1";
+  toast.style.transform = "translateX(-50%) translateY(0)";
+
+  if (safePercent >= 100) {
+    toast.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400 text-sm"></i> <span>Uploading video... 100%</span>`;
+    clearTimeout(toast._fadeTimeout);
+    toast._fadeTimeout = setTimeout(() => {
+      hideUploadProgressToast();
+    }, 1800);
+  } else {
+    clearTimeout(toast._fadeTimeout);
+    toast.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-pink-500 text-sm"></i> <span>Uploading video... ${safePercent}%</span>`;
+  }
+}
+
+/**
+ * Hide on-screen upload progress toast
+ */
+export function hideUploadProgressToast() {
+  const toast = document.getElementById("uploadProgressToast");
+  if (!toast) return;
+  toast.style.opacity = "0";
+  toast.style.transform = "translateX(-50%) translateY(8px)";
+  setTimeout(() => {
+    if (toast) toast.style.display = "none";
+  }, 260);
+}
+
 if (typeof window !== "undefined") {
   window.showUploadProgressBanner = showUploadProgressBanner;
   window.updateUploadProgressBanner = updateUploadProgressBanner;
   window.completeUploadProgressBanner = completeUploadProgressBanner;
   window.failUploadProgressBanner = failUploadProgressBanner;
+  window.showUploadProgressToast = showUploadProgressToast;
+  window.hideUploadProgressToast = hideUploadProgressToast;
 }
+

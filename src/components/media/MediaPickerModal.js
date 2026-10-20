@@ -7,8 +7,20 @@ import { switchTab } from "../BottomNavigation.js";
 import { uploadPostMedia, uploadAndSaveVideoPost, handlePublishPost, appendPostToLocalFeed } from "../../features/upload-service/uploadService.js";
 import { fetchSongsFromSupabase, fetchTrendingSongs, formatSongDuration, DEFAULT_MUSIC_COVER } from "../../services/songsService.js";
 import { savePostToSupabase } from "../../services/cloudinaryService.js";
-import { showUploadProgressBanner, updateUploadProgressBanner, completeUploadProgressBanner, failUploadProgressBanner } from "../UploadProgressBanner.js";
-import { updateUploadProgress } from "../../services/notificationService.js";
+import { 
+  showUploadProgressBanner, 
+  updateUploadProgressBanner, 
+  completeUploadProgressBanner, 
+  failUploadProgressBanner,
+  showUploadProgressToast,
+  hideUploadProgressToast 
+} from "../UploadProgressBanner.js";
+import { 
+  updateUploadProgress,
+  notifyUploadSuccess,
+  notifyUploadError,
+  requestNotificationPermission
+} from "../../services/notificationService.js";
 import { getCurrentUserId } from "../../services/avatarService.js";
 
 /**
@@ -500,11 +512,14 @@ function bindMediaPickerEvents() {
   shareBtn?.addEventListener("click", (e) => {
     e.preventDefault();
     if (isSubmittingShare) return;
-    isSubmittingShare = true;
-    shareBtn.disabled = true;
-    shareBtn.style.pointerEvents = "none";
-    shareBtn.classList.add("opacity-60", "cursor-not-allowed", "pointer-events-none");
-    shareBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> Sharing...`;
+
+    // Request notification permission immediately on user click gesture
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      try {
+        requestNotificationPermission().catch(() => {});
+      } catch (_) {}
+    }
+
     handleSharePost();
   });
 }
@@ -538,6 +553,7 @@ export function processSelectedDeviceFiles(files) {
         tempVid.src = item.url;
         tempVid.onloadedmetadata = () => {
           const secs = Math.round(tempVid.duration || 15);
+          item.durationSec = secs;
           const m = Math.floor(secs / 60);
           const s = secs % 60;
           item.duration = `${m}:${s < 10 ? '0' : ''}${s}`;
@@ -1069,29 +1085,28 @@ async function handleSharePost() {
     return;
   }
 
+  const primaryItem = { ...selectedItems[0] };
+  const isVideo = primaryItem.type === "video";
+
+  // 1. Duration Restriction (Max 60 seconds)
+  if (isVideo && typeof primaryItem.durationSec === "number" && primaryItem.durationSec > 60) {
+    alert("১ মিনিটের বেশি ভিডিও আপলোড করা যাবে না");
+    return;
+  }
+
   isSubmittingShare = true;
   const shareBtn = document.getElementById("mpFinalizeShareBtn");
   const saveDraftBtn = document.getElementById("mpSaveDraftBtn");
   const backBtn = document.getElementById("mpFinalizeBackBtn");
   const originalShareHtml = shareBtn ? shareBtn.innerHTML : "Share";
 
-  // Requirement 3: Disable Share button immediately after user clicks it, showing clear loading spinner/indicator
+  // Temporarily show sharing indicator on button
   if (shareBtn) {
     shareBtn.disabled = true;
     shareBtn.classList.add("opacity-60", "cursor-not-allowed", "pointer-events-none");
     shareBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> Sharing...`;
   }
-  if (saveDraftBtn) {
-    saveDraftBtn.disabled = true;
-    saveDraftBtn.classList.add("opacity-50", "pointer-events-none");
-  }
-  if (backBtn) {
-    backBtn.disabled = true;
-    backBtn.classList.add("opacity-50", "pointer-events-none");
-  }
 
-  const primaryItem = selectedItems[0];
-  const isVideo = primaryItem.type === "video";
   const captionInput = document.getElementById("mpCaptionInput");
   const caption = (captionInput?.value || "").trim() || (isVideo ? "Flashgram Reel! ✨ #reels" : "Moments ✨ #lifestyle");
 
@@ -1102,6 +1117,10 @@ async function handleSharePost() {
   // Derive immediate preview thumbnail & media URL for instant UI feedback
   const previewThumb = primaryItem.thumbnail || primaryItem.url || (primaryItem.file ? URL.createObjectURL(primaryItem.file) : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100');
   const previewMediaUrl = primaryItem.url || (primaryItem.file ? URL.createObjectURL(primaryItem.file) : '');
+  const itemFile = primaryItem.file;
+  const attachedMusicCopy = attachedMusic ? { ...attachedMusic } : null;
+  const selectedLocationCopy = selectedLocation;
+  const hasAiLabel = Boolean(document.getElementById("mpAiLabelToggle")?.checked);
 
   const pendingPostId = "pending_" + Date.now();
   const pendingPostData = {
@@ -1111,7 +1130,7 @@ async function handleSharePost() {
     author_name: currentUsername,
     avatar: currentAvatar,
     caption,
-    location: selectedLocation || (attachedMusic ? `${attachedMusic.title} • ${attachedMusic.artist}` : "Original Audio"),
+    location: selectedLocationCopy || (attachedMusicCopy ? `${attachedMusicCopy.title} • ${attachedMusicCopy.artist}` : "Original Audio"),
     thumbnail: previewThumb,
     thumbnail_url: previewThumb,
     url: previewMediaUrl,
@@ -1122,10 +1141,10 @@ async function handleSharePost() {
     commentsCount: 0,
     time: "JUST NOW",
     isCurrentUser: true,
-    music: attachedMusic ? { ...attachedMusic } : null,
-    song_id: attachedMusic ? (attachedMusic.id || attachedMusic.song_id) : null,
-    audio_url: attachedMusic ? (attachedMusic.audio_url || attachedMusic.audioUrl) : null,
-    hasAiLabel: Boolean(document.getElementById("mpAiLabelToggle")?.checked)
+    music: attachedMusicCopy,
+    song_id: attachedMusicCopy ? (attachedMusicCopy.id || attachedMusicCopy.song_id) : null,
+    audio_url: attachedMusicCopy ? (attachedMusicCopy.audio_url || attachedMusicCopy.audioUrl) : null,
+    hasAiLabel
   };
 
   // 1. Save pending post state to local cache
@@ -1133,124 +1152,161 @@ async function handleSharePost() {
     localStorage.setItem("flashgram_pending_upload", JSON.stringify(pendingPostData));
   } catch (_) {}
 
-  // 2. Render upload status banner
+  // Request Web Notification permission on click gesture
+  if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+    try {
+      requestNotificationPermission().catch(() => {});
+    } catch (_) {}
+  }
+
+  // Requirement 3: Redirect user back to Feed/Home screen immediately after triggering upload
+  closeInstagramMediaPicker();
+  if (typeof switchTab === "function") {
+    switchTab("home");
+  } else if (typeof window.switchTab === "function") {
+    window.switchTab("home");
+  }
+
+  // Reset modal controls immediately so reopening New Reel is never stuck on "Sharing..."
+  if (shareBtn) {
+    shareBtn.disabled = false;
+    shareBtn.classList.remove("opacity-60", "cursor-not-allowed", "pointer-events-none");
+    shareBtn.innerHTML = originalShareHtml || "Share";
+  }
+  if (saveDraftBtn) {
+    saveDraftBtn.disabled = false;
+    saveDraftBtn.classList.remove("opacity-50", "pointer-events-none");
+  }
+  if (backBtn) {
+    backBtn.disabled = false;
+    backBtn.classList.remove("opacity-50", "pointer-events-none");
+  }
+  if (captionInput) captionInput.value = "";
+  selectedItems = [];
+  attachedMusic = null;
+  selectedLocation = null;
+  updateMusicRowUI();
+
+  // Show visual progress banner on top of feed & real-time toast
   showUploadProgressBanner({
     thumbnailSrc: previewThumb,
-    title: "Posting..."
+    title: isVideo ? "Uploading reel..." : "Posting..."
   });
+  showUploadProgressToast(0);
   showInstagramToast("Posting to Flashgram... ✨");
 
-  let uploadWakeLock = null;
-  try {
-    if ('wakeLock' in navigator) {
-      uploadWakeLock = await navigator.wakeLock.request('screen');
-    }
-  } catch (_) {}
+  // Asynchronous background upload task with full try-catch & timeout protection
+  (async () => {
+    let uploadWakeLock = null;
+    let timeoutTimer = null;
 
-  try {
-    // Connect to native notification tray / lockscreen
-    await updateUploadProgress(10, previewThumb);
-    updateUploadProgressBanner(10);
+    try {
+      if ('wakeLock' in navigator) {
+        try { uploadWakeLock = await navigator.wakeLock.request('screen'); } catch (_) {}
+      }
 
-    let uploadedMediaUrl = previewMediaUrl;
-    let uploadedThumbUrl = previewThumb;
-    let finalSavedRecord = null;
+      await updateUploadProgress(0, previewThumb);
 
-    if (primaryItem.file) {
-      if (isVideo) {
-        // Strictly await Cloudinary upload & save verified permanent URLs to Supabase
-        updateUploadProgressBanner(40);
-        await updateUploadProgress(40, previewThumb);
+      // Safety timeout: 90s to prevent infinite hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutTimer = setTimeout(() => {
+          reject(new Error("Upload request timed out (90s). Please check your internet connection."));
+        }, 90000);
+      });
 
-        // Pass attachedMusic so song_id and audio_url are bound and saved into Supabase
-        finalSavedRecord = await uploadAndSaveVideoPost(primaryItem.file, caption, currentUserId, attachedMusic);
-        uploadedMediaUrl = finalSavedRecord.video_url || finalSavedRecord.media_url;
-        uploadedThumbUrl = finalSavedRecord.thumbnail_url || (uploadedMediaUrl ? uploadedMediaUrl.replace(/\.[^/.]+$/, ".jpg") : previewThumb);
-      } else {
-        // Photo upload to Cloudinary / Supabase
-        const uploadResult = await uploadPostMedia(primaryItem.file, (percent, meta) => {
-          const scaledPercent = Math.min(95, Math.max(10, Math.round(percent * 0.95)));
-          updateUploadProgressBanner(scaledPercent, meta);
-          updateUploadProgress(scaledPercent, previewThumb);
-        });
+      const uploadTask = async () => {
+        let uploadedMediaUrl = previewMediaUrl;
+        let uploadedThumbUrl = previewThumb;
+        let finalSavedRecord = null;
 
-        uploadedMediaUrl = uploadResult.secure_url || uploadResult.url || previewMediaUrl;
-        uploadedThumbUrl = uploadResult.thumbnail_url || previewThumb;
+        if (itemFile) {
+          const onProgressHandler = (percent, meta) => {
+            const safePercent = Math.min(99, Math.max(1, Math.round(percent)));
+            updateUploadProgressBanner(safePercent, meta);
+            showUploadProgressToast(safePercent);
+            updateUploadProgress(safePercent, previewThumb);
+          };
 
-        if (uploadedMediaUrl && !uploadedMediaUrl.startsWith("blob:")) {
-          try {
-            finalSavedRecord = await handlePublishPost(uploadedMediaUrl, caption, 'photo', currentUserId, attachedMusic);
-          } catch (err) {
-            console.warn("Photo handlePublishPost notice:", err);
+          if (isVideo) {
+            // Strictly await Cloudinary upload & save verified permanent URLs to Supabase
+            finalSavedRecord = await uploadAndSaveVideoPost(
+              itemFile,
+              caption,
+              currentUserId,
+              attachedMusicCopy,
+              onProgressHandler
+            );
+            uploadedMediaUrl = finalSavedRecord.video_url || finalSavedRecord.media_url;
+            uploadedThumbUrl = finalSavedRecord.thumbnail_url || (uploadedMediaUrl ? uploadedMediaUrl.replace(/\.[^/.]+$/, ".jpg") : previewThumb);
+          } else {
+            // Photo upload to Cloudinary / Supabase
+            const uploadResult = await uploadPostMedia(itemFile, onProgressHandler);
+            uploadedMediaUrl = uploadResult.secure_url || uploadResult.url || previewMediaUrl;
+            uploadedThumbUrl = uploadResult.thumbnail_url || previewThumb;
+
+            if (uploadedMediaUrl && !uploadedMediaUrl.startsWith("blob:")) {
+              try {
+                finalSavedRecord = await handlePublishPost(uploadedMediaUrl, caption, 'photo', currentUserId, attachedMusicCopy);
+              } catch (err) {
+                console.warn("Photo handlePublishPost notice:", err);
+              }
+            }
           }
         }
+
+        return { uploadedMediaUrl, uploadedThumbUrl, finalSavedRecord };
+      };
+
+      const { uploadedMediaUrl, uploadedThumbUrl, finalSavedRecord } = await Promise.race([
+        uploadTask(),
+        timeoutPromise
+      ]);
+
+      clearTimeout(timeoutTimer);
+
+      // Upload reaches 100%
+      updateUploadProgressBanner(100);
+      showUploadProgressToast(100);
+      await updateUploadProgress(100, previewThumb);
+
+      const publishedPost = {
+        ...pendingPostData,
+        id: String(finalSavedRecord?.id || ('post_' + Date.now())),
+        url: uploadedMediaUrl,
+        video_url: isVideo ? uploadedMediaUrl : null,
+        media_url: uploadedMediaUrl,
+        thumbnail: uploadedThumbUrl,
+        thumbnail_url: uploadedThumbUrl,
+        music: attachedMusicCopy,
+        song_id: attachedMusicCopy ? (attachedMusicCopy.id || attachedMusicCopy.song_id) : null,
+        audio_url: attachedMusicCopy ? (attachedMusicCopy.audio_url || attachedMusicCopy.audioUrl) : null,
+        isPending: false
+      };
+
+      completeUploadProgressBanner(publishedPost);
+      try {
+        localStorage.removeItem("flashgram_pending_upload");
+      } catch (_) {}
+
+      await notifyUploadSuccess(null, previewThumb);
+      updateProfilePostsCount();
+      renderProfileGrid();
+      showInstagramToast("Flashgram: Video uploaded successfully! ✨");
+    } catch (uploadErr) {
+      clearTimeout(timeoutTimer);
+      console.error("[MediaPickerModal] Background upload error:", uploadErr);
+      const errMsg = uploadErr?.message || "Upload failed. Please try again.";
+      failUploadProgressBanner(errMsg);
+      hideUploadProgressToast();
+      await notifyUploadError(null, errMsg);
+      showInstagramToast("Upload failed: " + errMsg, { duration: 4500 });
+    } finally {
+      isSubmittingShare = false;
+      if (uploadWakeLock) {
+        try { await uploadWakeLock.release(); } catch (_) {}
       }
     }
-
-    updateUploadProgressBanner(98);
-    await updateUploadProgress(98, previewThumb);
-
-    const publishedPost = {
-      ...pendingPostData,
-      id: String(finalSavedRecord?.id || ('post_' + Date.now())),
-      url: uploadedMediaUrl,
-      video_url: isVideo ? uploadedMediaUrl : null,
-      media_url: uploadedMediaUrl,
-      thumbnail: uploadedThumbUrl,
-      thumbnail_url: uploadedThumbUrl,
-      music: attachedMusic ? { ...attachedMusic } : null,
-      song_id: attachedMusic ? (attachedMusic.id || attachedMusic.song_id) : null,
-      audio_url: attachedMusic ? (attachedMusic.audio_url || attachedMusic.audioUrl) : null,
-      isPending: false
-    };
-
-    // Upload reaches 100%
-    updateUploadProgressBanner(100);
-    await updateUploadProgress(100, previewThumb);
-
-    completeUploadProgressBanner(publishedPost);
-    try {
-      localStorage.removeItem("flashgram_pending_upload");
-    } catch (_) {}
-
-    updateProfilePostsCount();
-    renderProfileGrid();
-    showInstagramToast("Shared to feed ✨");
-
-    // Keep button disabled until media upload and Supabase database insertion are completely finished,
-    // THEN navigate away or reset the state:
-    closeInstagramMediaPicker();
-    switchTab("home");
-
-    // Reset picker state
-    selectedItems = [];
-    attachedMusic = null;
-    selectedLocation = null;
-    if (captionInput) captionInput.value = "";
-    updateMusicRowUI();
-  } catch (uploadErr) {
-    console.error("Upload error:", uploadErr);
-    failUploadProgressBanner(uploadErr.message || "Upload failed");
-    showInstagramToast("Upload failed. Please try again.");
-  } finally {
-    isSubmittingShare = false;
-    if (shareBtn) {
-      shareBtn.disabled = false;
-      shareBtn.classList.remove("opacity-60", "cursor-not-allowed", "pointer-events-none");
-      shareBtn.innerHTML = originalShareHtml;
-    }
-    if (saveDraftBtn) {
-      saveDraftBtn.disabled = false;
-      saveDraftBtn.classList.remove("opacity-50", "pointer-events-none");
-    }
-    if (backBtn) {
-      backBtn.disabled = false;
-      backBtn.classList.remove("opacity-50", "pointer-events-none");
-    }
-    if (uploadWakeLock) {
-      try { await uploadWakeLock.release(); } catch (_) {}
-    }
-  }
+  })();
 }
 
 // Expose on window for global access and backwards compatibility

@@ -8,16 +8,40 @@
   top: 0;
   left: 0;
   right: 0;
-  z-index: 40;
+  z-index: 50;
   background-color: var(--header-bg, #ffffff);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  padding-top: max(var(--safe-area-top, 24px), env(safe-area-inset-top, 24px), 24px);
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .dark .explore-search-header,
 .app-container.dark .explore-search-header {
   background-color: #000000;
-  border-bottom-color: rgba(255, 255, 255, 0.08);
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.explore-live-search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 70vh;
+  overflow-y: auto;
+  background-color: #ffffff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
+  z-index: 60;
+  overscroll-behavior: contain;
+}
+
+.dark .explore-live-search-dropdown,
+.app-container.dark .explore-live-search-dropdown {
+  background-color: #121212;
+  border-bottom-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
 }
 
 /* 2. Responsive 3-Column Staggered Explore Grid */
