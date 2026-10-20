@@ -76,10 +76,6 @@ export function buildReelItemElement(reel, index) {
         <div class="reel-action-btn more-btn">
           <i class="fa-solid fa-ellipsis"></i>
         </div>
-        <!-- Rotating Song Cover Art Disc -->
-        <div class="reel-sound-disc-wrapper" title="${soundTitle}">
-          <img src="${soundCover}" class="reel-sound-disc animate-spin-slow" alt="Sound cover" onerror="this.src='${DEFAULT_MUSIC_COVER}'" />
-        </div>
       </div>
 
       <!-- Video progress bar -->
