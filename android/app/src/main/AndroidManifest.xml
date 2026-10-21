@@ -11,71 +11,28 @@
         android:resizeableActivity="true"
         android:hardwareAccelerated="true">
 
-        <activity
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
-            android:name=".MainActivity"
-            android:label="@string/app_name"
-            android:icon="@mipmap/ic_launcher"
-            android:roundIcon="@mipmap/ic_launcher_round"
-            android:theme="@style/AppTheme.NoActionBarLaunch"
-            android:launchMode="singleTask"
-            android:taskAffinity=""
-            android:exported="true"
-            android:resizeableActivity="true"
-            android:supportsPictureInPicture="true"
-            android:hardwareAccelerated="true">
+    <activity
+    android:name=".MainActivity"
+    android:resizeableActivity="true"
+    android:supportsPictureInPicture="true"
+    android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+    android:hardwareAccelerated="true"
+    android:windowSoftInputMode="adjustResize">
 
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
+    <!-- Vivo / OriginOS Small Window (Smart Sidebar) Support -->
+    <meta-data
+        android:name="com.vivo.multiwindow.freeform"
+        android:value="true" />
+    <meta-data
+        android:name="android.supports_size_changes"
+        android:value="true" />
 
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="flashgram" />
-            </intent-filter>
-
-            <!-- Receive Text and Links (e.g. YouTube video links, web links) -->
-            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/plain" />
-            </intent-filter>
-
-            <!-- Receive Single Image or Video to create Post/Story -->
-            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="image/*" />
-                <data android:mimeType="video/*" />
-            </intent-filter>
-
-            <!-- Receive Multiple Images or Videos -->
-            <intent-filter>
-                <action android:name="android.intent.action.SEND_MULTIPLE" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="image/*" />
-                <data android:mimeType="video/*" />
-            </intent-filter>
-
-            <!-- Production Android App Links for Etagdxb.vercel.app /reel -->
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data
-                    android:scheme="https"
-                    android:host="Etagdxb.vercel.app"
-                    android:pathPrefix="/reel" />
-            </intent-filter>
-
-            <meta-data
-                android:name="android.app.shortcuts"
-                android:resource="@xml/shortcuts" />
-
-        </activity>
+    <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+    </intent-filter>
+</activity>
+        
 
         <!-- Dynamic Launcher Activity Aliases (Easter Egg Icon Switcher) -->
         <!-- 1. Default Flashgram -->
