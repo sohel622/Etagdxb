@@ -9,38 +9,30 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         android:resizeableActivity="true"
+        android:supportsPictureInPicture="true"
         android:hardwareAccelerated="true">
 
-        <!-- Vivo / Funtouch OS / OriginOS Freeform & Small Window Support -->
         <meta-data
-            android:name="com.vivo.multiwindow.freeform"
+            android:name="com.vivo.multiscreen.freeform"
             android:value="true" />
         <meta-data
             android:name="android.supports_size_changes"
             android:value="true" />
 
         <activity
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|density"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:name=".MainActivity"
             android:label="@string/app_name"
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
             android:theme="@style/AppTheme.NoActionBarLaunch"
-            android:launchMode="singleTask"
+            android:launchMode="singleTop"
             android:taskAffinity=""
             android:exported="true"
             android:resizeableActivity="true"
             android:supportsPictureInPicture="true"
             android:windowSoftInputMode="adjustResize"
             android:hardwareAccelerated="true">
-
-            <!-- Multi-window / Freeform window default dimensions -->
-            <layout
-                android:defaultHeight="600dp"
-                android:defaultWidth="400dp"
-                android:gravity="top|end"
-                android:minWidth="280dp"
-                android:minHeight="350dp" />
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -91,14 +83,6 @@
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
-
-            <!-- Vivo Funtouch OS Smart Sidebar / Small Window / Multi-window Support -->
-            <meta-data
-                android:name="com.vivo.multiwindow.freeform"
-                android:value="true" />
-            <meta-data
-                android:name="android.supports_size_changes"
-                android:value="true" />
 
         </activity>
 
