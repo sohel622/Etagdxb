@@ -193,6 +193,9 @@ import { addOrUpdateSavedAccount } from "../components/AccountSwitcher.js";
     window.isUserAuthenticated = isUserAuthenticated;
 
     function openAuthOnboardingFlow(startStep = 1) {
+      if (typeof window !== "undefined" && (window.isMusicPlaying || window.youtubeMusicService?.isPlaying)) {
+        return;
+      }
       const overlay = document.getElementById("authOnboardingOverlay");
       const bottomNav = document.getElementById("bottomNavBar");
       if (overlay) {

@@ -413,12 +413,14 @@ class YouTubeMusicService {
     switch (event.data) {
       case window.YT.PlayerState.PLAYING:
         this.isPlaying = true;
+        if (typeof window !== "undefined") window.isMusicPlaying = true;
         this.startProgressTracker();
         this.syncDuration();
         this.updateMediaSession();
         break;
       case window.YT.PlayerState.PAUSED:
         this.isPlaying = false;
+        if (typeof window !== "undefined") window.isMusicPlaying = false;
         this.stopProgressTracker();
         this.updateMediaSession();
         break;
@@ -442,6 +444,7 @@ class YouTubeMusicService {
       this.nextTrack();
     } else {
       this.isPlaying = false;
+      if (typeof window !== "undefined") window.isMusicPlaying = false;
       this.stopProgressTracker();
       stopBgAudioKeepAlive();
       if (this.currentTrack) {
@@ -606,6 +609,7 @@ class YouTubeMusicService {
     }
 
     this.isPlaying = false;
+    if (typeof window !== "undefined") window.isMusicPlaying = false;
     this.currentTrack = null;
     this.currentTime = 0;
     this.duration = 0;

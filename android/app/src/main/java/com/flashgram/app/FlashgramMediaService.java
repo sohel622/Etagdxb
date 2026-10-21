@@ -393,6 +393,12 @@ public class FlashgramMediaService extends Service {
     }
 
     @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        super.onTaskRemoved(rootIntent);
+        stopPlaybackService();
+    }
+
+    @Override
     public void onDestroy() {
         super.onDestroy();
         releaseWakeLock();

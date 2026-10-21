@@ -12,15 +12,12 @@
         android:supportsPictureInPicture="true"
         android:hardwareAccelerated="true">
 
-        <meta-data
-            android:name="com.vivo.multiscreen.freeform"
-            android:value="true" />
-        <meta-data
-            android:name="android.supports_size_changes"
-            android:value="true" />
-        <meta-data
-            android:name="android.supports_multiwindow"
-            android:value="true" />
+        <!-- Universal Multi-window, Floating Window & Free-form Support (Vivo, Samsung, Xiaomi, Standard Android) -->
+        <meta-data android:name="com.vivo.multiscreen.freeform" android:value="true" />
+        <meta-data android:name="com.vivo.multiwindow.freeform" android:value="true" />
+        <meta-data android:name="android.supports_size_changes" android:value="true" />
+        <meta-data android:name="android.supports_multiwindow" android:value="true" />
+        <meta-data android:name="com.samsung.android.sdk.multiwindow.enable" android:value="true" />
 
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode|smallestScreenSize"
@@ -36,6 +33,21 @@
             android:supportsPictureInPicture="true"
             android:windowSoftInputMode="adjustResize"
             android:hardwareAccelerated="true">
+
+            <!-- Multi-window / Freeform window default dimensions -->
+            <layout
+                android:defaultHeight="600dp"
+                android:defaultWidth="400dp"
+                android:gravity="top|end"
+                android:minWidth="280dp"
+                android:minHeight="350dp" />
+
+            <!-- Universal Freeform & Small Window metadata inside Activity -->
+            <meta-data android:name="com.vivo.multiscreen.freeform" android:value="true" />
+            <meta-data android:name="com.vivo.multiwindow.freeform" android:value="true" />
+            <meta-data android:name="android.supports_size_changes" android:value="true" />
+            <meta-data android:name="android.supports_multiwindow" android:value="true" />
+            <meta-data android:name="com.samsung.android.sdk.multiwindow.enable" android:value="true" />
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -253,8 +265,8 @@
             android:name=".FlashgramMediaService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback"
-            android:stopWithTask="true">
+            android:stopWithTask="true"
+            android:foregroundServiceType="mediaPlayback">
             <intent-filter>
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>

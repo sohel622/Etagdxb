@@ -101,6 +101,9 @@ export async function checkAndPromptPermissionsOnLaunch() {
  * Display the Instagram-style permission onboarding bottom sheet
  */
 export function showPermissionOnboardingModal() {
+  if (typeof window !== "undefined" && (window.isMusicPlaying || window.youtubeMusicService?.isPlaying)) {
+    return;
+  }
   const modal = document.getElementById('permissionOnboardingModal');
   const sheet = document.getElementById('permissionOnboardingSheet');
   if (!modal || !sheet) return;

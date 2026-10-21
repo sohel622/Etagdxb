@@ -119,27 +119,31 @@ export const updateMediaSessionState = (isPlaying, trackInfo = {}) => {
     }
   }
 
-  // 2. Native Android Notification handler via Capacitor LocalNotifications
+  // 2. Native Android Media Foreground Service sync via NativeMediaBridge
+  if (typeof window !== "undefined" && window.NativeMediaBridge && typeof window.NativeMediaBridge.updateMediaMetadata === "function") {
+    try {
+      window.NativeMediaBridge.updateMediaMetadata(
+        title,
+        artist,
+        trackInfo.album || 'Flashgram Music',
+        coverUrl,
+        Boolean(isPlaying),
+        Math.round((trackInfo.duration || 215) * 1000),
+        Math.round((trackInfo.currentTime || 0) * 1000),
+        Boolean(trackInfo.isLiked)
+      );
+    } catch (err) {
+      console.warn("[MediaSession] Error syncing NativeMediaBridge:", err);
+    }
+  }
+
+  // Ensure any legacy dummy local notification is suppressed
   if (typeof window !== "undefined" && window.Capacitor && window.Capacitor.isNativePlatform()) {
     try {
-      window.Capacitor.Plugins.LocalNotifications?.schedule({
-        notifications: [
-          {
-            id: 2001,
-            title,
-            body: artist,
-            ongoing: isPlaying, // If paused, ongoing=false allows user to swipe it away
-            autoCancel: !isPlaying,
-            android: {
-              channelId: 'flashgram_music_channel',
-              onlyAlertOnce: true,
-            }
-          }
-        ]
-      });
-    } catch (notifErr) {
-      console.warn("[Notification] Capacitor notification scheduling error:", notifErr);
-    }
+      window.Capacitor.Plugins?.LocalNotifications?.cancel({
+        notifications: [{ id: 2001 }]
+      }).catch(() => {});
+    } catch (_) {}
   }
 
   // 3. Manage Persistent Background Audio & WakeLock
@@ -160,7 +164,7 @@ export const updateMediaSessionState = (isPlaying, trackInfo = {}) => {
 };
 
 /**
- * Explicitly cancel and clear media notification (id: 2001) and reset media session
+ * Explicitly cancel and clear media notification and reset media session
  * Called when user taps 'stop' or closes player
  */
 export const clearMediaNotification = async () => {
@@ -175,16 +179,22 @@ export const clearMediaNotification = async () => {
     } catch (_) {}
   }
 
-  // 2. Cancel Native Android LocalNotification id: 2001
+  // 2. Stop Native Android Media Foreground Service
+  if (typeof window !== "undefined" && window.NativeMediaBridge && typeof window.NativeMediaBridge.stopMediaService === "function") {
+    try {
+      window.NativeMediaBridge.stopMediaService();
+    } catch (err) {
+      console.warn("[MediaSession] Error stopping NativeMediaBridge:", err);
+    }
+  }
+
+  // Clear any legacy LocalNotification id: 2001
   if (typeof window !== "undefined" && window.Capacitor && window.Capacitor.isNativePlatform()) {
     try {
       await window.Capacitor.Plugins.LocalNotifications?.cancel({
         notifications: [{ id: 2001 }]
       });
-      console.log("[Notification] Successfully cancelled notification 2001");
-    } catch (err) {
-      console.warn("[Notification] Failed to cancel notification 2001:", err);
-    }
+    } catch (_) {}
   }
 
   // 3. Pause persistent audio and release wake lock
