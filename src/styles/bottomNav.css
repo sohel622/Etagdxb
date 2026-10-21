@@ -8,6 +8,10 @@
       height: calc(52px + max(env(safe-area-inset-bottom, 0px), 12px)) !important;
       padding-bottom: max(env(safe-area-inset-bottom, 0px), 12px) !important;
       z-index: 50 !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-around !important;
+      box-sizing: border-box !important;
       transform: translateY(0);
       transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
       will-change: transform;

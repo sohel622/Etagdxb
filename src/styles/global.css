@@ -19,7 +19,7 @@
     }
 
     :root {
-      --safe-area-top: env(safe-area-inset-top, 24px);
+      --safe-area-top: env(safe-area-inset-top, 0px);
       --header-bg: #ffffff;
       --bg-header: #ffffff;
       --app-font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -41,11 +41,11 @@
       width: 100%;
       max-width: 480px;
       margin: 0 auto;
-      height: var(--safe-area-top, env(safe-area-inset-top, 24px));
+      height: var(--safe-area-top, env(safe-area-inset-top, 0px));
       z-index: 100;
       pointer-events: none;
       transition: background-color 0.2s ease, opacity 0.2s ease;
-      background-color: #ffffff;
+      background-color: var(--header-bg, #ffffff);
     }
 
     .dark #statusBarCurtain,
@@ -80,7 +80,7 @@
     }
 
     body {
-      background-color: #000;
+      background-color: var(--header-bg, #ffffff);
       display: flex;
       justify-content: center;
       align-items: center;
@@ -91,18 +91,27 @@
       overflow: hidden;
     }
 
+    .dark body, body.dark, .app-container.dark-mode-active body {
+      background-color: #000000;
+    }
+
     .app-container {
       width: 100%;
       max-width: 480px;
       height: 100%;
       height: 100dvh;
-      background: #000;
+      background: var(--header-bg, #ffffff);
       display: flex;
       flex-direction: column;
       position: relative;
       overflow: hidden;
       box-shadow: 0 0 35px rgba(0,0,0,0.9);
       margin: 0 auto;
+    }
+
+    .dark .app-container {
+      background: #000000;
+      color: #ffffff;
     }
 
     /* Floating Window / Compact Freeform mode adaptiveness */
@@ -128,7 +137,7 @@
       max-width: 480px;
       margin: 0 auto;
       background-color: var(--header-bg, #ffffff);
-      padding-top: max(env(safe-area-inset-top, 0px), 24px) !important;
+      padding-top: var(--safe-area-top, env(safe-area-inset-top, 0px)) !important;
       padding-left: 0;
       padding-right: 0;
       padding-bottom: 8px !important;
@@ -183,7 +192,7 @@
 
     /* Content Scroll Container (Clean Pass Underneath Fixed Header) */
     .feed-scroll-container {
-      padding-top: calc(max(env(safe-area-inset-top, 0px), 24px) + 52px) !important;
+      padding-top: calc(var(--safe-area-top, env(safe-area-inset-top, 0px)) + 52px) !important;
       padding-bottom: calc(56px + max(env(safe-area-inset-bottom, 0px), 12px)) !important;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
@@ -201,31 +210,31 @@
       position: sticky;
       top: 0;
       z-index: 50;
-      height: calc(48px + var(--safe-area-top, env(safe-area-inset-top, 32px))) !important;
-      min-height: calc(48px + var(--safe-area-top, env(safe-area-inset-top, 32px))) !important;
-      padding-top: var(--safe-area-top, env(safe-area-inset-top, 32px)) !important;
+      height: calc(48px + var(--safe-area-top, env(safe-area-inset-top, 0px))) !important;
+      min-height: calc(48px + var(--safe-area-top, env(safe-area-inset-top, 0px))) !important;
+      padding-top: var(--safe-area-top, env(safe-area-inset-top, 0px)) !important;
     }
 
     #chatsListContainer > header {
       position: sticky;
       top: 0;
       z-index: 50;
-      height: calc(50px + var(--safe-area-top, env(safe-area-inset-top, 28px))) !important;
-      min-height: calc(50px + var(--safe-area-top, env(safe-area-inset-top, 28px))) !important;
-      padding-top: var(--safe-area-top, env(safe-area-inset-top, 28px)) !important;
+      height: calc(50px + var(--safe-area-top, env(safe-area-inset-top, 0px))) !important;
+      min-height: calc(50px + var(--safe-area-top, env(safe-area-inset-top, 0px))) !important;
+      padding-top: var(--safe-area-top, env(safe-area-inset-top, 0px)) !important;
     }
 
     #shabnamChatContainer > header {
       position: sticky;
       top: 0;
       z-index: 50;
-      height: calc(54px + var(--safe-area-top, env(safe-area-inset-top, 28px))) !important;
-      min-height: calc(54px + var(--safe-area-top, env(safe-area-inset-top, 28px))) !important;
-      padding-top: var(--safe-area-top, env(safe-area-inset-top, 28px)) !important;
+      height: calc(54px + var(--safe-area-top, env(safe-area-inset-top, 0px))) !important;
+      min-height: calc(54px + var(--safe-area-top, env(safe-area-inset-top, 0px))) !important;
+      padding-top: var(--safe-area-top, env(safe-area-inset-top, 0px)) !important;
     }
 
     .reels-top-header {
-      top: calc(14px + var(--safe-area-top, env(safe-area-inset-top, 28px))) !important;
+      top: calc(14px + var(--safe-area-top, env(safe-area-inset-top, 0px))) !important;
     }
 
     .top-bar-actions {

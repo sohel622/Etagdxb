@@ -123,13 +123,10 @@ export function syncSafeAreaTop() {
     const measured = test.offsetHeight;
     test.remove();
 
-    if (!measured || measured < 10) {
-      document.documentElement.style.setProperty('--safe-area-top', '24px');
-    } else {
-      document.documentElement.style.setProperty('--safe-area-top', `${measured}px`);
-    }
+    const safeTop = (measured && measured > 0) ? measured : 0;
+    document.documentElement.style.setProperty('--safe-area-top', `${safeTop}px`);
   } catch (_) {
-    document.documentElement.style.setProperty('--safe-area-top', '24px');
+    document.documentElement.style.setProperty('--safe-area-top', '0px');
   }
 }
 

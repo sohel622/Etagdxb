@@ -10,7 +10,7 @@
   right: 0;
   z-index: 50;
   background-color: var(--header-bg, #ffffff);
-  padding-top: max(var(--safe-area-top, 24px), env(safe-area-inset-top, 24px), 24px);
+  padding-top: var(--safe-area-top, env(safe-area-inset-top, 0px));
   padding-bottom: 10px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);

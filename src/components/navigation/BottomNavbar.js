@@ -85,13 +85,42 @@ function checkNavPressMove(clientX, clientY) {
 
 function updateActivePillPosition(btnElement) {
   const activePill = document.getElementById("navActivePill");
-  if (!activePill || !btnElement) return;
+  if (!activePill) return;
 
+  const navBar = document.getElementById("bottomNavBar") || activePill.parentElement;
+  if (!navBar) return;
+
+  // Resolve target button element if not passed or detached
+  if (!btnElement || !btnElement.isConnected) {
+    btnElement = document.querySelector(`.nav-btn.active[data-id="${activeNavId}"]`)
+      || (activeNavId ? document.querySelector(`.nav-btn[data-id="${activeNavId}"]`) : null)
+      || document.querySelector('.nav-btn.active');
+  }
+  if (!btnElement) return;
+
+  const containerRect = navBar.getBoundingClientRect();
+  const btnRect = btnElement.getBoundingClientRect();
+
+  // If container or button isn't laid out yet (zero width), retry in the next animation frame
+  if (containerRect.width === 0 || btnRect.width === 0) {
+    requestAnimationFrame(() => {
+      const retryBtn = document.querySelector(`.nav-btn.active[data-id="${activeNavId}"]`)
+        || (activeNavId ? document.querySelector(`.nav-btn[data-id="${activeNavId}"]`) : null)
+        || btnElement;
+      if (retryBtn) updateActivePillPosition(retryBtn);
+    });
+    return;
+  }
+
+  // Consistent rounded pill width (proportional to tab button, between 44px and 60px)
+  const pillWidth = Math.min(Math.max(btnRect.width - 12, 44), 60);
+
+  // Calculate relative center offset strictly within the nav container
+  const left = (btnRect.left - containerRect.left) + (btnRect.width - pillWidth) / 2;
+
+  activePill.style.width = `${Math.round(pillWidth)}px`;
+  activePill.style.transform = `translateX(${Math.round(left)}px)`;
   activePill.style.opacity = "1";
-  const pillWidth = Math.min(Math.max(btnElement.offsetWidth - 12, 46), 64);
-  const left = btnElement.offsetLeft + (btnElement.offsetWidth - pillWidth) / 2;
-  activePill.style.transform = `translateX(${left}px)`;
-  activePill.style.width = `${pillWidth}px`;
 }
 
 function renderNavBtnContent(item, isActive) {
@@ -352,10 +381,25 @@ if (typeof window !== "undefined") {
     syncBottomNavVisibility();
   });
 
-  window.addEventListener("resize", () => {
-    const activeBtn = document.querySelector('.nav-btn.active');
+  const handleNavResize = () => {
+    const activeBtn = document.querySelector(`.nav-btn.active[data-id="${activeNavId}"]`)
+      || document.querySelector('.nav-btn.active');
     if (activeBtn) updateActivePillPosition(activeBtn);
-  });
+  };
+
+  window.addEventListener("resize", handleNavResize);
+
+  if (typeof ResizeObserver !== "undefined") {
+    try {
+      const navBarEl = document.getElementById("bottomNavBar");
+      if (navBarEl) {
+        const ro = new ResizeObserver(() => {
+          handleNavResize();
+        });
+        ro.observe(navBarEl);
+      }
+    } catch (_) {}
+  }
 }
 
 function hideTopNavbar() {
@@ -545,6 +589,12 @@ function switchTab(tabId, btnElement) {
   if (btnElement) {
     btnElement.classList.add("active");
     updateActivePillPosition(btnElement);
+    requestAnimationFrame(() => {
+      updateActivePillPosition(btnElement);
+    });
+    setTimeout(() => {
+      updateActivePillPosition(btnElement);
+    }, 50);
   }
 
   const isViewingOtherUserProfile = tabId === "profile" && Boolean(

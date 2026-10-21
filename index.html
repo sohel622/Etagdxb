@@ -139,7 +139,7 @@
     <div 
       id="statusBarCurtain"
       class="fixed top-0 left-0 right-0 z-[100] transition-colors duration-200 pointer-events-none bg-white dark:bg-black"
-      style="height: var(--safe-area-top, env(safe-area-inset-top, 24px));"
+      style="height: var(--safe-area-top, env(safe-area-inset-top, 0px));"
     ></div>
 
     <div class="view-section active bg-white dark:bg-black text-neutral-900 dark:text-white transition-colors duration-200" id="homeView">
@@ -147,7 +147,7 @@
       <header 
         class="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-black transition-colors fixed-top-header top-bar app-header select-none border-none shadow-none"
         id="topNavbarHeader"
-        style="padding-top: max(env(safe-area-inset-top, 0px), 24px); padding-bottom: 8px; border: none !important; border-bottom: none !important; box-shadow: none !important; background-color: var(--header-bg, #ffffff);"
+        style="padding-top: var(--safe-area-top, env(safe-area-inset-top, 0px)); padding-bottom: 8px; border: none !important; border-bottom: none !important; box-shadow: none !important; background-color: var(--header-bg, #ffffff);"
       >
         <div class="flex items-center justify-between px-4 h-11 w-full">
           <!-- Flashgram Brand Logo / Name -->
