@@ -810,6 +810,11 @@ export async function savePostToSupabase({ videoUrl, thumbnailUrl, caption, user
         video_url: videoUrl,
         thumbnail_url: thumbnailUrl,
         caption: captionToSave,
+        song_id: normalizedMusic?.id || null,
+        song_title: normalizedMusic?.title || null,
+        song_artist: normalizedMusic?.artist || null,
+        song_cover: normalizedMusic?.cover_url || null,
+        audio_url: normalizedMusic?.audio_url || null,
         likes_count: 0,
         comments_count: 0,
         created_at: new Date().toISOString()

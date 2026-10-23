@@ -7,6 +7,7 @@ import { isGlobalAudioMuted, toggleGlobalAudio } from "../Navbar.js";
 import { isFollowingShabnam, toggleFollowShabnam, showInstagramToast } from "../../utils/storage.js";
 import { spawnFloatingHeart } from "../ReelsViewer.js";
 import { getOptimizedVideoUrl, deriveCloudinaryThumbnailUrl } from "../../services/cloudinaryService.js";
+import { sanitizeCaptionText } from "../../services/songsService.js";
 
 let chatReelsOverlay = null;
 let activeChatVideos = [];
@@ -108,7 +109,7 @@ export function openChatReelsViewer({ videos = [], initialIndex = 0 } = {}) {
     const likesCount = reel.likes || "14.2K";
     const commentsCount = reel.comments || "142";
     const sharesCount = reel.shares || "210";
-    const captionText = reel.caption || reel.title || "Flashgram Reel";
+    const captionText = sanitizeCaptionText(reel.caption || reel.title || "Flashgram Reel");
 
     let followBtnHtml = "";
     if (isShabnam) {

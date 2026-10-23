@@ -15,7 +15,7 @@ import {
   isOffline,
   trackVideoProgressForCaching
 } from "../services/offlineCacheService.js";
-import { decodePostCaptionAndSong, reelAudioMixer, DEFAULT_MUSIC_COVER } from "../services/songsService.js";
+import { decodePostCaptionAndSong, sanitizeCaptionText, reelAudioMixer, DEFAULT_MUSIC_COVER } from "../services/songsService.js";
 
     /* =======================================================
        Web Video Picture-in-Picture (PiP) Helper
@@ -297,7 +297,8 @@ import { decodePostCaptionAndSong, reelAudioMixer, DEFAULT_MUSIC_COVER } from ".
         const commentsDisplay = String(initialReelComments);
         const sharesDisplay = reel.shares || '0';
 
-        const { caption: cleanCaption, song: decodedSong } = decodePostCaptionAndSong(reel.caption || '');
+        const { caption: decodedCaption, song: decodedSong } = decodePostCaptionAndSong(reel.caption || '');
+        const cleanCaption = sanitizeCaptionText(decodedCaption);
         const isVideoMerged = vidUrl && (vidUrl.includes("l_video:") || vidUrl.includes("ac_none"));
         const songData = reel.music || decodedSong || ((reel.audio_url || reel.song_title || reel.soundTitle || isVideoMerged) ? {
           id: reel.song_id || '',

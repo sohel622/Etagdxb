@@ -10,6 +10,9 @@ import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.media.AudioAttributes;
+import android.media.AudioFocusRequest;
+import android.media.AudioManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -50,7 +53,24 @@ public class FlashgramMediaService extends Service {
 
     private MediaSessionCompat mediaSession;
     private PowerManager.WakeLock wakeLock;
+    private AudioManager audioManager;
+    private AudioFocusRequest audioFocusRequest;
     private final ExecutorService imageExecutor = Executors.newSingleThreadExecutor();
+
+    private final AudioManager.OnAudioFocusChangeListener afChangeListener = new AudioManager.OnAudioFocusChangeListener() {
+        @Override
+        public void onAudioFocusChange(int focusChange) {
+            if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+                handleUserAction(ACTION_PAUSE);
+            } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+                handleUserAction(ACTION_PAUSE);
+            } else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
+                if (isPlaying) {
+                    handleUserAction(ACTION_PLAY);
+                }
+            }
+        }
+    };
 
     private String currentTitle = "Flashgram Track";
     private String currentArtist = "Flashgram Music";
@@ -67,6 +87,8 @@ public class FlashgramMediaService extends Service {
         super.onCreate();
         createNotificationChannel();
         initMediaSession();
+
+        audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 
         PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (powerManager != null) {
@@ -180,15 +202,56 @@ public class FlashgramMediaService extends Service {
         return START_STICKY;
     }
 
+    private void requestAudioFocus() {
+        if (audioManager == null) return;
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (audioFocusRequest == null) {
+                    AudioAttributes playbackAttributes = new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build();
+                    audioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                        .setAudioAttributes(playbackAttributes)
+                        .setAcceptsDelayedFocusGain(true)
+                        .setOnAudioFocusChangeListener(afChangeListener)
+                        .build();
+                }
+                audioManager.requestAudioFocus(audioFocusRequest);
+            } else {
+                audioManager.requestAudioFocus(afChangeListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void abandonAudioFocus() {
+        if (audioManager == null) return;
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (audioFocusRequest != null) {
+                    audioManager.abandonAudioFocusRequest(audioFocusRequest);
+                }
+            } else {
+                audioManager.abandonAudioFocus(afChangeListener);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     private void handleUserAction(String action) {
         MainActivity.dispatchMediaCommand(action);
         if (ACTION_PLAY.equals(action)) {
             isPlaying = true;
+            requestAudioFocus();
             acquireWakeLock();
             updateNotification();
         } else if (ACTION_PAUSE.equals(action)) {
             isPlaying = false;
             releaseWakeLock();
+            abandonAudioFocus();
             updateNotification();
         } else if (ACTION_STOP.equals(action)) {
             stopPlaybackService();
@@ -211,6 +274,7 @@ public class FlashgramMediaService extends Service {
         currentPosition = intent.getLongExtra(EXTRA_POSITION, currentPosition);
 
         if (isPlaying) {
+            requestAudioFocus();
             acquireWakeLock();
         } else {
             releaseWakeLock();
@@ -385,6 +449,7 @@ public class FlashgramMediaService extends Service {
 
     private void stopPlaybackService() {
         releaseWakeLock();
+        abandonAudioFocus();
         if (mediaSession != null) {
             mediaSession.setActive(false);
         }
@@ -395,6 +460,7 @@ public class FlashgramMediaService extends Service {
     @Override
     public void onTaskRemoved(Intent rootIntent) {
         super.onTaskRemoved(rootIntent);
+        MainActivity.dispatchMediaCommand(ACTION_STOP);
         stopPlaybackService();
     }
 
@@ -402,6 +468,7 @@ public class FlashgramMediaService extends Service {
     public void onDestroy() {
         super.onDestroy();
         releaseWakeLock();
+        abandonAudioFocus();
         if (mediaSession != null) {
             mediaSession.release();
             mediaSession = null;

@@ -14,6 +14,7 @@ import { openDirectChatWithUser } from "./DirectChat.js";
 import { inMemoryLocalPosts } from "./Feed.js";
 import { audio30sController } from "../utils/audioCatalog.js";
 import { openInstagramMediaPicker } from "./media/MediaPickerModal.js";
+import { sanitizeCaptionText } from "../services/songsService.js";
 
 let viewingProfileUserId = null;
 let previousScreenBeforeProfile = "home";
@@ -1321,7 +1322,7 @@ export function openProfilePostModal(post) {
         <div class="font-bold text-xs mt-1.5 text-white"><span class="modal-likes-count">${initialLikes.toLocaleString()}</span> likes</div>
         <div class="text-xs mt-1 text-white">
           <span class="font-bold mr-1">${authorName}</span>
-          <span class="text-neutral-300">${post.caption || ''}</span>
+          <span class="text-neutral-300">${sanitizeCaptionText(post.caption || '')}</span>
         </div>
         <div class="text-[10px] text-neutral-500 mt-2 uppercase">${post.time || 'JUST NOW'}</div>
       </div>

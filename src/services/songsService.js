@@ -130,14 +130,29 @@ export async function fetchSongById(songId) {
 }
 
 /**
+ * Strips out internal [FLASHGRAM_SONG: ...] JSON tags, storage URLs,
+ * and any raw metadata from captions so only clean user text/hashtags are rendered.
+ */
+export function sanitizeCaptionText(rawCaption = '') {
+  if (!rawCaption || typeof rawCaption !== 'string') return '';
+  return rawCaption
+    .replace(/\[FLASHGRAM_SONG:[\s\S]*?\]/gi, '')
+    .replace(/https?:\/\/[^\s]+\.supabase\.co\/storage\/[^\s]+/gi, '')
+    .replace(/https?:\/\/[^\s]*res\.cloudinary\.com\/[^\s]*/gi, '')
+    .trim();
+}
+
+/**
  * Encodes song metadata into the caption text to guarantee 100% persistence
  * in the Supabase `posts` table across all sessions and client queries.
  */
 export function encodePostCaptionWithSong(userCaption = '', song = null) {
-  const baseCaption = (userCaption || '').trim();
+  const baseCaption = sanitizeCaptionText(userCaption);
   if (!song) return baseCaption;
 
   const normalized = normalizeSongRecord(song);
+  if (!normalized) return baseCaption;
+
   const meta = JSON.stringify({
     song_id: normalized.id,
     title: normalized.title,
@@ -158,19 +173,20 @@ export function decodePostCaptionAndSong(rawCaption = '') {
     return { caption: rawCaption || '', song: null };
   }
 
-  const match = rawCaption.match(/\[FLASHGRAM_SONG:(.+?)\]/);
+  let extractedSong = null;
+  const match = rawCaption.match(/\[FLASHGRAM_SONG:([\s\S]*?)\]/i);
   if (match) {
     try {
       const songData = JSON.parse(match[1]);
-      const cleanCaption = rawCaption.replace(/\n*\[FLASHGRAM_SONG:.+?\]/, '').trim();
-      return {
-        caption: cleanCaption,
-        song: normalizeSongRecord(songData)
-      };
+      extractedSong = normalizeSongRecord(songData);
     } catch (_) {}
   }
 
-  return { caption: rawCaption, song: null };
+  const cleanCaption = sanitizeCaptionText(rawCaption);
+  return {
+    caption: cleanCaption,
+    song: extractedSong
+  };
 }
 
 // Global Reel Audio Mixer instance for synchronized background music playback

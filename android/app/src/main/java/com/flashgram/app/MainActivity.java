@@ -336,7 +336,10 @@ public class MainActivity extends BridgeActivity {
     public void onPause() {
         super.onPause();
         if (isMusicActive && bridge != null && bridge.getWebView() != null) {
-            bridge.getWebView().resumeTimers();
+            try {
+                bridge.getWebView().onResume();
+                bridge.getWebView().resumeTimers();
+            } catch (Exception ignored) {}
         }
     }
 
@@ -344,7 +347,10 @@ public class MainActivity extends BridgeActivity {
     public void onStop() {
         super.onStop();
         if (isMusicActive && bridge != null && bridge.getWebView() != null) {
-            bridge.getWebView().resumeTimers();
+            try {
+                bridge.getWebView().onResume();
+                bridge.getWebView().resumeTimers();
+            } catch (Exception ignored) {}
         }
     }
 

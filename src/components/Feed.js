@@ -165,7 +165,24 @@ function createPostCardElement(post, index = 0) {
   const initialCommentsCount = (postComments && postComments.length) ? postComments.length : (post.commentsCount || 18);
 
   const isCarouselPost = Boolean(post.isCarousel && post.carouselItems && post.carouselItems.length > 1);
-  const hasAttachedMusic = Boolean(post.music);
+
+  // Decode and strictly sanitize caption, stripping any internal [FLASHGRAM_SONG: ...] JSON or raw URLs
+  const { caption: decodedCaption, song: decodedSong } = decodePostCaptionAndSong(post.caption || '');
+  const cleanCaption = sanitizeCaptionText(decodedCaption);
+
+  const attachedSong = post.music || decodedSong || ((post.song_title || post.soundTitle) ? {
+    id: post.song_id || '',
+    title: post.song_title || post.soundTitle || 'Featured Track',
+    artist: post.song_artist || post.soundArtist || 'Artist',
+    audio_url: post.audio_url || '',
+    cover_url: post.song_cover || post.cover_url || DEFAULT_MUSIC_COVER,
+    duration: post.duration || 30
+  } : null);
+
+  if (attachedSong && !post.music) {
+    post.music = attachedSong;
+  }
+  const hasAttachedMusic = Boolean(attachedSong);
 
   let mediaMarkup = "";
   if (isCarouselPost) {
@@ -224,7 +241,7 @@ function createPostCardElement(post, index = 0) {
   const musicBadgeMarkup = hasAttachedMusic ? `
     <div class="post-music-badge cursor-pointer" data-post-id="${post.id}" title="Tap to listen • 30-Second Audio">
       <i class="fa-solid fa-music music-status-icon text-pink-500"></i>
-      <span class="truncate max-w-[200px]">${post.music.title} • ${post.music.artist}</span>
+      <span class="truncate max-w-[200px]">${attachedSong.title} • ${attachedSong.artist}</span>
       <div class="music-wave-bars"><span></span><span></span><span></span></div>
     </div>
   ` : '';
@@ -262,9 +279,21 @@ function createPostCardElement(post, index = 0) {
     </div>
     <div class="post-details">
       <div class="post-likes"><span class="likes-count">${(post.likes_count !== undefined && post.likes_count !== null ? post.likes_count : (post.likesCount !== undefined && post.likesCount !== null ? post.likesCount : 0)).toLocaleString()}</span> likes</div>
+      ${hasAttachedMusic ? `
+        <!-- Neat Audio Indicator / Music Bar Component -->
+        <div class="post-audio-bar my-1.5 px-3 py-1.5 rounded-xl bg-neutral-100/90 dark:bg-neutral-800/80 border border-neutral-200/70 dark:border-neutral-700/60 flex items-center justify-between text-xs cursor-pointer select-none" data-post-id="${post.id}" onclick="event.stopPropagation(); if (typeof window.playFeedPostAudio === 'function') window.playFeedPostAudio('${post.id}');" title="Audio: ${attachedSong.title} • ${attachedSong.artist}">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="w-6 h-6 rounded-full bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0 text-[11px]">
+              <i class="fa-solid fa-music"></i>
+            </span>
+            <span class="font-semibold text-neutral-900 dark:text-neutral-100 truncate text-[12px]">${attachedSong.title} • ${attachedSong.artist}</span>
+          </div>
+          <span class="text-[10px] uppercase font-bold text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-full shrink-0">Audio</span>
+        </div>
+      ` : ''}
       <div class="post-caption">
         <span class="caption-user ${usernameClass}" ${userClickAttr}>${displayUser}</span>
-        <span>${post.caption}</span>
+        <span>${cleanCaption || 'Moments ✨'}</span>
       </div>
       <div class="post-comments-link" style="cursor: pointer;" data-post-id="${post.id}">View all ${post.comments_count !== undefined && post.comments_count !== null ? post.comments_count : (post.commentsCount !== undefined && post.commentsCount !== null ? post.commentsCount : 0)} comments</div>
       <div class="post-time">${post.time || '2 HOURS AGO'}</div>
@@ -465,29 +494,39 @@ async function renderHomeFeed() {
       const authorAvatar = profile.avatar_url || p.avatar_url || (isMine ? UserProfileStore.state.avatar : defaultAvatar);
       const stableId = p.id || `post_${p.created_at || idx}`;
 
-      return {
-        id: String(stableId),
-        user_id: p.user_id || '',
-        url: vidUrl,
-        video_url: vidUrl,
-        thumbnail: thumbUrl,
-        thumbnail_url: thumbUrl,
-        profiles: {
-          id: profile.id || p.user_id,
-          username: authorUsername,
-          avatar_url: authorAvatar
-        },
-        author_name: authorUsername,
-        user: authorUsername,
-        avatar: authorAvatar,
-        isCurrentUser: isMine,
-        location: p.location || 'Original Audio',
-        caption: p.caption || 'Flashgram Video Post! ✨ #lifestyle',
-        likesCount: p.likes_count !== undefined && p.likes_count !== null ? p.likes_count : (p.likesCount !== undefined && p.likesCount !== null ? p.likesCount : 0),
-        commentsCount: p.comments_count !== undefined && p.comments_count !== null ? p.comments_count : (p.commentsCount !== undefined && p.commentsCount !== null ? p.commentsCount : 0),
-        time: p.created_at ? 'RECENT' : 'JUST NOW'
-      };
-    });
+        const { caption: userCleanCaption, song: userDecodedSong } = decodePostCaptionAndSong(p.caption || '');
+        const attachedMusic = p.music || userDecodedSong || (p.song_title ? {
+          id: p.song_id || '',
+          title: p.song_title,
+          artist: p.song_artist || 'Artist',
+          audio_url: p.audio_url || '',
+          cover_url: p.song_cover || DEFAULT_MUSIC_COVER
+        } : null);
+
+        return {
+          id: String(stableId),
+          user_id: p.user_id || '',
+          url: vidUrl,
+          video_url: vidUrl,
+          thumbnail: thumbUrl,
+          thumbnail_url: thumbUrl,
+          profiles: {
+            id: profile.id || p.user_id,
+            username: authorUsername,
+            avatar_url: authorAvatar
+          },
+          author_name: authorUsername,
+          user: authorUsername,
+          avatar: authorAvatar,
+          isCurrentUser: isMine,
+          location: p.location || (attachedMusic ? `${attachedMusic.title} • ${attachedMusic.artist}` : 'Original Audio'),
+          caption: userCleanCaption || 'Flashgram Video Post! ✨ #lifestyle',
+          music: attachedMusic,
+          likesCount: p.likes_count !== undefined && p.likes_count !== null ? p.likes_count : (p.likesCount !== undefined && p.likesCount !== null ? p.likesCount : 0),
+          commentsCount: p.comments_count !== undefined && p.comments_count !== null ? p.comments_count : (p.commentsCount !== undefined && p.commentsCount !== null ? p.commentsCount : 0),
+          time: p.created_at ? 'RECENT' : 'JUST NOW'
+        };
+      });
 
     // Clean up any previously playing video decoder instances before clearing container
     pauseAllHomeVideos();
