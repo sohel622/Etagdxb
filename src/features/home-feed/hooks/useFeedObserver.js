@@ -15,8 +15,10 @@ export function createFeedObserver({ container, videoSelector = ".home-video-con
       if (!entry.isIntersecting || entry.intersectionRatio < 0.7) {
         const video = entry.target.querySelector("video");
         if (video) {
-          video.pause();
-          video.muted = true;
+          try {
+            video.pause();
+            video.muted = true;
+          } catch (_) {}
         }
       }
 

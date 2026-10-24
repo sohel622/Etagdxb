@@ -117,6 +117,76 @@ function adaptVideoContainerLayout(container, mediaEl) {
 }
 
 /**
+ * Safe video play handler that tracks the active play promise and catches AbortError/NotAllowedError.
+ * Prevents unhandled rejection crashes when rapid scrolling interrupts video playback.
+ */
+function safePlayVideo(video) {
+  if (!video) return Promise.resolve();
+  try {
+    const playPromise = video.play();
+    if (playPromise !== undefined && typeof playPromise.then === "function") {
+      video._playPromise = playPromise;
+      return playPromise
+        .catch((err) => {
+          // AbortError is expected when rapid scrolling triggers pause() before play() resolves
+          if (err && (err.name === "AbortError" || String(err.message || "").toLowerCase().includes("interrupted"))) {
+            return;
+          }
+          if (err && err.name === "NotAllowedError") {
+            // Autoplay policy: fallback to muted playback
+            video.muted = true;
+            return video.play().catch((mutedErr) => {
+              if (mutedErr && (mutedErr.name === "AbortError" || String(mutedErr.message || "").toLowerCase().includes("interrupted"))) {
+                return;
+              }
+            });
+          }
+        })
+        .finally(() => {
+          if (video._playPromise === playPromise) {
+            video._playPromise = null;
+          }
+        });
+    }
+  } catch (err) {
+    if (err && (err.name === "AbortError" || String(err.message || "").toLowerCase().includes("interrupted"))) {
+      return Promise.resolve();
+    }
+  }
+  return Promise.resolve();
+}
+
+/**
+ * Safe video pause handler that waits for or handles any in-flight play() promise.
+ * Avoids browser AbortError exceptions and guarantees playback is safely halted.
+ */
+function safePauseVideo(video) {
+  if (!video) return;
+  try {
+    if (video._playPromise && typeof video._playPromise.then === "function") {
+      video._playPromise
+        .then(() => {
+          try {
+            video.pause();
+          } catch (_) {}
+        })
+        .catch(() => {
+          try {
+            video.pause();
+          } catch (_) {}
+        });
+    } else {
+      video.pause();
+    }
+    video.muted = true;
+  } catch (err) {
+    if (err && (err.name === "AbortError" || String(err.message || "").toLowerCase().includes("interrupted"))) {
+      return;
+    }
+  }
+}
+
+/**
  * Attaches Video Completion Overlay and action handlers ("Watch again" / "Watch more reels")
  */
 function attachVideoCompletionHandlers(card, videoBox, video) {
@@ -148,9 +218,7 @@ function attachVideoCompletionHandlers(card, videoBox, video) {
   }
 
   const showCompletion = () => {
-    try {
-      video.pause();
-    } catch (_) {}
+    safePauseVideo(video);
     overlay.classList.add("active");
     videoBox.classList.remove("is-playing");
   };
@@ -188,13 +256,12 @@ function attachVideoCompletionHandlers(card, videoBox, video) {
       e.preventDefault();
       e.stopPropagation();
       hideCompletion();
-      video.currentTime = 0;
+      try {
+        video.currentTime = 0;
+      } catch (_) {}
       video.muted = isGlobalAudioMuted ? isGlobalAudioMuted() : false;
-      video.play().then(() => {
+      safePlayVideo(video).then(() => {
         videoBox.classList.add("is-playing");
-      }).catch(() => {
-        video.muted = true;
-        video.play().catch(() => {});
       });
     });
   }
@@ -206,9 +273,7 @@ function attachVideoCompletionHandlers(card, videoBox, video) {
       e.preventDefault();
       e.stopPropagation();
       hideCompletion();
-      try {
-        video.pause();
-      } catch (_) {}
+      safePauseVideo(video);
 
       // Smoothly scroll down to the next post/card
       const parentCard = card || videoBox.closest(".post-card");
@@ -322,7 +387,7 @@ function createPostCardElement(post, index = 0) {
         ${post.carouselItems.map((item, idx) => `
           <div class="post-carousel-item" data-index="${idx}">
             ${item.type === 'video'
-              ? `<video src="${getOptimizedVideoUrl(item.url)}" poster="${item.thumbnail || ''}" class="w-full h-full object-cover" loop muted playsinline></video>`
+              ? `<video src="${getOptimizedVideoUrl(item.url)}" poster="${item.thumbnail || ''}" class="w-full h-full object-cover" loop muted playsinline preload="metadata"></video>`
               : `<img src="${item.url}" alt="Carousel ${idx + 1}" class="w-full h-full object-cover" loading="lazy" />`}
           </div>
         `).join('')}
@@ -349,7 +414,7 @@ function createPostCardElement(post, index = 0) {
           <div class="home-video-skeleton"></div>
           <video
             class="home-post-video-player w-full h-full object-cover"
-            src="${post.video_url || post.media_url || videoSrc}"
+            ${index === 0 ? `src="${post.video_url || post.media_url || videoSrc}"` : ''}
             poster="${post.thumbnail_url || posterImg}"
             playsinline
             muted
@@ -929,12 +994,14 @@ function prependPostToHomeFeed(newPost) {
    ৪. অন-ডিমান্ড ভিডিও মাউন্টিং ও সিঙ্গেল অডিও প্লেব্যাক
    (Enforce Single Active Video & Audio Playback)
 ======================================================= */
-let activePlayingId = null; // Requirement 4: Single active video tracking state
+let activePlayingId = null; // Single active video tracking state
 let homeFeedObserver = null;
 let currentlyPlayingBox = null;
 let currentlyPlayingHomeVideo = null;
 let isScrollScheduled = false;
 let scrollListenerCleanup = null;
+const activeMountedBoxes = new Set();
+const MAX_ACTIVE_VIDEO_ELEMENTS = 2; // Strict limit on mobile devices to prevent GPU decoder crashes
 
 async function mountAndPlayVideo(container) {
   if (!container) return;
@@ -944,27 +1011,41 @@ async function mountAndPlayVideo(container) {
   if (activePlayingId === postId && currentlyPlayingBox === container) {
     const existingVid = container.querySelector("video");
     if (existingVid) {
+      const overlay = container.querySelector(".video-completion-overlay");
+      if (overlay) overlay.classList.remove("active");
       if (existingVid.paused) {
-        existingVid.play().catch(() => {});
+        safePlayVideo(existingVid);
       }
       existingVid.muted = false;
     }
     return;
   }
 
-  // Requirement 4: For all other video posts, force pause and mute immediately
+  // Safely pause and mute all other video posts
   document.querySelectorAll(".home-video-player").forEach(vid => {
-    vid.pause();
-    vid.muted = true;
+    safePauseVideo(vid);
   });
 
-  // Aggressively unmount and flush previous video from memory
+  // Aggressively cleanup previous video decoder if different box
   if (currentlyPlayingBox && currentlyPlayingBox !== container) {
-    unmountAndCleanupVideo(currentlyPlayingBox);
+    unmountAndCleanupVideo(currentlyPlayingBox, false);
   }
 
   activePlayingId = postId;
   currentlyPlayingBox = container;
+
+  // Limit maximum active video elements in the DOM simultaneously to prevent memory exhaustion
+  activeMountedBoxes.add(container);
+  if (activeMountedBoxes.size > MAX_ACTIVE_VIDEO_ELEMENTS) {
+    for (const box of activeMountedBoxes) {
+      if (box !== container) {
+        unmountAndCleanupVideo(box, true);
+        activeMountedBoxes.delete(box);
+        if (activeMountedBoxes.size <= MAX_ACTIVE_VIDEO_ELEMENTS) break;
+      }
+    }
+  }
+
   const videoUrl = container.dataset.videoUrl;
   const posterUrl = container.dataset.posterUrl || (videoUrl ? videoUrl + '#t=0.001' : '');
   if (!videoUrl && !container._postData) return;
@@ -982,7 +1063,7 @@ async function mountAndPlayVideo(container) {
   if (cachedBlobUrl) {
     resolvedVideoSrc = cachedBlobUrl;
   } else if (isOffline()) {
-    // If device is offline and no cached blob exists for that item, show the preview poster thumbnail with a subtle offline badge, without attempting failed network fetch
+    // If device is offline and no cached blob exists for that item, show poster only
     console.log(`[Feed] Post ${postId} not cached and offline. Rendering poster thumbnail only.`);
     let offlineBadge = container.querySelector(".offline-item-badge");
     if (!offlineBadge) {
@@ -1001,27 +1082,20 @@ async function mountAndPlayVideo(container) {
     video = document.createElement("video");
     video.className = "home-post-video-player home-video-player post-video-player w-full h-full object-cover";
     video.loop = false;
-    video.autoplay = true;
     video.playsInline = true;
     video.setAttribute("playsinline", "");
     video.setAttribute("webkit-playsinline", "true");
-    video.setAttribute("autoplay", "");
     video.removeAttribute("loop");
     video.crossOrigin = "anonymous";
     video.setAttribute("crossorigin", "anonymous");
     video.preload = "metadata";
+    video.setAttribute("preload", "metadata");
 
-    // Forces GPU composite layer so Android WebView does not render an empty black surface
+    // Hardware acceleration to offload rendering to the GPU and eliminate stutter
     video.style.transform = "translateZ(0)";
     video.style.webkitTransform = "translateZ(0)";
     video.style.willChange = "transform";
     video.style.backfaceVisibility = "hidden";
-
-    video.onloadeddata = (e) => {
-      if (e.target) {
-        e.target.play().catch(() => {});
-      }
-    };
 
     // Attach poster
     if (posterUrl && !posterUrl.includes(".mp4") && !posterUrl.includes(".webm") && !String(posterUrl).startsWith("blob:")) {
@@ -1042,9 +1116,11 @@ async function mountAndPlayVideo(container) {
     }
 
     container.appendChild(video);
-  } else if (!video.src || video.src === window.location.href) {
+  } else if (!video.src || video.src === window.location.href || !video.getAttribute("src")) {
     video.loop = false;
     video.removeAttribute("loop");
+    video.preload = "metadata";
+    video.setAttribute("preload", "metadata");
     video.src = resolvedVideoSrc;
     video.onloadedmetadata = () => {
       adaptVideoContainerLayout(container, video);
@@ -1079,7 +1155,7 @@ async function mountAndPlayVideo(container) {
     completionOverlay.classList.remove("active");
   }
 
-  // Requirement 4: Strictly guarantee that ONLY the active video post plays audio
+  // Strictly guarantee that ONLY the active video post plays audio
   video.muted = false;
 
   video.onplaying = () => {
@@ -1087,28 +1163,32 @@ async function mountAndPlayVideo(container) {
     currentlyPlayingHomeVideo = video;
   };
 
-  video.play().then(() => {
+  // Safe play handling: catches and ignores AbortError from rapid scrolling
+  safePlayVideo(video).then(() => {
     container.classList.add("is-playing");
     currentlyPlayingHomeVideo = video;
-  }).catch(() => {
-    // If unmuted autoplay blocked by browser policy, fallback to muted
-    video.muted = true;
-    video.play().then(() => {
-      container.classList.add("is-playing");
-      currentlyPlayingHomeVideo = video;
-    }).catch(() => {});
   });
 }
 
-function unmountAndCleanupVideo(container) {
+/**
+ * Robust off-screen cleanup: stops playback, resets time, and releases hardware decoders
+ */
+function unmountAndCleanupVideo(container, shouldReleaseDecoder = false) {
   if (!container) return;
   const video = container.querySelector("video");
   if (video) {
+    safePauseVideo(video);
     try {
-      video.pause();
-      video.muted = true; // Force muted={true}
-    } catch (e) {
-      console.warn("Video cleanup notice:", e);
+      video.currentTime = 0;
+    } catch (_) {}
+
+    // When scrolled out of viewport, completely clear source and call load() to release hardware decoders & RAM
+    if (shouldReleaseDecoder) {
+      try {
+        video.pause();
+        video.removeAttribute("src");
+        video.load(); // Immediately instructs browser engine to free GPU video memory
+      } catch (_) {}
     }
   }
 
@@ -1122,6 +1202,7 @@ function unmountAndCleanupVideo(container) {
   if (currentlyPlayingHomeVideo === video) {
     currentlyPlayingHomeVideo = null;
   }
+  activeMountedBoxes.delete(container);
 }
 
 function setupHomeFeedObserver() {
@@ -1183,7 +1264,7 @@ function setupHomeFeedObserver() {
     } else {
       // If no video post has >= 50% visibility, pause currently playing video
       if (currentlyPlayingBox) {
-        unmountAndCleanupVideo(currentlyPlayingBox);
+        unmountAndCleanupVideo(currentlyPlayingBox, false);
       }
     }
 
@@ -1211,24 +1292,27 @@ function setupHomeFeedObserver() {
     }
   };
 
-  // Robust IntersectionObserver strictly detecting 50% viewport visibility
+  // Robust IntersectionObserver strictly detecting viewport visibility and performing off-screen cleanup
   homeFeedObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       visibilityMap.set(entry.target, entry.isIntersecting ? entry.intersectionRatio : 0);
+
       // Immediately pause and mute outgoing video when dropping below 50% visibility
       if (!entry.isIntersecting || entry.intersectionRatio < 0.5) {
         const v = entry.target.querySelector("video");
         if (v) {
-          try {
-            v.pause();
-            v.muted = true;
-          } catch (_) {}
+          safePauseVideo(v);
         }
         entry.target.classList.remove("is-playing");
-        if (currentlyPlayingBox === entry.target || entry.target.dataset.postId === activePlayingId) {
-          unmountAndCleanupVideo(entry.target);
+
+        // Off-screen cleanup: when scrolled away from viewport, clear source to release RAM and decoders
+        if (!entry.isIntersecting || entry.intersectionRatio < 0.1) {
+          unmountAndCleanupVideo(entry.target, true);
+        } else if (currentlyPlayingBox === entry.target || entry.target.dataset.postId === activePlayingId) {
+          unmountAndCleanupVideo(entry.target, false);
         }
       }
+
       // Immediately stop 30-second audio track if music card drops below 50% visibility
       if (!entry.isIntersecting || entry.intersectionRatio < 0.5) {
         if (audio30sController && entry.target.dataset.postId === audio30sController.currentPostId) {
@@ -1243,13 +1327,13 @@ function setupHomeFeedObserver() {
     }
   }, {
     root: feedScrollContainer || null,
-    threshold: [0, 0.25, 0.5, 0.75, 1.0]
+    threshold: [0, 0.1, 0.25, 0.5, 0.75, 1.0]
   });
 
   videoBoxes.forEach(box => homeFeedObserver.observe(box));
   musicCards.forEach(card => homeFeedObserver.observe(card));
 
-  // Scroll listener for instantaneous response on user touch/drag
+  // Scroll listener for instantaneous response on rapid user touch/drag
   const onHomeScroll = () => {
     if (currentlyPlayingBox) {
       const rect = currentlyPlayingBox.getBoundingClientRect();
@@ -1260,10 +1344,7 @@ function setupHomeFeedObserver() {
       if (ratio < 0.5) {
         const vid = currentlyPlayingBox.querySelector("video");
         if (vid) {
-          try {
-            vid.pause();
-            vid.muted = true;
-          } catch (_) {}
+          safePauseVideo(vid);
         }
         currentlyPlayingBox.classList.remove("is-playing");
       }
@@ -1306,7 +1387,7 @@ function setupHomeFeedObserver() {
 }
 
 /**
- * Clean, non-destructive pause of all home feed videos and music tracks.
+ * Clean, safe pause of all home feed videos and music tracks.
  * Does NOT destroy or remove <video> elements from the DOM.
  */
 function pauseAllHomeVideos() {
@@ -1315,18 +1396,15 @@ function pauseAllHomeVideos() {
     audio30sController.stopPlayback();
   }
   if (currentlyPlayingBox) {
-    unmountAndCleanupVideo(currentlyPlayingBox);
+    unmountAndCleanupVideo(currentlyPlayingBox, false);
   }
 
-  // Gracefully pause and mute all home feed video players without destroying the DOM elements
+  // Gracefully pause and mute all home feed video players with safe promise handling
   document.querySelectorAll(".home-post-video-container, .home-video-container").forEach(box => {
     box.classList.remove("is-playing");
     const v = box.querySelector("video");
     if (v) {
-      try {
-        v.pause();
-        v.muted = true;
-      } catch (_) {}
+      safePauseVideo(v);
     }
   });
 
@@ -1356,10 +1434,7 @@ if (typeof document !== "undefined") {
 if (typeof window !== "undefined") {
   window.addEventListener("blur", () => {
     if (window.activeNavId === "home" && currentlyPlayingHomeVideo) {
-      try {
-        currentlyPlayingHomeVideo.pause();
-        currentlyPlayingHomeVideo.muted = true;
-      } catch (_) {}
+      safePauseVideo(currentlyPlayingHomeVideo);
     }
   });
 

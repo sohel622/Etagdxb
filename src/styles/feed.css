@@ -257,6 +257,11 @@
       margin: 0 !important;
       padding: 0 !important;
       contain: layout paint;
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
+      will-change: transform;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
     }
 
     /* Dynamic aspect ratios matching video source without letterboxing or black gaps */
