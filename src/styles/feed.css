@@ -166,6 +166,11 @@
       border-bottom: 1px solid #f0f0f0;
       margin-bottom: 12px;
       background: #ffffff;
+      contain: layout paint;
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
     }
 
     .post-header {
@@ -295,6 +300,11 @@
       background: #000000;
       margin: 0 !important;
       padding: 0 !important;
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
+      will-change: transform;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
     }
 
     .home-video-poster {
@@ -532,5 +542,139 @@
     .no-scrollbar {
       -ms-overflow-style: none;
       scrollbar-width: none;
+    }
+
+    /* Video Completion Overlay */
+    .video-completion-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 25;
+      background: rgba(0, 0, 0, 0.78);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 20px;
+      text-align: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .video-completion-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .video-completion-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #38bdf8;
+      font-size: 19px;
+      margin-bottom: 10px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+
+    .video-completion-title {
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 14.5px;
+      letter-spacing: -0.01em;
+      margin-bottom: 14px;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    }
+
+    .video-completion-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .btn-watch-again {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 18px;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.16);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      color: #ffffff;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.15s ease, background 0.15s ease;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-watch-again:hover {
+      background: rgba(255, 255, 255, 0.26);
+    }
+
+    .btn-watch-again:active {
+      transform: scale(0.95);
+    }
+
+    .btn-watch-more {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 18px;
+      border-radius: 9999px;
+      background: #0095f6;
+      border: 1px solid transparent;
+      color: #ffffff;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.15s ease, background 0.15s ease;
+      box-shadow: 0 2px 8px rgba(0, 149, 246, 0.4);
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-watch-more:hover {
+      background: #1877f2;
+    }
+
+    .btn-watch-more:active {
+      transform: scale(0.95);
+    }
+
+    /* Feed Batch Loading Spinner Sentinel */
+    .feed-pagination-sentinel {
+      width: 100%;
+      padding: 24px 16px 40px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .feed-spinner-ring {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 2.5px solid rgba(120, 120, 120, 0.2);
+      border-top-color: #0095f6;
+      animation: feedSpin 0.75s linear infinite;
+    }
+
+    @keyframes feedSpin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
 

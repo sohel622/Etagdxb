@@ -116,6 +116,119 @@ function adaptVideoContainerLayout(container, mediaEl) {
   }
 }
 
+/**
+ * Attaches Video Completion Overlay and action handlers ("Watch again" / "Watch more reels")
+ */
+function attachVideoCompletionHandlers(card, videoBox, video) {
+  if (!videoBox || !video) return;
+  if (video._completionAttached) return;
+  video._completionAttached = true;
+
+  let overlay = videoBox.querySelector(".video-completion-overlay");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.className = "video-completion-overlay";
+    overlay.innerHTML = `
+      <div class="video-completion-icon">
+        <i class="fa-solid fa-check"></i>
+      </div>
+      <div class="video-completion-title">Watch completed</div>
+      <div class="video-completion-actions">
+        <button type="button" class="btn-watch-again" title="Replay video">
+          <i class="fa-solid fa-rotate-right"></i>
+          <span>Watch again</span>
+        </button>
+        <button type="button" class="btn-watch-more" title="Watch more reels">
+          <span>Watch more reels</span>
+          <i class="fa-solid fa-arrow-down"></i>
+        </button>
+      </div>
+    `;
+    videoBox.appendChild(overlay);
+  }
+
+  const showCompletion = () => {
+    try {
+      video.pause();
+    } catch (_) {}
+    overlay.classList.add("active");
+    videoBox.classList.remove("is-playing");
+  };
+
+  const hideCompletion = () => {
+    overlay.classList.remove("active");
+  };
+
+  // Strictly disable infinite auto-loop so completion event triggers cleanly
+  video.loop = false;
+  video.removeAttribute("loop");
+
+  video.addEventListener("ended", () => {
+    showCompletion();
+  });
+
+  video.addEventListener("timeupdate", () => {
+    if (video.duration && video.duration > 0 && video.currentTime >= video.duration - 0.25) {
+      if (!overlay.classList.contains("active")) {
+        showCompletion();
+      }
+    }
+  });
+
+  video.addEventListener("playing", () => {
+    if (video.currentTime < (video.duration ? video.duration - 0.5 : 1)) {
+      hideCompletion();
+    }
+  });
+
+  const btnWatchAgain = overlay.querySelector(".btn-watch-again");
+  if (btnWatchAgain && !btnWatchAgain._bound) {
+    btnWatchAgain._bound = true;
+    btnWatchAgain.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      hideCompletion();
+      video.currentTime = 0;
+      video.muted = isGlobalAudioMuted ? isGlobalAudioMuted() : false;
+      video.play().then(() => {
+        videoBox.classList.add("is-playing");
+      }).catch(() => {
+        video.muted = true;
+        video.play().catch(() => {});
+      });
+    });
+  }
+
+  const btnWatchMore = overlay.querySelector(".btn-watch-more");
+  if (btnWatchMore && !btnWatchMore._bound) {
+    btnWatchMore._bound = true;
+    btnWatchMore.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      hideCompletion();
+      try {
+        video.pause();
+      } catch (_) {}
+
+      // Smoothly scroll down to the next post/card
+      const parentCard = card || videoBox.closest(".post-card");
+      const nextCard = parentCard ? parentCard.nextElementSibling : null;
+      if (nextCard && nextCard.classList.contains("post-card")) {
+        nextCard.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else if (typeof loadNextPostBatch === "function") {
+        loadNextPostBatch().then(() => {
+          setTimeout(() => {
+            const updatedNext = parentCard ? parentCard.nextElementSibling : null;
+            if (updatedNext && updatedNext.classList.contains("post-card")) {
+              updatedNext.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+          }, 120);
+        });
+      }
+    });
+  }
+}
+
 /* =======================================================
    ২. পোস্ট কার্ড ক্রিয়েটর (Create Post Card Element)
 ======================================================= */
@@ -240,7 +353,6 @@ function createPostCardElement(post, index = 0) {
             poster="${post.thumbnail_url || posterImg}"
             playsinline
             muted
-            loop
             preload="metadata"
           ></video>
           ${Boolean(post.isOfflineCached) 
@@ -250,6 +362,22 @@ function createPostCardElement(post, index = 0) {
                 : '')}
           <div class="home-play-badge"><i class="fa-solid fa-play ml-0.5"></i></div>
           <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
+          <div class="video-completion-overlay">
+            <div class="video-completion-icon">
+              <i class="fa-solid fa-check"></i>
+            </div>
+            <div class="video-completion-title">Watch completed</div>
+            <div class="video-completion-actions">
+              <button type="button" class="btn-watch-again" title="Replay video">
+                <i class="fa-solid fa-rotate-right"></i>
+                <span>Watch again</span>
+              </button>
+              <button type="button" class="btn-watch-more" title="Watch more reels">
+                <span>Watch more reels</span>
+                <i class="fa-solid fa-arrow-down"></i>
+              </button>
+            </div>
+          </div>
         </div>
       `;
     }
@@ -352,6 +480,8 @@ function createPostCardElement(post, index = 0) {
         author: displayUser,
         caption: cleanCaption || 'Flashgram Video'
       });
+      // Attach video completion overlay and action handlers ("Watch again" / "Watch more reels")
+      attachVideoCompletionHandlers(card, videoBox, vidEl);
     } else if (imgEl) {
       if (imgEl.complete && imgEl.naturalWidth) {
         adaptVideoContainerLayout(videoBox, imgEl);
@@ -364,7 +494,7 @@ function createPostCardElement(post, index = 0) {
 
     // Single tap immediately navigates to the full-screen Reels viewer with this video active
     videoBox.addEventListener("click", (e) => {
-      if (e.target.closest(".video-fullscreen-btn")) {
+      if (e.target.closest(".video-fullscreen-btn") || e.target.closest(".video-completion-overlay")) {
         return;
       }
       e.preventDefault();
@@ -457,9 +587,112 @@ function createPostCardElement(post, index = 0) {
 }
 
 /* =======================================================
-   ৩. হোম ফিড রেন্ডারার ও প্রিপেন্ডার (Feed Renderer & Prepend)
+   ৩. হোম ফিড রেন্ডারার ও ব্যাচ লোডিং পেজিনেশন
+   (Batch Loading Feed Renderer & Pagination Sentinel)
 ======================================================= */
-async function renderHomeFeed() {
+const BATCH_SIZE = 2;
+let allFeedPostsCache = [];
+let currentRenderedCount = 0;
+let isBatchLoading = false;
+let feedPaginationObserver = null;
+
+function setupPaginationSentinel(feedContainer) {
+  if (!feedContainer) return;
+  removePaginationSentinel();
+
+  const sentinel = document.createElement("div");
+  sentinel.id = "feedPaginationSentinel";
+  sentinel.className = "feed-pagination-sentinel";
+  sentinel.innerHTML = `
+    <div class="feed-spinner-ring"></div>
+    <span class="text-[12px] text-neutral-400 font-medium">Loading more posts...</span>
+  `;
+  feedContainer.appendChild(sentinel);
+
+  const homeView = document.getElementById("homeView");
+  const feedScrollContainer = document.getElementById("feedScrollContainer");
+
+  feedPaginationObserver = new IntersectionObserver((entries) => {
+    const entry = entries[0];
+    if (entry && entry.isIntersecting) {
+      if (!isBatchLoading && currentRenderedCount < allFeedPostsCache.length) {
+        loadNextPostBatch();
+      }
+    }
+  }, {
+    root: feedScrollContainer || homeView || null,
+    rootMargin: "250px 0px",
+    threshold: 0.1
+  });
+
+  feedPaginationObserver.observe(sentinel);
+}
+
+function removePaginationSentinel() {
+  if (feedPaginationObserver) {
+    feedPaginationObserver.disconnect();
+    feedPaginationObserver = null;
+  }
+  const sentinel = document.getElementById("feedPaginationSentinel");
+  if (sentinel) {
+    sentinel.remove();
+  }
+}
+
+async function loadNextPostBatch() {
+  if (isBatchLoading) return;
+  if (currentRenderedCount >= allFeedPostsCache.length) {
+    removePaginationSentinel();
+    return;
+  }
+
+  isBatchLoading = true;
+  const feedContainer = document.getElementById("feedContainer");
+  const sentinel = document.getElementById("feedPaginationSentinel");
+  if (!feedContainer) {
+    isBatchLoading = false;
+    return;
+  }
+
+  // Artificial mini-delay so the spinning loader icon is smoothly visible
+  await new Promise(r => setTimeout(r, 220));
+
+  const nextBatch = allFeedPostsCache.slice(currentRenderedCount, currentRenderedCount + BATCH_SIZE);
+  const newCards = [];
+
+  nextBatch.forEach((post, i) => {
+    try {
+      const card = createPostCardElement(post, currentRenderedCount + i);
+      if (sentinel && sentinel.parentNode === feedContainer) {
+        feedContainer.insertBefore(card, sentinel);
+      } else {
+        feedContainer.appendChild(card);
+      }
+      newCards.push(card);
+    } catch (err) {
+      console.warn("[Feed] Error rendering batched post:", err);
+    }
+  });
+
+  currentRenderedCount += nextBatch.length;
+
+  // Add new video boxes to existing homeFeedObserver
+  if (homeFeedObserver) {
+    newCards.forEach(c => {
+      const vb = c.querySelector(".home-video-container");
+      if (vb) homeFeedObserver.observe(vb);
+      if (c.dataset.hasMusic === "true") homeFeedObserver.observe(c);
+    });
+  }
+
+  if (currentRenderedCount >= allFeedPostsCache.length) {
+    removePaginationSentinel();
+  }
+
+  isBatchLoading = false;
+}
+
+async function renderHomeFeed(forceRefresh = false) {
   const feedContainer = document.getElementById("feedContainer");
   if (!feedContainer) return;
 
@@ -469,80 +702,81 @@ async function renderHomeFeed() {
       localStorage.removeItem("cached_posts");
     } catch (_) {}
 
-    console.log("[Feed] Fetching posts for Home Feed...");
-    let livePosts = null;
     let isOfflineFeedMode = isOffline();
 
-    // 1. If device is offline, retrieve fully-watched posts from offline_watched_posts
-    if (isOfflineFeedMode) {
-      console.log("[Feed] Offline status detected. Loading cached watched posts from offline_watched_posts...");
-      const offlinePosts = await getOfflineWatchedPosts();
-      if (offlinePosts && offlinePosts.length > 0) {
-        livePosts = offlinePosts.map(p => ({ ...p, isOfflineCached: true }));
+    // In-memory query caching: Only fetch from Supabase if cache is empty or forceRefresh is true
+    if (forceRefresh || allFeedPostsCache.length === 0) {
+      console.log("[Feed] Fetching posts for Home Feed from source...");
+      let livePosts = null;
+
+      // 1. If device is offline, retrieve fully-watched posts from offline_watched_posts
+      if (isOfflineFeedMode) {
+        console.log("[Feed] Offline status detected. Loading cached watched posts from offline_watched_posts...");
+        const offlinePosts = await getOfflineWatchedPosts();
+        if (offlinePosts && offlinePosts.length > 0) {
+          livePosts = offlinePosts.map(p => ({ ...p, isOfflineCached: true }));
+        }
       }
-    }
 
-    if (!livePosts && !isOfflineFeedMode && !isOffline()) {
-      try {
-        console.log("[Feed] Loading live posts with author profiles mapping via fetchSupabasePosts...");
-        livePosts = await fetchSupabasePosts();
-      } catch (qErr) {
-        console.warn("[Feed] Supabase posts query exception:", qErr);
+      if (!livePosts && !isOfflineFeedMode && !isOffline()) {
+        try {
+          console.log("[Feed] Loading live posts with author profiles mapping via fetchSupabasePosts...");
+          livePosts = await fetchSupabasePosts();
+        } catch (qErr) {
+          console.warn("[Feed] Supabase posts query exception:", qErr);
+        }
       }
-    }
 
-    if (!livePosts || livePosts.length === 0) {
-      // Fallback to offline watched posts if network returned zero posts or device lost connection
-      const offlinePosts = await getOfflineWatchedPosts();
-      if (offlinePosts && offlinePosts.length > 0) {
-        livePosts = offlinePosts.map(p => ({ ...p, isOfflineCached: true }));
-        isOfflineFeedMode = true;
+      if (!livePosts || livePosts.length === 0) {
+        // Fallback to offline watched posts if network returned zero posts or device lost connection
+        const offlinePosts = await getOfflineWatchedPosts();
+        if (offlinePosts && offlinePosts.length > 0) {
+          livePosts = offlinePosts.map(p => ({ ...p, isOfflineCached: true }));
+          isOfflineFeedMode = true;
+        }
       }
-    }
 
-    // Default welcome fallback post if database is brand new, empty, or RLS blocked
-    if ((!livePosts || livePosts.length === 0) && !isOffline() && !isOfflineFeedMode) {
-      console.log("[Feed] Supplying default Shabnam AI welcome post fallback to prevent broken feed view.");
-      livePosts = [{
-        id: "shabnam_reel_1",
-        user_id: "shabnam_ai",
-        url: SHABNAM_AI_PROFILE.videoUrl,
-        video_url: SHABNAM_AI_PROFILE.videoUrl,
-        media_url: SHABNAM_AI_PROFILE.videoUrl,
-        thumbnail_url: "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png",
-        caption: SHABNAM_AI_PROFILE.caption,
-        profiles: {
-          id: "shabnam_ai",
-          username: "shabnam_ai",
-          avatar_url: SHABNAM_AI_PROFILE.avatar
-        },
-        author_name: "shabnam_ai",
-        user: "shabnam_ai",
-        avatar: SHABNAM_AI_PROFILE.avatar,
-        likes_count: 14200,
-        comments_count: 184,
-        time: "RECENT"
-      }];
-    }
+      // Default welcome fallback post if database is brand new, empty, or RLS blocked
+      if ((!livePosts || livePosts.length === 0) && !isOffline() && !isOfflineFeedMode) {
+        console.log("[Feed] Supplying default Shabnam AI welcome post fallback to prevent broken feed view.");
+        livePosts = [{
+          id: "shabnam_reel_1",
+          user_id: "shabnam_ai",
+          url: SHABNAM_AI_PROFILE.videoUrl,
+          video_url: SHABNAM_AI_PROFILE.videoUrl,
+          media_url: SHABNAM_AI_PROFILE.videoUrl,
+          thumbnail_url: "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png",
+          caption: SHABNAM_AI_PROFILE.caption,
+          profiles: {
+            id: "shabnam_ai",
+            username: "shabnam_ai",
+            avatar_url: SHABNAM_AI_PROFILE.avatar
+          },
+          author_name: "shabnam_ai",
+          user: "shabnam_ai",
+          avatar: SHABNAM_AI_PROFILE.avatar,
+          likes_count: 14200,
+          comments_count: 184,
+          time: "RECENT"
+        }];
+      }
 
-    console.log(`[Feed] Total posts ready to render: ${livePosts ? livePosts.length : 0} (Offline: ${isOfflineFeedMode})`);
+      const defaultAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
+      const currentUserId = typeof getCurrentUserId === "function" ? getCurrentUserId() : null;
 
-    const defaultAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
-    const currentUserId = typeof getCurrentUserId === "function" ? getCurrentUserId() : null;
+      const formattedUserPosts = (livePosts || []).map((p, idx) => {
+        const rawVidUrl = p.video_url || p.url || '';
+        const vidUrl = getOptimizedVideoUrl(rawVidUrl);
+        const thumbUrl = p.thumbnail_url || (rawVidUrl ? deriveCloudinaryThumbnailUrl(rawVidUrl) : '');
+        const profile = (Array.isArray(p.profiles) ? p.profiles[0] : p.profiles) || {};
+        
+        const isMine = Boolean(
+          p.user_id && currentUserId && String(p.user_id) === String(currentUserId)
+        );
 
-    const formattedUserPosts = (livePosts || []).map((p, idx) => {
-      const rawVidUrl = p.video_url || p.url || '';
-      const vidUrl = getOptimizedVideoUrl(rawVidUrl);
-      const thumbUrl = p.thumbnail_url || (rawVidUrl ? deriveCloudinaryThumbnailUrl(rawVidUrl) : '');
-      const profile = (Array.isArray(p.profiles) ? p.profiles[0] : p.profiles) || {};
-      
-      const isMine = Boolean(
-        p.user_id && currentUserId && String(p.user_id) === String(currentUserId)
-      );
-
-      const authorUsername = profile.username || profile.display_name || p.author_name || (isMine ? UserProfileStore.state.username : 'creator');
-      const authorAvatar = profile.avatar_url || p.avatar_url || (isMine ? UserProfileStore.state.avatar : defaultAvatar);
-      const stableId = p.id || `post_${p.created_at || idx}`;
+        const authorUsername = profile.username || profile.display_name || p.author_name || (isMine ? UserProfileStore.state.username : 'creator');
+        const authorAvatar = profile.avatar_url || p.avatar_url || (isMine ? UserProfileStore.state.avatar : defaultAvatar);
+        const stableId = p.id || `post_${p.created_at || idx}`;
 
         const { caption: userCleanCaption, song: userDecodedSong } = decodePostCaptionAndSong(p.caption || '');
         const attachedMusic = p.music || userDecodedSong || (p.song_title ? {
@@ -578,26 +812,30 @@ async function renderHomeFeed() {
         };
       });
 
+      allFeedPostsCache = [...inMemoryLocalPosts, ...formattedUserPosts];
+    }
+
+    console.log(`[Feed] Total cached posts ready: ${allFeedPostsCache.length} (Offline: ${isOfflineFeedMode})`);
+
     // Clean up any previously playing video decoder instances before clearing container
     pauseAllHomeVideos();
     feedContainer.innerHTML = "";
+    currentRenderedCount = 0;
 
-    if (isOfflineFeedMode && formattedUserPosts.length > 0) {
+    if (isOfflineFeedMode && allFeedPostsCache.length > 0) {
       const offlineBanner = document.createElement("div");
       offlineBanner.className = "offline-feed-banner mx-3.5 my-3 px-3.5 py-2.5 rounded-xl bg-neutral-100/90 dark:bg-neutral-900/90 border border-neutral-200/80 dark:border-neutral-800 flex items-center justify-between text-[12px] select-none shadow-sm";
       offlineBanner.innerHTML = `
         <div class="flex items-center gap-2.5 text-neutral-800 dark:text-neutral-200 min-w-0">
           <i class="fa-solid fa-cloud-arrow-down text-sky-500 text-sm shrink-0"></i>
-          <span class="truncate">Offline Mode • <strong>${formattedUserPosts.length}</strong> saved posts ready</span>
+          <span class="truncate">Offline Mode • <strong>${allFeedPostsCache.length}</strong> saved posts ready</span>
         </div>
         <span class="shrink-0 text-[10px] font-bold text-sky-600 dark:text-sky-400 bg-sky-500/10 dark:bg-sky-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Cached</span>
       `;
       feedContainer.appendChild(offlineBanner);
     }
 
-    const allPostsToRender = [...inMemoryLocalPosts, ...formattedUserPosts];
-
-    if (allPostsToRender.length === 0) {
+    if (allFeedPostsCache.length === 0) {
       if (isOffline() || isOfflineFeedMode) {
         feedContainer.innerHTML = `
           <div style="padding: 60px 24px; text-align: center; color: #8e8e8e;">
@@ -623,7 +861,9 @@ async function renderHomeFeed() {
       return;
     }
 
-    allPostsToRender.forEach((post, index) => {
+    // Batch Loading: Strictly load only 2 posts at a time into the DOM to keep memory usage low
+    const initialBatch = allFeedPostsCache.slice(0, BATCH_SIZE);
+    initialBatch.forEach((post, index) => {
       try {
         const card = createPostCardElement(post, index);
         feedContainer.appendChild(card);
@@ -632,7 +872,16 @@ async function renderHomeFeed() {
       }
     });
 
-    // Initialize observation with 0.7 threshold & single audio enforcement
+    currentRenderedCount = initialBatch.length;
+
+    // Display circular spinner loading sentinel at the bottom if more posts exist
+    if (currentRenderedCount < allFeedPostsCache.length) {
+      setupPaginationSentinel(feedContainer);
+    } else {
+      removePaginationSentinel();
+    }
+
+    // Initialize observation with 0.5 threshold & single audio enforcement
     setupHomeFeedObserver();
   } catch (err) {
     renderFeedErrorBoundary(feedContainer, err);
@@ -650,6 +899,9 @@ function prependPostToHomeFeed(newPost) {
   }
 
   try {
+    allFeedPostsCache.unshift(newPost);
+    currentRenderedCount++;
+
     const card = createPostCardElement(newPost, 0);
     if (card) {
       if (feedContainer.firstChild) {
@@ -669,7 +921,7 @@ function prependPostToHomeFeed(newPost) {
     }
   } catch (e) {
     console.warn("Error prepending post to feed:", e);
-    renderHomeFeed();
+    renderHomeFeed(true);
   }
 }
 
@@ -748,13 +1000,13 @@ async function mountAndPlayVideo(container) {
   if (!video) {
     video = document.createElement("video");
     video.className = "home-post-video-player home-video-player post-video-player w-full h-full object-cover";
-    video.loop = true;
+    video.loop = false;
     video.autoplay = true;
     video.playsInline = true;
     video.setAttribute("playsinline", "");
     video.setAttribute("webkit-playsinline", "true");
     video.setAttribute("autoplay", "");
-    video.setAttribute("loop", "");
+    video.removeAttribute("loop");
     video.crossOrigin = "anonymous";
     video.setAttribute("crossorigin", "anonymous");
     video.preload = "metadata";
@@ -763,6 +1015,7 @@ async function mountAndPlayVideo(container) {
     video.style.transform = "translateZ(0)";
     video.style.webkitTransform = "translateZ(0)";
     video.style.willChange = "transform";
+    video.style.backfaceVisibility = "hidden";
 
     video.onloadeddata = (e) => {
       if (e.target) {
@@ -790,6 +1043,8 @@ async function mountAndPlayVideo(container) {
 
     container.appendChild(video);
   } else if (!video.src || video.src === window.location.href) {
+    video.loop = false;
+    video.removeAttribute("loop");
     video.src = resolvedVideoSrc;
     video.onloadedmetadata = () => {
       adaptVideoContainerLayout(container, video);
@@ -798,6 +1053,8 @@ async function mountAndPlayVideo(container) {
       adaptVideoContainerLayout(container, video);
     }
   } else {
+    video.loop = false;
+    video.removeAttribute("loop");
     if (video.readyState >= 1) {
       adaptVideoContainerLayout(container, video);
     } else {
@@ -812,6 +1069,15 @@ async function mountAndPlayVideo(container) {
     author: container._postData?.author_name || container._postData?.user || "creator",
     caption: container._postData?.caption || ""
   });
+
+  // Attach Video Completion Overlay & Handlers
+  attachVideoCompletionHandlers(container.closest(".post-card"), container, video);
+
+  // Hide completion overlay if active when starting playback
+  const completionOverlay = container.querySelector(".video-completion-overlay");
+  if (completionOverlay) {
+    completionOverlay.classList.remove("active");
+  }
 
   // Requirement 4: Strictly guarantee that ONLY the active video post plays audio
   video.muted = false;
@@ -1101,9 +1367,17 @@ if (typeof window !== "undefined") {
   window.setupHomeFeedObserver = setupHomeFeedObserver;
   window.pauseAllHomeVideos = pauseAllHomeVideos;
   window.prependPostToHomeFeed = prependPostToHomeFeed;
+  window.loadNextPostBatch = loadNextPostBatch;
 }
 
-export { renderHomeFeed, setupHomeFeedObserver, pauseAllHomeVideos, prependPostToHomeFeed };
+export {
+  renderHomeFeed,
+  setupHomeFeedObserver,
+  pauseAllHomeVideos,
+  prependPostToHomeFeed,
+  loadNextPostBatch,
+  allFeedPostsCache
+};
 
 
 
