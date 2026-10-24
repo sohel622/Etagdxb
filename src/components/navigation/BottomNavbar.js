@@ -585,11 +585,11 @@ function switchTab(tabId, btnElement) {
       hideTopNavbar();
     }
   } else {
-    // Immediately pause all home feed videos whenever navigating away from home
+    // Immediately pause all home feed videos and release hardware decoders/blob URLs whenever navigating away from home
     if (typeof pauseAllHomeVideos === "function") {
-      pauseAllHomeVideos();
+      pauseAllHomeVideos(true);
     } else if (typeof window !== "undefined" && typeof window.pauseAllHomeVideos === "function") {
-      window.pauseAllHomeVideos();
+      window.pauseAllHomeVideos(true);
     }
   }
 

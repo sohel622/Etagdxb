@@ -168,7 +168,7 @@
         <section class="stories-container" style="border: none !important; border-bottom: none !important; box-shadow: none !important;">
           <div class="story-item" onclick="openMediaCreationPrompt()" title="Add to your story">
             <div class="story-avatar-wrapper story-ring-wrapper my-story" id="myStoryAvatarWrapper">
-              <img id="myStoryAvatarImg" class="current-user-avatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" alt="Your story" onerror="this.style.display='none'; document.getElementById('myStoryUserIcon').style.display='block';" />
+              <img id="myStoryAvatarImg" class="current-user-avatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" alt="Your story" loading="lazy" decoding="async" onerror="this.style.display='none'; document.getElementById('myStoryUserIcon').style.display='block';" />
               <i class="fa-solid fa-user user-icon" id="myStoryUserIcon" style="display: none;"></i>
               <div class="add-badge"><i class="fa-solid fa-plus"></i></div>
             </div>
@@ -176,7 +176,7 @@
           </div>
           <div class="story-item" onclick="if (typeof openProfile === 'function') openProfile('shabnam_ai'); else if (window.openProfile) window.openProfile('shabnam_ai');" title="Shabnam AI">
             <div class="story-avatar-wrapper story-ring-wrapper active-ring" style="background: linear-gradient(45deg, #00c6ff, #0072ff, #a855f7);">
-              <img src="https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png" alt="shabnam_ai" />
+              <img src="https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png" alt="shabnam_ai" loading="lazy" decoding="async" />
             </div>
             <span class="story-name">shabnam_ai ✨</span>
           </div>
@@ -184,7 +184,7 @@
 
         <!-- Instagram-Style In-Feed Upload Banner (Directly underneath Stories tray) -->
         <div id="homeUploadProgressBanner" class="in-feed-upload-banner hidden transition-all duration-300 ease-out overflow-hidden select-none">
-          <img id="uploadBannerThumb" class="upload-thumbnail-mini" src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100" alt="Thumbnail" />
+          <img id="uploadBannerThumb" class="upload-thumbnail-mini" src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&q=80" alt="Thumbnail" loading="lazy" decoding="async" />
           <div class="upload-progress-container">
             <div class="flex items-center justify-between text-xs text-neutral-900 dark:text-neutral-100">
               <span id="uploadBannerStatusTitle" class="font-semibold truncate text-[13px]">Posting...</span>

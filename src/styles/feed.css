@@ -167,6 +167,8 @@
       margin-bottom: 12px;
       background: #ffffff;
       contain: layout paint;
+      content-visibility: auto;
+      contain-intrinsic-size: 1px 540px;
       transform: translateZ(0);
       -webkit-transform: translateZ(0);
       backface-visibility: hidden;

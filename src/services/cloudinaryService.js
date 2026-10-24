@@ -57,13 +57,57 @@ export function getOptimizedVideoUrl(url) {
 }
 
 /**
- * Derive high-quality poster frame URL from Cloudinary video URL
- * Replaces video extension (.mp4, .webm, etc.) with .jpg
+ * Optimize image URLs for Cloudinary, Supabase Storage, and Unsplash to reduce RAM usage and prevent APK crashes.
+ * Enforces width caps and automatic format/quality compression (w_720,q_auto,f_auto).
+ * @param {string} url - Original image URL
+ * @param {number} maxWidth - Maximum image width in pixels (default: 720, or 120 for avatars)
+ * @returns {string} - Memory-optimized image URL
+ */
+export function getOptimizedImageUrl(url, maxWidth = 720) {
+  if (!url || typeof url !== "string") return url || "";
+  if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+
+  // Cloudinary image transformation
+  if (url.includes("cloudinary.com") && url.includes("/upload/")) {
+    if (url.includes(`/upload/w_`) || url.includes(`/upload/c_`) || url.includes(`/upload/q_`)) {
+      return url;
+    }
+    return url.replace("/upload/", `/upload/w_${maxWidth},c_limit,q_auto,f_auto/`);
+  }
+
+  // Supabase Storage render transformation
+  if (url.includes("supabase.co/storage/v1/")) {
+    if (url.includes("/object/public/")) {
+      const renderUrl = url.replace("/object/public/", "/render/image/public/");
+      const separator = renderUrl.includes("?") ? "&" : "?";
+      return `${renderUrl}${separator}width=${maxWidth}&quality=80`;
+    }
+  }
+
+  // Unsplash image dimension capping
+  if (url.includes("images.unsplash.com")) {
+    try {
+      const parsed = new URL(url);
+      parsed.searchParams.set("w", String(maxWidth));
+      parsed.searchParams.set("q", "80");
+      parsed.searchParams.set("auto", "format");
+      return parsed.toString();
+    } catch (_) {
+      return url;
+    }
+  }
+
+  return url;
+}
+
+/**
+ * Derive high-quality, memory-efficient poster frame URL from Cloudinary video URL
+ * Replaces video extension (.mp4, .webm, etc.) with .jpg and injects optimization params
  */
 export function deriveCloudinaryThumbnailUrl(secureUrl) {
   if (!secureUrl || typeof secureUrl !== "string") return "";
-  // Ensure we get a crisp first-frame JPG snapshot
-  return secureUrl.replace(/\.[^/.]+$/, ".jpg");
+  const jpgUrl = secureUrl.replace(/\.[^/.]+$/, ".jpg");
+  return getOptimizedImageUrl(jpgUrl, 720);
 }
 
 function singleCloudinaryUpload(file, resourceType, preset, onProgress) {

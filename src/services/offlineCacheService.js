@@ -381,6 +381,32 @@ export async function getCachedVideoBlobUrl(reelId) {
 }
 
 /**
+ * Release and revoke a specific cached blob URL from memory
+ */
+export function releaseCachedVideoBlobUrl(reelId) {
+  if (!reelId) return;
+  const id = String(reelId);
+  if (activeObjectUrls.has(id)) {
+    try {
+      URL.revokeObjectURL(activeObjectUrls.get(id));
+    } catch (_) {}
+    activeObjectUrls.delete(id);
+  }
+}
+
+/**
+ * Release and revoke all active video object URLs to immediately free WebView RAM
+ */
+export function clearAllActiveObjectUrls() {
+  activeObjectUrls.forEach((url) => {
+    try {
+      URL.revokeObjectURL(url);
+    } catch (_) {}
+  });
+  activeObjectUrls.clear();
+}
+
+/**
  * Video Source Resolver:
  * Returns the local blob URL if cached, or fallback URL / offline placeholder
  */

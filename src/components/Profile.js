@@ -6,7 +6,7 @@ import { switchTab, activeNavId } from "./BottomNavigation.js";
 import { openShabnamChat } from "./ShabnamAI.js";
 import { playShabnamReelVideo, navigateToReel } from "./ReelsViewer.js";
 import { openEditProfileScreen, openMediaCreationPrompt } from "./Modals.js";
-import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl, getOptimizedVideoUrl } from "../services/cloudinaryService.js";
+import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl, getOptimizedVideoUrl, getOptimizedImageUrl } from "../services/cloudinaryService.js";
 import { supabase } from "../supabaseClient.js";
 import { getCurrentUserId, toValidUUID } from "../services/avatarService.js";
 import { isFollowingUser, toggleFollowUser } from "../services/followService.js";
@@ -786,8 +786,8 @@ window.addEventListener("popstate", (e) => {
           el.className = "profile-grid-item";
           el.innerHTML = `
             ${item.isVideo 
-              ? `<video src="${item.videoSrc}" poster="${item.poster || ''}" style="width:100%; height:100%; object-fit:cover;" muted preload="metadata" playsinline></video>`
-              : `<img src="${item.poster || item.videoSrc}" style="width:100%; height:100%; object-fit:cover;" alt="Grid post" />`}
+              ? `<video src="${item.videoSrc}" poster="${getOptimizedImageUrl(item.poster || '', 400)}" style="width:100%; height:100%; object-fit:cover;" muted preload="metadata" playsinline></video>`
+              : `<img src="${getOptimizedImageUrl(item.poster || item.videoSrc, 400)}" style="width:100%; height:100%; object-fit:cover;" alt="Grid post" loading="lazy" decoding="async" />`}
             ${item.badge ? `<div class="profile-grid-badge">${item.badge}</div>` : ''}
             <div class="profile-grid-overlay">
               <span><i class="fa-solid fa-heart"></i> ${item.likes}</span>
@@ -1259,8 +1259,8 @@ export function openProfilePostModal(post) {
         ${post.carouselItems.map((item, idx) => `
           <div class="post-carousel-item" data-index="${idx}">
             ${item.type === 'video'
-              ? `<video src="${getOptimizedVideoUrl(item.url)}" poster="${item.thumbnail || ''}" class="w-full h-full object-cover" loop muted playsinline autoplay></video>`
-              : `<img src="${item.url}" alt="Carousel item ${idx + 1}" class="w-full h-full object-cover" />`}
+              ? `<video src="${getOptimizedVideoUrl(item.url)}" poster="${getOptimizedImageUrl(item.thumbnail || '', 720)}" class="w-full h-full object-cover" loop muted playsinline autoplay></video>`
+              : `<img src="${getOptimizedImageUrl(item.url, 720)}" alt="Carousel item ${idx + 1}" class="w-full h-full object-cover" loading="lazy" decoding="async" />`}
           </div>
         `).join('')}
       </div>
@@ -1271,13 +1271,13 @@ export function openProfilePostModal(post) {
   } else if (post.video_url || (post.url && (post.url.includes('.mp4') || post.url.includes('.webm')))) {
     mediaHtml = `
       <div class="relative w-full aspect-[4/5] bg-black flex items-center justify-center overflow-hidden">
-        <video src="${getOptimizedVideoUrl(post.video_url || post.url)}" poster="${post.thumbnail_url || ''}" class="w-full h-full object-contain" autoplay loop muted playsinline></video>
+        <video src="${getOptimizedVideoUrl(post.video_url || post.url)}" poster="${getOptimizedImageUrl(post.thumbnail_url || '', 720)}" class="w-full h-full object-contain" autoplay loop muted playsinline></video>
       </div>
     `;
   } else {
     mediaHtml = `
       <div class="relative w-full aspect-[4/5] bg-black flex items-center justify-center overflow-hidden">
-        <img src="${post.url || post.thumbnail_url || post.thumbnail}" class="w-full h-full object-cover" alt="Post" />
+        <img src="${getOptimizedImageUrl(post.url || post.thumbnail_url || post.thumbnail, 720)}" class="w-full h-full object-cover" alt="Post" loading="lazy" decoding="async" />
       </div>
     `;
   }
@@ -1296,7 +1296,7 @@ export function openProfilePostModal(post) {
     <div class="profile-post-modal-card" data-post-id="${post.id}">
       <div class="profile-post-modal-header">
         <div class="flex items-center gap-2.5">
-          <img src="${authorAvatar}" class="w-8 h-8 rounded-full object-cover border border-white/20" alt="${authorName}" />
+          <img src="${getOptimizedImageUrl(authorAvatar, 120)}" class="w-8 h-8 rounded-full object-cover border border-white/20" alt="${authorName}" loading="lazy" decoding="async" />
           <div>
             <div class="font-bold text-[13px] leading-tight text-white">${authorName}</div>
             <div class="text-[11px] text-neutral-400 leading-tight">${post.location || 'Original Audio'}</div>

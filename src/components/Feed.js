@@ -7,7 +7,7 @@ import { openMyProfileTab, navigateToReel } from "./ReelsViewer.js";
 import { openReelsCommentsSheet, openReelsShareSheet, getStoredComments, openPostOptionsSheet } from "./reels/index.js";
 import { openProfile } from "./Profile.js";
 import { renderSuggestedReels } from "./SuggestedReels.js";
-import { deriveCloudinaryThumbnailUrl, fetchSupabasePosts, getOptimizedVideoUrl } from "../services/cloudinaryService.js";
+import { deriveCloudinaryThumbnailUrl, fetchSupabasePosts, getOptimizedVideoUrl, getOptimizedImageUrl } from "../services/cloudinaryService.js";
 import { isFollowingUser, toggleFollowUser } from "../services/followService.js";
 import { getCurrentUserId } from "../services/avatarService.js";
 import { supabase } from "../supabaseClient.js";
@@ -15,7 +15,9 @@ import {
   getCachedVideoBlobUrl,
   getOfflineWatchedPosts,
   isOffline,
-  trackVideoProgressForCaching
+  trackVideoProgressForCaching,
+  releaseCachedVideoBlobUrl,
+  clearAllActiveObjectUrls
 } from "../services/offlineCacheService.js";
 import { audio30sController } from "../utils/audioCatalog.js";
 import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer.js";
@@ -60,32 +62,27 @@ function renderFeedErrorBoundary(container, error) {
 
 // Requirement 2: Generate or attach automatic thumbnail image without broken video URL
 function getPostThumbnail(post) {
+  let thumb = "";
   if (post.thumbnail_url && !post.thumbnail_url.includes(".mp4") && !post.thumbnail_url.includes(".webm") && !String(post.thumbnail_url).startsWith("blob:")) {
-    return post.thumbnail_url;
+    thumb = post.thumbnail_url;
+  } else if (post.video_url && typeof post.video_url === 'string' && !String(post.video_url).startsWith("blob:")) {
+    thumb = post.video_url.includes("cloudinary.com") ? deriveCloudinaryThumbnailUrl(post.video_url) : post.video_url.replace(/\.[^/.]+$/, ".jpg");
+  } else if (post.media_url && typeof post.media_url === 'string' && !String(post.media_url).startsWith("blob:")) {
+    thumb = post.media_url.includes("cloudinary.com") ? deriveCloudinaryThumbnailUrl(post.media_url) : post.media_url.replace(/\.[^/.]+$/, ".jpg");
+  } else if (post.url && typeof post.url === 'string' && !String(post.url).startsWith("blob:")) {
+    thumb = post.url.includes("cloudinary.com") ? deriveCloudinaryThumbnailUrl(post.url) : post.url.replace(/\.[^/.]+$/, ".jpg");
+  } else if (post.thumbnail && !post.thumbnail.includes(".mp4") && !post.thumbnail.includes(".webm") && !String(post.thumbnail).startsWith("blob:")) {
+    thumb = post.thumbnail;
+  } else if (post.poster && !post.poster.includes(".mp4") && !post.poster.includes(".webm") && !String(post.poster).startsWith("blob:")) {
+    thumb = post.poster;
+  } else if (post.id === 'sample_1') {
+    thumb = "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80";
+  } else if (post.id === 'shabnam_reel_1') {
+    thumb = "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png";
+  } else {
+    thumb = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80";
   }
-  if (post.video_url && typeof post.video_url === 'string' && !String(post.video_url).startsWith("blob:")) {
-    return post.video_url.includes("cloudinary.com") ? deriveCloudinaryThumbnailUrl(post.video_url) : post.video_url.replace(/\.[^/.]+$/, ".jpg");
-  }
-  if (post.media_url && typeof post.media_url === 'string' && !String(post.media_url).startsWith("blob:")) {
-    return post.media_url.includes("cloudinary.com") ? deriveCloudinaryThumbnailUrl(post.media_url) : post.media_url.replace(/\.[^/.]+$/, ".jpg");
-  }
-  if (post.url && typeof post.url === 'string' && !String(post.url).startsWith("blob:")) {
-    return post.url.includes("cloudinary.com") ? deriveCloudinaryThumbnailUrl(post.url) : post.url.replace(/\.[^/.]+$/, ".jpg");
-  }
-  if (post.thumbnail && !post.thumbnail.includes(".mp4") && !post.thumbnail.includes(".webm") && !String(post.thumbnail).startsWith("blob:")) {
-    return post.thumbnail;
-  }
-  if (post.poster && !post.poster.includes(".mp4") && !post.poster.includes(".webm") && !String(post.poster).startsWith("blob:")) {
-    return post.poster;
-  }
-  if (post.id === 'sample_1') {
-    return "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80";
-  }
-  if (post.id === 'shabnam_reel_1') {
-    return "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png";
-  }
-  // High quality fallback cover for uploaded videos without a separate static cover image
-  return "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80";
+  return getOptimizedImageUrl(thumb, 720);
 }
 
 /**
@@ -387,8 +384,8 @@ function createPostCardElement(post, index = 0) {
         ${post.carouselItems.map((item, idx) => `
           <div class="post-carousel-item" data-index="${idx}">
             ${item.type === 'video'
-              ? `<video src="${getOptimizedVideoUrl(item.url)}" poster="${item.thumbnail || ''}" class="w-full h-full object-cover" loop muted playsinline preload="metadata"></video>`
-              : `<img src="${item.url}" alt="Carousel ${idx + 1}" class="w-full h-full object-cover" loading="lazy" />`}
+              ? `<video src="${getOptimizedVideoUrl(item.url)}" poster="${getOptimizedImageUrl(item.thumbnail || '', 720)}" class="w-full h-full object-cover" loop muted playsinline preload="metadata"></video>`
+              : `<img src="${getOptimizedImageUrl(item.url, 720)}" alt="Carousel ${idx + 1}" class="w-full h-full object-cover" loading="lazy" decoding="async" />`}
           </div>
         `).join('')}
       </div>
@@ -405,7 +402,7 @@ function createPostCardElement(post, index = 0) {
     if (isPhoto) {
       mediaMarkup = `
         <div class="home-post-video-container home-video-container post-video-container relative" data-post-id="${post.id}" style="cursor: pointer;">
-          <img class="home-post-video-player w-full h-full object-cover" src="${videoSrc || posterImg}" alt="${displayUser} photo" loading="lazy" />
+          <img class="home-post-video-player w-full h-full object-cover" src="${getOptimizedImageUrl(videoSrc || posterImg, 720)}" alt="${displayUser} photo" loading="lazy" decoding="async" />
         </div>
       `;
     } else {
@@ -415,7 +412,7 @@ function createPostCardElement(post, index = 0) {
           <video
             class="home-post-video-player w-full h-full object-cover"
             ${index === 0 ? `src="${post.video_url || post.media_url || videoSrc}"` : ''}
-            poster="${post.thumbnail_url || posterImg}"
+            poster="${getOptimizedImageUrl(post.thumbnail_url || posterImg, 720)}"
             playsinline
             muted
             preload="metadata"
@@ -463,7 +460,7 @@ function createPostCardElement(post, index = 0) {
     <div class="post-header">
       <div class="post-user" ${userClickAttr}>
         <div class="post-avatar">
-          ${displayAvatar ? `<img src="${displayAvatar}" alt="${displayUser}" crossorigin="anonymous" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : ''}
+          ${displayAvatar ? `<img src="${getOptimizedImageUrl(displayAvatar, 120)}" alt="${displayUser}" loading="lazy" decoding="async" crossorigin="anonymous" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : ''}
           <i class="fa-solid fa-user" style="${displayAvatar ? 'display:none;' : ''}"></i>
         </div>
         <div class="post-user-meta">
@@ -1115,7 +1112,13 @@ async function mountAndPlayVideo(container) {
       adaptVideoContainerLayout(container, video);
     }
 
-    container.appendChild(video);
+    // Insert before badges/overlays if present so controls overlay the video
+    const playBadge = container.querySelector(".home-play-badge");
+    if (playBadge) {
+      container.insertBefore(video, playBadge);
+    } else {
+      container.appendChild(video);
+    }
   } else if (!video.src || video.src === window.location.href || !video.getAttribute("src")) {
     video.loop = false;
     video.removeAttribute("loop");
@@ -1171,7 +1174,7 @@ async function mountAndPlayVideo(container) {
 }
 
 /**
- * Robust off-screen cleanup: stops playback, resets time, and releases hardware decoders
+ * Robust off-screen cleanup: stops playback, resets time, revokes object URLs, and releases hardware decoders
  */
 function unmountAndCleanupVideo(container, shouldReleaseDecoder = false) {
   if (!container) return;
@@ -1182,12 +1185,29 @@ function unmountAndCleanupVideo(container, shouldReleaseDecoder = false) {
       video.currentTime = 0;
     } catch (_) {}
 
-    // When scrolled out of viewport, completely clear source and call load() to release hardware decoders & RAM
+    // When scrolled out of viewport, completely clear source, revoke blob URLs, stop media tracks, and remove video element to release hardware decoders & RAM
     if (shouldReleaseDecoder) {
       try {
+        const postId = container.dataset.postId;
+        if (postId) {
+          releaseCachedVideoBlobUrl(postId);
+        }
+        if (video.src && video.src.startsWith("blob:")) {
+          try {
+            URL.revokeObjectURL(video.src);
+          } catch (_) {}
+        }
+        if (video.srcObject) {
+          try {
+            const tracks = video.srcObject.getTracks ? video.srcObject.getTracks() : [];
+            tracks.forEach(t => t.stop());
+            video.srcObject = null;
+          } catch (_) {}
+        }
         video.pause();
         video.removeAttribute("src");
         video.load(); // Immediately instructs browser engine to free GPU video memory
+        video.remove(); // Unload from DOM so off-screen cards retain 0 dormant decoders
       } catch (_) {}
     }
   }
@@ -1388,15 +1408,15 @@ function setupHomeFeedObserver() {
 
 /**
  * Clean, safe pause of all home feed videos and music tracks.
- * Does NOT destroy or remove <video> elements from the DOM.
+ * When clearResources=true, also releases hardware decoders, stops streams, and revokes object URLs.
  */
-function pauseAllHomeVideos() {
+function pauseAllHomeVideos(clearResources = false) {
   activePlayingId = null;
   if (audio30sController && typeof audio30sController.stopPlayback === "function") {
     audio30sController.stopPlayback();
   }
   if (currentlyPlayingBox) {
-    unmountAndCleanupVideo(currentlyPlayingBox, false);
+    unmountAndCleanupVideo(currentlyPlayingBox, clearResources);
   }
 
   // Gracefully pause and mute all home feed video players with safe promise handling
@@ -1405,8 +1425,16 @@ function pauseAllHomeVideos() {
     const v = box.querySelector("video");
     if (v) {
       safePauseVideo(v);
+      if (clearResources) {
+        unmountAndCleanupVideo(box, true);
+      }
     }
   });
+
+  if (clearResources) {
+    clearAllActiveObjectUrls();
+    activeMountedBoxes.clear();
+  }
 
   currentlyPlayingHomeVideo = null;
   currentlyPlayingBox = null;
@@ -1420,11 +1448,11 @@ export function addNewPostToFeed(newPost) {
   prependPostToHomeFeed(newPost);
 }
 
-// Global browser listeners to prevent background video sound leaks
+// Global browser listeners to prevent background video sound leaks and clear memory in WebView
 if (typeof document !== "undefined") {
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
-      pauseAllHomeVideos();
+      pauseAllHomeVideos(true);
     } else if (window.activeNavId === "home") {
       setupHomeFeedObserver();
     }
@@ -1432,6 +1460,10 @@ if (typeof document !== "undefined") {
 }
 
 if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", () => {
+    pauseAllHomeVideos(true);
+  });
+
   window.addEventListener("blur", () => {
     if (window.activeNavId === "home" && currentlyPlayingHomeVideo) {
       safePauseVideo(currentlyPlayingHomeVideo);
