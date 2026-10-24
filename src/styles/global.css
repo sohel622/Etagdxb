@@ -8,6 +8,7 @@
 @import "./music.css";
 @import "./mediaPicker.css";
 @import "./explore.css";
+@import "./fullscreenVideo.css";
 
     @font-face {
       font-family: 'Billabong';

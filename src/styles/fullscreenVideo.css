@@ -1,0 +1,313 @@
+/* Fullscreen Landscape & Long-form Video Player Styles */
+
+/* 1. In-Player Fullscreen Trigger Button (Visible only on landscape/horizontal/long-form videos) */
+.video-fullscreen-btn {
+  position: absolute;
+  bottom: 56px;
+  right: 16px;
+  z-index: 25;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.18s ease, opacity 0.18s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.video-fullscreen-btn:hover {
+  background: rgba(0, 0, 0, 0.75);
+  border-color: rgba(255, 255, 255, 0.35);
+  transform: scale(1.04);
+}
+
+.video-fullscreen-btn:active {
+  transform: scale(0.95);
+}
+
+.video-fullscreen-btn i {
+  font-size: 11px;
+}
+
+/* Home feed specific position for the fullscreen button */
+.home-video-container .video-fullscreen-btn {
+  bottom: 12px;
+  right: 12px;
+}
+
+/* 2. Global Fullscreen Video Container (100% of Screen) */
+#globalFullscreenVideoContainer {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  background-color: #000000;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity;
+}
+
+#globalFullscreenVideoContainer.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#globalFullscreenVideoContainer .fullscreen-video-element {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  background-color: #000000;
+}
+
+/* 3. Fullscreen Top Header & Back Button Overlay */
+.fullscreen-top-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: calc(var(--safe-area-top, env(safe-area-inset-top, 0px)) + 12px) 16px 20px 16px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.35) 65%, transparent 100%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 30;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: auto;
+}
+
+.fullscreen-back-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fullscreen-back-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.fullscreen-back-btn:active {
+  transform: scale(0.92);
+}
+
+.fullscreen-meta-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-left: 12px;
+  flex: 1;
+}
+
+.fullscreen-author-title {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+
+.fullscreen-caption-subtext {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+/* 4. Fullscreen Bottom Controls Overlay */
+.fullscreen-bottom-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 24px 16px calc(var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)) + 16px) 16px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.4) 65%, transparent 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 30;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: auto;
+}
+
+/* Scrubber / Progress Bar */
+.fullscreen-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.fullscreen-progress-bar-track {
+  flex: 1;
+  height: 5px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.3);
+  position: relative;
+  cursor: pointer;
+  transition: height 0.15s ease;
+  touch-action: none;
+}
+
+.fullscreen-progress-bar-track:hover {
+  height: 7px;
+}
+
+.fullscreen-progress-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0%;
+  background: #0095f6;
+  border-radius: 9999px;
+  transition: width 0.08s linear;
+}
+
+.fullscreen-progress-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.fullscreen-progress-bar-track:hover .fullscreen-progress-thumb,
+.fullscreen-progress-bar-track:active .fullscreen-progress-thumb {
+  opacity: 1;
+}
+
+.fullscreen-time-label {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 11px;
+  font-family: monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.fullscreen-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.fullscreen-control-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fullscreen-control-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.fullscreen-control-btn:active {
+  transform: scale(0.92);
+}
+
+/* Center Play/Pause Big Touch Area */
+.fullscreen-center-tap-area {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  cursor: pointer;
+}
+
+/* Auto-hide controls when user is passively watching */
+#globalFullscreenVideoContainer.controls-hidden .fullscreen-top-overlay {
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+}
+
+#globalFullscreenVideoContainer.controls-hidden .fullscreen-bottom-overlay {
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+}
+
+/* 5. Complete UI Suppression while Fullscreen is Active */
+body.in-fullscreen-mode,
+.app-container.in-fullscreen-mode {
+  overflow: hidden !important;
+}
+
+body.in-fullscreen-mode #statusBarCurtain,
+.app-container.in-fullscreen-mode #statusBarCurtain {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+body.in-fullscreen-mode #topNavbarHeader,
+body.in-fullscreen-mode .top-bar,
+.app-container.in-fullscreen-mode #topNavbarHeader,
+.app-container.in-fullscreen-mode .top-bar {
+  transform: translateY(-100%) !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+
+body.in-fullscreen-mode #bottomNavBar,
+body.in-fullscreen-mode .bottom-bar,
+.app-container.in-fullscreen-mode #bottomNavBar,
+.app-container.in-fullscreen-mode .bottom-bar {
+  transform: translateY(100%) !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}

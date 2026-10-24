@@ -396,7 +396,8 @@ function createMultiAccountBottomSheetDOM() {
  * Setup Profile Icon Long-Press trigger on Bottom Nav Bar
  */
 export function setupProfileIconLongPress(profileBtn) {
-  if (!profileBtn) return;
+  if (!profileBtn || profileBtn._hasLongPressSetup) return;
+  profileBtn._hasLongPressSetup = true;
 
   let longPressTimer = null;
   let isLongPress = false;
@@ -416,7 +417,7 @@ export function setupProfileIconLongPress(profileBtn) {
         try { navigator.vibrate(40); } catch (_) {}
       }
       openMultiAccountBottomSheet();
-    }, 500);
+    }, 600);
   };
 
   const cancelTimer = () => {
@@ -427,7 +428,7 @@ export function setupProfileIconLongPress(profileBtn) {
     const touch = e.touches ? e.touches[0] : e;
     const dx = Math.abs(touch.clientX - startX);
     const dy = Math.abs(touch.clientY - startY);
-    if (dx > 10 || dy > 10) {
+    if (dx > 12 || dy > 12) {
       cancelTimer();
     }
   };
@@ -451,18 +452,13 @@ export function setupProfileIconLongPress(profileBtn) {
   });
 
   // Intercept click: If long-press was triggered, prevent standard navigation
-  const originalClick = profileBtn.onclick;
-  profileBtn.onclick = (e) => {
+  profileBtn.addEventListener("click", (e) => {
     if (isLongPress) {
       e.preventDefault();
-      e.stopPropagation();
+      e.stopImmediatePropagation();
       isLongPress = false;
-      return;
     }
-    if (typeof originalClick === "function") {
-      originalClick.call(profileBtn, e);
-    }
-  };
+  }, true);
 }
 
 /**

@@ -408,177 +408,133 @@ export async function getAuthenticatedUserId() {
 /**
  * Fetch all authentic live posts directly from Supabase database ordered by created_at desc
  */
+/**
+ * Hardened Supabase Posts & Reels fetching for Home Feed
+ * Handles RLS policies, missing foreign-key relationships in schema cache,
+ * and seamlessly merges posts and reels tables with profile metadata.
+ */
 export async function fetchSupabasePosts() {
   if (!supabase) return [];
 
-  console.log("[Feed] Querying Supabase posts with author profiles join...");
-  let posts = null;
+  console.log("[Feed] Querying Supabase posts and reels...");
+  const combinedRawPosts = [];
+  const seenIds = new Set();
+  const seenUrls = new Set();
 
+  // Helper to deduplicate and collect records
+  const addRecords = (records = []) => {
+    if (!Array.isArray(records)) return;
+    records.forEach((rec, idx) => {
+      if (!rec) return;
+      const id = String(rec.id || `post_${Date.now()}_${idx}`);
+      const rawUrl = rec.video_url || rec.media_url || rec.url || "";
+      if (seenIds.has(id)) return;
+      if (rawUrl && seenUrls.has(rawUrl)) return;
+
+      seenIds.add(id);
+      if (rawUrl) seenUrls.add(rawUrl);
+      combinedRawPosts.push(rec);
+    });
+  };
+
+  // 1. Fetch from 'posts' table
   try {
-    // 1. Relational join with profiles table as requested: profiles:user_id (id, username, avatar_url)
-    const { data, error } = await supabase
+    const { data: postsData, error: postsErr } = await supabase
       .from('posts')
-      .select(`
-        id,
-        video_url,
-        thumbnail_url,
-        caption,
-        created_at,
-        user_id,
-        profiles:user_id (
-          id,
-          username,
-          avatar_url
-        )
-      `)
+      .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.warn("[Feed] profiles:user_id join note, trying standard profiles join:", error.message || error);
-      const fallbackRes = await supabase
-        .from('posts')
-        .select(`
-          id,
-          video_url,
-          thumbnail_url,
-          caption,
-          created_at,
-          user_id,
-          profiles (
-            id,
-            username,
-            avatar_url
-          )
-        `)
-        .order('created_at', { ascending: false });
-      if (!fallbackRes.error && Array.isArray(fallbackRes.data) && fallbackRes.data.length > 0) {
-        posts = fallbackRes.data;
-      }
-    } else if (Array.isArray(data) && data.length > 0) {
-      console.log(`[Feed] Successfully retrieved ${data.length} posts with profiles:user_id join.`);
-      posts = data;
+    if (!postsErr && Array.isArray(postsData)) {
+      console.log(`[Feed] Retrieved ${postsData.length} records from 'posts' table.`);
+      addRecords(postsData);
+    } else if (postsErr) {
+      console.warn("[Feed] 'posts' table query notice:", postsErr.message || postsErr);
     }
   } catch (err) {
-    console.warn("[Feed] Exception during relational posts query:", err);
+    console.warn("[Feed] Exception querying 'posts' table:", err);
   }
 
-  // 2. Direct posts table query if PostgREST schema cache does not have explicit foreign key constraint
-  if (!posts || posts.length === 0) {
-    try {
-      console.log("[Feed] Querying posts table directly...");
-      const { data: rawPosts, error: postsError } = await supabase
-        .from("posts")
-        .select("*")
-        .order("created_at", { ascending: false });
+  // 2. Fetch from 'reels' table (in case user uploaded reels directly or table was separated)
+  try {
+    const { data: reelsData, error: reelsErr } = await supabase
+      .from('reels')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-      if (postsError) {
-        console.error("[Feed] Error fetching from posts table:", postsError);
-        return [];
-      }
-
-      if (!Array.isArray(rawPosts) || rawPosts.length === 0) {
-        console.log("[Feed] No raw posts returned from posts table.");
-        return [];
-      }
-
-      console.log(`[Feed] Fetched ${rawPosts.length} raw posts from Supabase.`);
-
-      // Fetch profiles to associate authentic usernames and avatars
-      const profilesMap = new Map();
-      try {
-        const { data: profilesList, error: profsErr } = await supabase
-          .from("profiles")
-          .select("*");
-
-        if (profsErr) {
-          console.warn("[Feed] Notice querying profiles table:", profsErr.message);
-        } else if (Array.isArray(profilesList)) {
-          profilesList.forEach(pr => {
-            if (pr.id !== undefined) profilesMap.set(String(pr.id), pr);
-            if (pr.email) profilesMap.set(String(pr.email).toLowerCase(), pr);
-            if (pr.avatar_url && typeof pr.avatar_url === "string") {
-              const uuidMatch = pr.avatar_url.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
-              if (uuidMatch) {
-                profilesMap.set(uuidMatch[0].toLowerCase(), pr);
-              }
-            }
-          });
-        }
-      } catch (prErr) {
-        console.warn("[Feed] Exception querying profiles for metadata:", prErr);
-      }
-
-      // Hardened mapping for known authentic accounts
-      const defaultAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
-
-      posts = rawPosts.map((post, idx) => {
-        const uidStr = String(post.user_id || "").toLowerCase();
-        const pr = profilesMap.get(uidStr) || profilesMap.get(String(post.user_id)) || {};
-
-        let usernameVal = pr.username || pr.display_name || post.username || post.author_name;
-        if (!usernameVal) {
-          usernameVal = "creator";
-        }
-
-        const avatarVal = pr.avatar_url || post.user_avatar || post.avatar || defaultAvatar;
-        const stableId = post.id || `post_${post.created_at || idx}`;
-
-        return {
-          ...post,
-          id: stableId,
-          user_id: post.user_id,
-          profiles: {
-            id: pr.id || post.user_id,
-            username: usernameVal,
-            avatar_url: avatarVal
-          },
-          author_name: usernameVal,
-          user: usernameVal,
-          avatar: avatarVal
-        };
-      });
-    } catch (err) {
-      console.error("[Feed] fetchSupabasePosts fallback exception:", err);
-      return [];
+    if (!reelsErr && Array.isArray(reelsData)) {
+      console.log(`[Feed] Retrieved ${reelsData.length} records from 'reels' table.`);
+      addRecords(reelsData);
+    } else if (reelsErr) {
+      console.warn("[Feed] 'reels' table query notice:", reelsErr.message || reelsErr);
     }
+  } catch (err) {
+    console.warn("[Feed] Exception querying 'reels' table:", err);
   }
 
-  if (!Array.isArray(posts)) return [];
+  // 3. Fetch authentic profiles to map usernames, display names, and avatars
+  const profilesMap = new Map();
+  try {
+    const { data: profilesList, error: profsErr } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, email');
+
+    if (!profsErr && Array.isArray(profilesList)) {
+      profilesList.forEach(pr => {
+        if (pr.id !== undefined && pr.id !== null) {
+          profilesMap.set(String(pr.id).toLowerCase(), pr);
+        }
+        if (pr.email) {
+          profilesMap.set(String(pr.email).toLowerCase(), pr);
+        }
+      });
+    } else if (profsErr) {
+      console.warn("[Feed] Notice querying profiles for metadata:", profsErr.message || profsErr);
+    }
+  } catch (prErr) {
+    console.warn("[Feed] Exception querying profiles table:", prErr);
+  }
 
   const defaultAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
 
-  // Normalize each post so author_name and profiles are guaranteed with genuine creator info
-  return posts.map((post, idx) => {
-    let pr = post.profiles;
-    if (Array.isArray(pr)) pr = pr[0];
-    if (!pr || typeof pr !== 'object') pr = {};
+  // 4. Normalize records with genuine creator information and Cloudinary optimizations
+  const normalizedPosts = combinedRawPosts.map((post, idx) => {
+    const uidStr = String(post.user_id || "").toLowerCase();
+    const pr = profilesMap.get(uidStr) || profilesMap.get(String(post.user_id)) || (Array.isArray(post.profiles) ? post.profiles[0] : post.profiles) || {};
 
-    const genuineUsername = pr.username || pr.display_name || post.username || post.author_name || 'creator';
-    const genuineAvatar = pr.avatar_url || post.user_avatar || post.avatar || defaultAvatar;
+    let usernameVal = pr.username || pr.display_name || post.username || post.author_name;
+    if (!usernameVal) {
+      usernameVal = "creator";
+    }
+
+    const avatarVal = pr.avatar_url || post.user_avatar || post.avatar || defaultAvatar;
     const stableId = post.id || `post_${post.created_at || idx}`;
-    const rawUrl = post.media_url || post.video_url || post.url || '';
+    const rawUrl = post.media_url || post.video_url || post.url || "";
     const optimizedUrl = getOptimizedVideoUrl(rawUrl);
     const mediaType = post.media_type || (rawUrl?.match(/\.(mp4|webm|mov|m4v)($|\?)/i) ? 'video' : 'photo');
 
     return {
       ...post,
-      id: stableId,
-      user_id: post.user_id,
+      id: String(stableId),
+      user_id: post.user_id || "",
       url: optimizedUrl,
       video_url: optimizedUrl,
       media_url: optimizedUrl,
       media_type: mediaType,
-      thumbnail_url: post.thumbnail_url || (rawUrl ? deriveCloudinaryThumbnailUrl(rawUrl) : ''),
+      thumbnail_url: post.thumbnail_url || (rawUrl ? deriveCloudinaryThumbnailUrl(rawUrl) : ""),
       profiles: {
         id: pr.id || post.user_id,
-        username: genuineUsername,
-        avatar_url: genuineAvatar
+        username: usernameVal,
+        avatar_url: avatarVal
       },
-      author_name: genuineUsername,
-      user: genuineUsername,
-      avatar: genuineAvatar
+      author_name: usernameVal,
+      user: usernameVal,
+      avatar: avatarVal,
+      likes_count: post.likes_count !== undefined && post.likes_count !== null ? post.likes_count : (post.likesCount || 0),
+      comments_count: post.comments_count !== undefined && post.comments_count !== null ? post.comments_count : (post.commentsCount || 0)
     };
   });
+
+  return normalizedPosts;
 }
 
 /**

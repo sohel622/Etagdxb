@@ -24,9 +24,17 @@ import { App as CapApp } from "@capacitor/app";
 import { initMusicView } from "./components/music/MusicView.js";
 import { initInstagramMediaPicker } from "./components/media/MediaPickerModal.js";
 import { isChatOrMessageRoute, syncBottomNavVisibility } from "./components/navigation/BottomNavbar.js";
+import { initFullscreenVideoPlayer } from "./components/media/FullscreenVideoPlayer.js";
+
+let isAppInitialized = false;
 
 export const App = {
   async init() {
+    if (isAppInitialized) {
+      console.log("[App] Already initialized, skipping duplicate init.");
+      return;
+    }
+    isAppInitialized = true;
     // 0. Wipe old deprecated dummy/cached post entries
     try {
       localStorage.removeItem("cached_posts");
@@ -73,6 +81,7 @@ export const App = {
     initAccountSwitcher();
     initMusicView();
     initInstagramMediaPicker();
+    initFullscreenVideoPlayer();
 
     // 5. Browser notifications
     requestInitialBrowserNotificationPermission();

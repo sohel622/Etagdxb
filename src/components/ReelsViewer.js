@@ -16,6 +16,7 @@ import {
   trackVideoProgressForCaching
 } from "../services/offlineCacheService.js";
 import { decodePostCaptionAndSong, sanitizeCaptionText, reelAudioMixer, DEFAULT_MUSIC_COVER } from "../services/songsService.js";
+import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer.js";
 
     /* =======================================================
        Web Video Picture-in-Picture (PiP) Helper
@@ -631,6 +632,13 @@ import { decodePostCaptionAndSong, sanitizeCaptionText, reelAudioMixer, DEFAULT_
             }
           });
         }
+
+        // Attach conditional Fullscreen button strictly if horizontal/landscape or long-form
+        attachConditionalFullscreenButton(wrapper, video, {
+          author: displayUser,
+          caption: cleanCaption || 'Flashgram Reel',
+          title: soundTitle
+        });
 
         reelsFeedWrapper.appendChild(item);
       });

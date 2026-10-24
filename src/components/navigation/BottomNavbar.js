@@ -190,23 +190,22 @@ function renderNavigation() {
     btn.className = `nav-btn ${isActive ? 'active' : ''}`;
     btn.dataset.id = item.id;
     btn.setAttribute("title", item.name);
+    btn.setAttribute("role", "tab");
+    btn.setAttribute("aria-selected", isActive ? "true" : "false");
     btn.innerHTML = renderNavBtnContent(item, isActive);
     
-    btn.onclick = (e) => {
+    const handleTabSelect = (e) => {
       if (isLongPressTriggered) {
-        e.preventDefault();
-        e.stopPropagation();
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
         setTimeout(() => { isLongPressTriggered = false; }, 80);
         return;
       }
-      e.stopPropagation();
-      const routeMap = {
-        home: "/",
-        reels: "/reels",
-        messages: "/messages",
-        search: "/search",
-        profile: "/profile"
-      };
+      if (e) {
+        e.stopPropagation();
+      }
 
       if (item.id === "profile") {
         if (typeof closeUserProfile === "function") {
@@ -216,12 +215,22 @@ function renderNavigation() {
         }
       }
 
+      const routeMap = {
+        home: "/",
+        reels: "/reels",
+        messages: "/messages",
+        search: "/search",
+        profile: "/profile"
+      };
+
       if (routeMap[item.id]) {
-        navigate(routeMap[item.id]);
+        navigate(routeMap[item.id], btn);
       } else {
         switchTab(item.id, btn);
       }
     };
+
+    btn.onclick = handleTabSelect;
 
     if (item.id === "profile" || item.isProfile) {
       setupProfileIconLongPress(btn);
@@ -231,7 +240,7 @@ function renderNavigation() {
   });
 
   requestAnimationFrame(() => {
-    const activeBtn = document.querySelector('.nav-btn.active') || document.querySelector('.nav-btn');
+    const activeBtn = document.querySelector(`.nav-btn.active[data-id="${activeNavId}"]`) || document.querySelector('.nav-btn');
     if (activeBtn) updateActivePillPosition(activeBtn);
     if (typeof updateChatNavUnreadBadge === "function") updateChatNavUnreadBadge();
   });
@@ -303,7 +312,7 @@ export function syncBottomNavVisibility() {
   }
 }
 
-function navigate(route) {
+function navigate(route, targetBtn = null) {
   try {
     window.history.pushState({ route }, "", route);
   } catch (_) {}
@@ -315,7 +324,7 @@ function navigate(route) {
       window.navigateToReel(reelId);
       return;
     } else {
-      switchTab("reels");
+      switchTab("reels", targetBtn);
       return;
     }
   }
@@ -327,21 +336,21 @@ function navigate(route) {
   }
 
   if (isChatOrMessageRoute(route)) {
-    switchTab("messages");
+    switchTab("messages", targetBtn);
     syncBottomNavVisibility();
     return;
   }
 
   if (route === "/" || route === "/home") {
-    switchTab("home");
+    switchTab("home", targetBtn);
   } else if (route === "/reels") {
-    switchTab("reels");
+    switchTab("reels", targetBtn);
   } else if (route === "/search") {
-    switchTab("search");
+    switchTab("search", targetBtn);
   } else if (route === "/profile") {
-    switchTab("profile");
+    switchTab("profile", targetBtn);
   } else {
-    switchTab("home");
+    switchTab("home", targetBtn);
   }
 
   syncBottomNavVisibility();
@@ -575,26 +584,41 @@ function switchTab(tabId, btnElement) {
     } else {
       hideTopNavbar();
     }
+  } else {
+    // Immediately pause all home feed videos whenever navigating away from home
+    if (typeof pauseAllHomeVideos === "function") {
+      pauseAllHomeVideos();
+    } else if (typeof window !== "undefined" && typeof window.pauseAllHomeVideos === "function") {
+      window.pauseAllHomeVideos();
+    }
   }
+
+  if (!btnElement) {
+    btnElement = document.querySelector(`.nav-btn[data-id="${tabId}"]`);
+  }
+
+  // Instant single-tap class and accessibility update WITHOUT destroying DOM innerHTML
   document.querySelectorAll(".nav-btn").forEach(b => {
     const bId = b.dataset.id;
     const isCurrent = bId === tabId;
     b.classList.toggle("active", isCurrent);
-    const match = currentNav.find(item => item.id === bId) || { id: bId };
-    b.innerHTML = renderNavBtnContent(match, isCurrent);
+    b.setAttribute("aria-selected", isCurrent ? "true" : "false");
+    const profileCircle = b.querySelector(".profile-nav-circle");
+    if (profileCircle) {
+      profileCircle.classList.toggle("active-profile", isCurrent);
+    }
   });
-  if (!btnElement) {
-    btnElement = document.querySelector(`.nav-btn[data-id="${tabId}"]`);
-  }
+
   if (btnElement) {
     btnElement.classList.add("active");
+    btnElement.setAttribute("aria-selected", "true");
     updateActivePillPosition(btnElement);
     requestAnimationFrame(() => {
       updateActivePillPosition(btnElement);
     });
     setTimeout(() => {
       updateActivePillPosition(btnElement);
-    }, 50);
+    }, 40);
   }
 
   const isViewingOtherUserProfile = tabId === "profile" && Boolean(

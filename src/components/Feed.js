@@ -18,6 +18,8 @@ import {
   trackVideoProgressForCaching
 } from "../services/offlineCacheService.js";
 import { audio30sController } from "../utils/audioCatalog.js";
+import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer.js";
+import { decodePostCaptionAndSong, sanitizeCaptionText, DEFAULT_MUSIC_COVER } from "../services/songsService.js";
 
 /* =======================================================
    ১. হোম ফিড এরর বাউন্ডারি (Error Boundary Fallback)
@@ -26,19 +28,34 @@ function renderFeedErrorBoundary(container, error) {
   if (!container) return;
   console.error("Home Feed ErrorBoundary caught failure:", error);
   container.innerHTML = `
-    <div class="feed-error-boundary">
-      <div class="w-14 h-14 rounded-full bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 flex items-center justify-center text-neutral-400 dark:text-neutral-500 text-2xl shadow-inner mb-1">
+    <div class="feed-error-boundary flex flex-col items-center justify-center p-8 text-center min-h-[300px]">
+      <div class="w-14 h-14 rounded-full bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 flex items-center justify-center text-neutral-400 dark:text-neutral-500 text-2xl shadow-inner mb-3">
         <i class="fa-solid fa-circle-exclamation"></i>
       </div>
       <h3 class="text-[17px] font-bold text-neutral-900 dark:text-white">Couldn't load feed</h3>
-      <p class="text-[13px] text-neutral-500 dark:text-neutral-400 max-w-[280px]">
+      <p class="text-[13px] text-neutral-500 dark:text-neutral-400 max-w-[280px] mt-1 mb-4 leading-normal">
         There was an unexpected issue loading feed posts. Tap below to retry.
       </p>
-      <button type="button" class="mt-2 px-5 py-2 rounded-full bg-[#0095F6] hover:bg-sky-600 active:scale-95 text-white font-semibold text-[13.5px] transition-all shadow-sm cursor-pointer" onclick="renderHomeFeed()">
-        Tap to retry
-      </button>
+      <div class="flex items-center gap-2">
+        <button id="feedRetryBtn" type="button" class="px-5 py-2 rounded-full bg-[#0095F6] hover:bg-sky-600 active:scale-95 text-white font-semibold text-[13.5px] transition-all shadow-sm cursor-pointer flex items-center gap-2">
+          <i class="fa-solid fa-rotate-right"></i>
+          <span>Tap to retry</span>
+        </button>
+      </div>
     </div>
   `;
+
+  const retryBtn = container.querySelector("#feedRetryBtn");
+  if (retryBtn) {
+    retryBtn.onclick = (e) => {
+      e.preventDefault();
+      retryBtn.disabled = true;
+      retryBtn.innerHTML = '<i class="fa-solid fa-rotate-right fa-spin"></i><span>Retrying...</span>';
+      setTimeout(() => {
+        renderHomeFeed();
+      }, 250);
+    };
+  }
 }
 
 // Requirement 2: Generate or attach automatic thumbnail image without broken video URL
@@ -330,6 +347,11 @@ function createPostCardElement(post, index = 0) {
           adaptVideoContainerLayout(videoBox, vidEl);
         }, { once: true });
       }
+      // Attach conditional Fullscreen button on landscape feed videos
+      attachConditionalFullscreenButton(videoBox, vidEl, {
+        author: displayUser,
+        caption: cleanCaption || 'Flashgram Video'
+      });
     } else if (imgEl) {
       if (imgEl.complete && imgEl.naturalWidth) {
         adaptVideoContainerLayout(videoBox, imgEl);
@@ -342,6 +364,9 @@ function createPostCardElement(post, index = 0) {
 
     // Single tap immediately navigates to the full-screen Reels viewer with this video active
     videoBox.addEventListener("click", (e) => {
+      if (e.target.closest(".video-fullscreen-btn")) {
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       pauseAllHomeVideos();
@@ -473,6 +498,31 @@ async function renderHomeFeed() {
         livePosts = offlinePosts.map(p => ({ ...p, isOfflineCached: true }));
         isOfflineFeedMode = true;
       }
+    }
+
+    // Default welcome fallback post if database is brand new, empty, or RLS blocked
+    if ((!livePosts || livePosts.length === 0) && !isOffline() && !isOfflineFeedMode) {
+      console.log("[Feed] Supplying default Shabnam AI welcome post fallback to prevent broken feed view.");
+      livePosts = [{
+        id: "shabnam_reel_1",
+        user_id: "shabnam_ai",
+        url: SHABNAM_AI_PROFILE.videoUrl,
+        video_url: SHABNAM_AI_PROFILE.videoUrl,
+        media_url: SHABNAM_AI_PROFILE.videoUrl,
+        thumbnail_url: "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png",
+        caption: SHABNAM_AI_PROFILE.caption,
+        profiles: {
+          id: "shabnam_ai",
+          username: "shabnam_ai",
+          avatar_url: SHABNAM_AI_PROFILE.avatar
+        },
+        author_name: "shabnam_ai",
+        user: "shabnam_ai",
+        avatar: SHABNAM_AI_PROFILE.avatar,
+        likes_count: 14200,
+        comments_count: 184,
+        time: "RECENT"
+      }];
     }
 
     console.log(`[Feed] Total posts ready to render: ${livePosts ? livePosts.length : 0} (Offline: ${isOfflineFeedMode})`);
@@ -757,6 +807,12 @@ async function mountAndPlayVideo(container) {
     }
   }
 
+  // Attach conditional Fullscreen button for landscape video posts
+  attachConditionalFullscreenButton(container, video, {
+    author: container._postData?.author_name || container._postData?.user || "creator",
+    caption: container._postData?.caption || ""
+  });
+
   // Requirement 4: Strictly guarantee that ONLY the active video post plays audio
   video.muted = false;
 
@@ -814,6 +870,7 @@ function setupHomeFeedObserver() {
   }
 
   const homeView = document.getElementById("homeView");
+  const feedScrollContainer = document.getElementById("feedScrollContainer");
   if (!homeView) return;
 
   const videoBoxes = Array.from(document.querySelectorAll(".home-video-container"));
@@ -825,26 +882,29 @@ function setupHomeFeedObserver() {
   const evaluateCenterVideo = () => {
     isScrollScheduled = false;
 
-    // If home view is not active, unmount all video decoders and stop audio immediately
+    // If home view is not active, pause all videos and stop audio immediately
     if (!homeView.classList.contains("active") && window.activeNavId !== "home") {
       pauseAllHomeVideos();
-      audio30sController.stopPlayback();
+      if (audio30sController && typeof audio30sController.stopPlayback === "function") {
+        audio30sController.stopPlayback();
+      }
       return;
     }
 
-    const homeRect = homeView.getBoundingClientRect();
-    const homeCenterY = homeRect.top + homeRect.height / 2;
+    const scrollContainer = feedScrollContainer || homeView;
+    const containerRect = scrollContainer.getBoundingClientRect();
+    const containerCenterY = containerRect.top + containerRect.height / 2;
 
     let bestBox = null;
     let minDistance = Infinity;
 
     videoBoxes.forEach(box => {
       const ratio = visibilityMap.get(box) || 0;
-      // Requirement 4: IntersectionObserver threshold: 0.7 to detect exact video centered in screen
-      if (ratio >= 0.7) {
+      // Videos must ONLY auto-play when actively scrolled into viewport and at least 50% visible
+      if (ratio >= 0.5) {
         const rect = box.getBoundingClientRect();
         const boxCenterY = rect.top + rect.height / 2;
-        const dist = Math.abs(homeCenterY - boxCenterY);
+        const dist = Math.abs(containerCenterY - boxCenterY);
         if (dist < minDistance) {
           minDistance = dist;
           bestBox = box;
@@ -855,22 +915,22 @@ function setupHomeFeedObserver() {
     if (bestBox) {
       mountAndPlayVideo(bestBox);
     } else {
-      // If no box is centered >= 0.7, pause and mute outgoing video
+      // If no video post has >= 50% visibility, pause currently playing video
       if (currentlyPlayingBox) {
         unmountAndCleanupVideo(currentlyPlayingBox);
       }
     }
 
-    // 30-Second Music Post Auto Playback Sync (IntersectionObserver)
+    // 30-Second Music Post Auto Playback Sync (IntersectionObserver >= 50% visibility)
     let bestMusicCard = null;
     let minMusicDist = Infinity;
 
     musicCards.forEach(card => {
       const ratio = visibilityMap.get(card) || 0;
-      if (ratio >= 0.65) {
+      if (ratio >= 0.5) {
         const rect = card.getBoundingClientRect();
         const cardCenterY = rect.top + rect.height / 2;
-        const dist = Math.abs(homeCenterY - cardCenterY);
+        const dist = Math.abs(containerCenterY - cardCenterY);
         if (dist < minMusicDist) {
           minMusicDist = dist;
           bestMusicCard = card;
@@ -880,69 +940,78 @@ function setupHomeFeedObserver() {
 
     if (bestMusicCard && bestMusicCard._postData?.music) {
       audio30sController.playTrackForPost(bestMusicCard.dataset.postId, bestMusicCard._postData.music);
-    } else if (!bestMusicCard && audio30sController.currentPostId) {
+    } else if (!bestMusicCard && audio30sController && audio30sController.currentPostId) {
       audio30sController.stopPlayback();
     }
   };
 
-  // Requirement 4 & 5: IntersectionObserver (threshold: [0, 0.35, 0.65, 0.7, 1.0])
+  // Robust IntersectionObserver strictly detecting 50% viewport visibility
   homeFeedObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       visibilityMap.set(entry.target, entry.isIntersecting ? entry.intersectionRatio : 0);
-      // Immediately mute and pause outgoing posts when dropping below 0.7
-      if (!entry.isIntersecting || entry.intersectionRatio < 0.7) {
+      // Immediately pause and mute outgoing video when dropping below 50% visibility
+      if (!entry.isIntersecting || entry.intersectionRatio < 0.5) {
         const v = entry.target.querySelector("video");
         if (v) {
-          v.pause();
-          v.muted = true;
+          try {
+            v.pause();
+            v.muted = true;
+          } catch (_) {}
         }
+        entry.target.classList.remove("is-playing");
         if (currentlyPlayingBox === entry.target || entry.target.dataset.postId === activePlayingId) {
           unmountAndCleanupVideo(entry.target);
         }
       }
-      // Immediately stop audio if music post leaves center
-      if (!entry.isIntersecting || entry.intersectionRatio < 0.65) {
-        if (entry.target.dataset.postId === audio30sController.currentPostId) {
+      // Immediately stop 30-second audio track if music card drops below 50% visibility
+      if (!entry.isIntersecting || entry.intersectionRatio < 0.5) {
+        if (audio30sController && entry.target.dataset.postId === audio30sController.currentPostId) {
           audio30sController.stopPlayback();
         }
       }
     });
+
     if (!isScrollScheduled) {
       isScrollScheduled = true;
       requestAnimationFrame(evaluateCenterVideo);
     }
   }, {
-    root: homeView,
-    threshold: [0, 0.35, 0.65, 0.7, 1.0]
+    root: feedScrollContainer || null,
+    threshold: [0, 0.25, 0.5, 0.75, 1.0]
   });
 
   videoBoxes.forEach(box => homeFeedObserver.observe(box));
   musicCards.forEach(card => homeFeedObserver.observe(card));
 
-  // Requirement 4: Scrolling up or down immediately mutes and pauses outgoing posts before starting audio for the next post
+  // Scroll listener for instantaneous response on user touch/drag
   const onHomeScroll = () => {
     if (currentlyPlayingBox) {
       const rect = currentlyPlayingBox.getBoundingClientRect();
-      const homeRect = homeView.getBoundingClientRect();
-      const overlap = Math.max(0, Math.min(rect.bottom, homeRect.bottom) - Math.max(rect.top, homeRect.top));
+      const scrollContainer = feedScrollContainer || homeView;
+      const containerRect = scrollContainer.getBoundingClientRect();
+      const overlap = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
       const ratio = rect.height > 0 ? (overlap / rect.height) : 0;
-      if (ratio < 0.65) {
+      if (ratio < 0.5) {
         const vid = currentlyPlayingBox.querySelector("video");
         if (vid) {
-          vid.pause();
-          vid.muted = true;
+          try {
+            vid.pause();
+            vid.muted = true;
+          } catch (_) {}
         }
+        currentlyPlayingBox.classList.remove("is-playing");
       }
     }
 
-    if (audio30sController.currentPostId) {
+    if (audio30sController && audio30sController.currentPostId) {
       const activeCard = document.querySelector(`.post-card[data-post-id="${audio30sController.currentPostId}"]`);
       if (activeCard) {
         const rect = activeCard.getBoundingClientRect();
-        const homeRect = homeView.getBoundingClientRect();
-        const overlap = Math.max(0, Math.min(rect.bottom, homeRect.bottom) - Math.max(rect.top, homeRect.top));
+        const scrollContainer = feedScrollContainer || homeView;
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const overlap = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
         const ratio = rect.height > 0 ? (overlap / rect.height) : 0;
-        if (ratio < 0.6) {
+        if (ratio < 0.5) {
           audio30sController.stopPlayback();
         }
       }
@@ -955,10 +1024,10 @@ function setupHomeFeedObserver() {
   };
 
   homeView.addEventListener("scroll", onHomeScroll, { passive: true });
-  const feedScrollContainer = document.getElementById("feedScrollContainer");
   if (feedScrollContainer) {
     feedScrollContainer.addEventListener("scroll", onHomeScroll, { passive: true });
   }
+
   scrollListenerCleanup = () => {
     homeView.removeEventListener("scroll", onHomeScroll);
     if (feedScrollContainer) {
@@ -967,25 +1036,34 @@ function setupHomeFeedObserver() {
   };
 
   // Initial evaluation after DOM paint
-  setTimeout(evaluateCenterVideo, 100);
+  setTimeout(evaluateCenterVideo, 120);
 }
 
+/**
+ * Clean, non-destructive pause of all home feed videos and music tracks.
+ * Does NOT destroy or remove <video> elements from the DOM.
+ */
 function pauseAllHomeVideos() {
   activePlayingId = null;
-  audio30sController.stopPlayback();
+  if (audio30sController && typeof audio30sController.stopPlayback === "function") {
+    audio30sController.stopPlayback();
+  }
   if (currentlyPlayingBox) {
     unmountAndCleanupVideo(currentlyPlayingBox);
   }
-  // Remove any orphan video tags and force muted=true & paused
-  document.querySelectorAll(".home-video-player").forEach(v => {
-    try {
-      v.pause();
-      v.muted = true;
-      v.removeAttribute("src");
-      v.load();
-      v.remove();
-    } catch (_) {}
+
+  // Gracefully pause and mute all home feed video players without destroying the DOM elements
+  document.querySelectorAll(".home-post-video-container, .home-video-container").forEach(box => {
+    box.classList.remove("is-playing");
+    const v = box.querySelector("video");
+    if (v) {
+      try {
+        v.pause();
+        v.muted = true;
+      } catch (_) {}
+    }
   });
+
   currentlyPlayingHomeVideo = null;
   currentlyPlayingBox = null;
 }
@@ -998,6 +1076,34 @@ export function addNewPostToFeed(newPost) {
   prependPostToHomeFeed(newPost);
 }
 
+// Global browser listeners to prevent background video sound leaks
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      pauseAllHomeVideos();
+    } else if (window.activeNavId === "home") {
+      setupHomeFeedObserver();
+    }
+  });
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("blur", () => {
+    if (window.activeNavId === "home" && currentlyPlayingHomeVideo) {
+      try {
+        currentlyPlayingHomeVideo.pause();
+        currentlyPlayingHomeVideo.muted = true;
+      } catch (_) {}
+    }
+  });
+
+  window.renderHomeFeed = renderHomeFeed;
+  window.setupHomeFeedObserver = setupHomeFeedObserver;
+  window.pauseAllHomeVideos = pauseAllHomeVideos;
+  window.prependPostToHomeFeed = prependPostToHomeFeed;
+}
+
 export { renderHomeFeed, setupHomeFeedObserver, pauseAllHomeVideos, prependPostToHomeFeed };
+
 
 
