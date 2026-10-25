@@ -14,7 +14,7 @@ export function renderSuggestedReels(container, videos = SAMPLE_VIDEOS) {
         <i class="fa-solid fa-clapperboard text-rose-500 text-[15px]"></i>
         <span class="text-[13.5px] font-semibold text-neutral-900 dark:text-neutral-100">Suggested Reels</span>
       </div>
-      <button type="button" class="text-[12px] font-medium text-sky-500 hover:text-sky-600 cursor-pointer" onclick="switchTab('reels')">
+      <button type="button" class="text-[12px] font-medium text-sky-500 hover:text-sky-600 cursor-pointer" onclick="switchTab('home')">
         Watch all
       </button>
     </div>
@@ -54,7 +54,7 @@ export function renderSuggestedReels(container, videos = SAMPLE_VIDEOS) {
 
 export function openSuggestedReel(reelId) {
   if (typeof switchTab === 'function') {
-    switchTab('reels');
+    switchTab('home');
   }
   const reelEl = document.querySelector(`.reel-item[data-id="${reelId}"]`);
   if (reelEl && typeof reelEl.scrollIntoView === 'function') {

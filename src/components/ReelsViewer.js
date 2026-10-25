@@ -87,8 +87,8 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
     }
 
     function playShabnamReelVideo() {
-      const reelsBtn = document.querySelector('.nav-btn[data-id="reels"]');
-      switchTab("reels", reelsBtn);
+      const homeBtn = document.querySelector('.nav-btn[data-id="home"]');
+      switchTab("home", homeBtn);
 
       const focusShabnam = () => {
         const items = Array.from(document.querySelectorAll("#reelsFeedWrapper .reel-item"));
@@ -122,11 +122,11 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
         pauseAllHomeVideos();
       }
 
-      const reelsBtn = document.querySelector('.nav-btn[data-id="reels"]');
+      const homeBtn = document.querySelector('.nav-btn[data-id="home"]');
       if (typeof switchTab === "function") {
-        switchTab("reels", reelsBtn);
+        switchTab("home", homeBtn);
       } else if (typeof window !== "undefined" && typeof window.switchTab === "function") {
-        window.switchTab("reels", reelsBtn);
+        window.switchTab("home", homeBtn);
       }
 
       if (videoId) {

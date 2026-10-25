@@ -11,8 +11,8 @@ try {
   const savedNav = localStorage.getItem("nav_order");
   if (savedNav) {
     const parsed = JSON.parse(savedNav);
-    if (Array.isArray(parsed) && parsed.length >= 4) {
-      currentNav = parsed;
+    if (Array.isArray(parsed)) {
+      currentNav = parsed.filter(item => item && item.id !== "reels");
     }
   }
 } catch (e) {
@@ -20,11 +20,14 @@ try {
   currentNav = [...DEFAULT_NAV];
 }
 
-// Guarantee all 5 essential navigation tabs (home, reels, search, messages, profile) are present
-const requiredNavIds = ["home", "reels", "search", "messages", "profile"];
+// Guarantee all 4 essential navigation tabs (home, search, messages, profile) are present, strictly excluding separate reels tab
+const requiredNavIds = ["home", "search", "messages", "profile"];
 const hasAll = requiredNavIds.every(id => currentNav.some(item => item.id === id));
-if (!hasAll || currentNav.length !== 5) {
+if (!hasAll || currentNav.length !== 4) {
   currentNav = [...DEFAULT_NAV];
+  try {
+    localStorage.setItem("nav_order", JSON.stringify(currentNav));
+  } catch (_) {}
 } else {
   currentNav = DEFAULT_NAV.map(d => {
     const match = currentNav.find(item => item.id === d.id);
@@ -217,7 +220,6 @@ function renderNavigation() {
 
       const routeMap = {
         home: "/",
-        reels: "/reels",
         messages: "/messages",
         search: "/search",
         profile: "/profile"
@@ -324,32 +326,33 @@ function navigate(route, targetBtn = null) {
       window.navigateToReel(reelId);
       return;
     } else {
-      switchTab("reels", targetBtn);
+      switchTab("home", targetBtn);
       return;
     }
   }
 
-  if (route === "/reels") {
+  if (route === "/reels" || route === "/" || route === "/home") {
     setReelsActiveState(true);
-  } else {
-    setReelsActiveState(false);
+    switchTab("home", targetBtn);
+    syncBottomNavVisibility();
+    return;
   }
 
   if (isChatOrMessageRoute(route)) {
+    setReelsActiveState(false);
     switchTab("messages", targetBtn);
     syncBottomNavVisibility();
     return;
   }
 
-  if (route === "/" || route === "/home") {
-    switchTab("home", targetBtn);
-  } else if (route === "/reels") {
-    switchTab("reels", targetBtn);
-  } else if (route === "/search") {
+  if (route === "/search") {
+    setReelsActiveState(false);
     switchTab("search", targetBtn);
   } else if (route === "/profile") {
+    setReelsActiveState(false);
     switchTab("profile", targetBtn);
   } else {
+    setReelsActiveState(true);
     switchTab("home", targetBtn);
   }
 
@@ -369,11 +372,11 @@ if (typeof window !== "undefined") {
       if (reelId && typeof window.navigateToReel === "function") {
         window.navigateToReel(reelId);
       } else {
-        switchTab("reels");
+        switchTab("home");
       }
-    } else if (path === "/reels") {
+    } else if (path === "/reels" || path === "/" || path === "/home") {
       setReelsActiveState(true);
-      switchTab("reels");
+      switchTab("home");
     } else if (isChatOrMessageRoute(path)) {
       setReelsActiveState(false);
       switchTab("messages");
@@ -384,7 +387,7 @@ if (typeof window !== "undefined") {
       setReelsActiveState(false);
       switchTab("profile");
     } else {
-      setReelsActiveState(false);
+      setReelsActiveState(true);
       switchTab("home");
     }
     syncBottomNavVisibility();
@@ -558,6 +561,11 @@ if (typeof window !== "undefined") {
 }
 
 function switchTab(tabId, btnElement) {
+  // TikTok-style repurposing: "reels" redirects cleanly to "home"
+  if (tabId === "reels") {
+    tabId = "home";
+  }
+
   activeNavId = tabId;
   if (typeof window !== "undefined") {
     window.activeNavId = tabId;
@@ -575,22 +583,37 @@ function switchTab(tabId, btnElement) {
   const navBar = document.getElementById("bottomNavBar") || bottomNavBar;
   const rProgressBarContainer = document.getElementById("reelsProgressBarContainer");
 
-  const feedScroll = document.getElementById("feedScrollContainer");
-  const homeScroll = (feedScroll && feedScroll.scrollTop > 0) ? feedScroll.scrollTop : (hView ? hView.scrollTop : 0);
-  lastHomeScrollTop = homeScroll;
-  if (tabId === "home") {
-    if (homeScroll <= 15) {
-      showTopNavbar();
-    } else {
-      hideTopNavbar();
+  // Keep top navbar hidden for TikTok-style fullscreen view
+  hideTopNavbar();
+
+  // If navigating away from home (which is now Reels), or switching tabs:
+  if (tabId !== "home") {
+    setReelsActiveState(false);
+    if (typeof setActiveClearModeReelId === "function") {
+      setActiveClearModeReelId(null);
+    } else if (typeof disableReelsClearMode === "function") {
+      disableReelsClearMode();
+    } else if (typeof window !== "undefined" && typeof window.setActiveClearModeReelId === "function") {
+      window.setActiveClearModeReelId(null);
     }
-  } else {
-    // Immediately pause all home feed videos and release hardware decoders/blob URLs whenever navigating away from home
-    if (typeof pauseAllHomeVideos === "function") {
-      pauseAllHomeVideos(true);
-    } else if (typeof window !== "undefined" && typeof window.pauseAllHomeVideos === "function") {
-      window.pauseAllHomeVideos(true);
+    if (typeof closeReelsCommentsSheet === "function") {
+      closeReelsCommentsSheet();
+    } else if (typeof window !== "undefined" && typeof window.closeReelsCommentsSheet === "function") {
+      window.closeReelsCommentsSheet();
     }
+    if (appC) appC.classList.remove("reels-active");
+    if (rProgressBarContainer) {
+      rProgressBarContainer.classList.remove("visible");
+    }
+    if (typeof pauseAllReels === "function") pauseAllReels();
+    if (typeof resetVideoProgressBar === "function") resetVideoProgressBar();
+  }
+
+  // Always pause home feed videos and release hardware decoders to save memory
+  if (typeof pauseAllHomeVideos === "function") {
+    pauseAllHomeVideos(true);
+  } else if (typeof window !== "undefined" && typeof window.pauseAllHomeVideos === "function") {
+    window.pauseAllHomeVideos(true);
   }
 
   if (!btnElement) {
@@ -647,17 +670,31 @@ function switchTab(tabId, btnElement) {
   }
 
   const chatsView = document.getElementById("chatsView");
+  const exploreView = document.getElementById("exploreView");
+  if (exploreView && tabId !== "search") {
+    exploreView.classList.remove("active");
+    exploreView.style.display = "none";
+  }
+
   if (chatsView && tabId !== "messages") {
     chatsView.classList.remove("active");
     chatsView.style.display = "none";
   }
 
-  if (tabId === "reels") {
+  // Strictly keep home feed view hidden from active routing
+  if (hView) {
+    hView.classList.remove("active");
+    hView.style.display = "none";
+  }
+
+  if (tabId === "home") {
+    // 1. HOME: Opens immersive full-screen vertical Reels feed view (TikTok-style)
     setReelsActiveState(true);
-    if (typeof pauseAllHomeVideos === "function") pauseAllHomeVideos();
-    if (hView) hView.classList.remove("active");
     if (pView) pView.classList.remove("active");
-    if (rView) rView.classList.add("active");
+    if (rView) {
+      rView.classList.add("active");
+      rView.style.display = "";
+    }
     if (appC) {
       appC.classList.add("dark-mode-active");
       appC.classList.add("reels-active");
@@ -665,111 +702,64 @@ function switchTab(tabId, btnElement) {
     if (rProgressBarContainer) {
       rProgressBarContainer.classList.add("visible");
     }
-    if (typeof playCurrentReel === "function") playCurrentReel();
-  } else {
-    setReelsActiveState(false);
-    if (typeof setActiveClearModeReelId === "function") {
-      setActiveClearModeReelId(null);
-    } else if (typeof disableReelsClearMode === "function") {
-      disableReelsClearMode();
-    } else if (typeof window !== "undefined" && typeof window.setActiveClearModeReelId === "function") {
-      window.setActiveClearModeReelId(null);
+    if (typeof playCurrentReel === "function") {
+      playCurrentReel();
     }
-    if (typeof closeReelsCommentsSheet === "function") {
-      closeReelsCommentsSheet();
-    } else if (typeof window !== "undefined" && typeof window.closeReelsCommentsSheet === "function") {
-      window.closeReelsCommentsSheet();
-    }
-    if (appC) appC.classList.remove("reels-active");
-    if (rProgressBarContainer) {
-      rProgressBarContainer.classList.remove("visible");
-    }
-    if (typeof pauseAllReels === "function") pauseAllReels();
-    if (typeof resetVideoProgressBar === "function") resetVideoProgressBar();
+  } else if (tabId === "profile") {
+    if (rView) rView.classList.remove("active");
+    if (pView) pView.classList.add("active");
+    applyCurrentDynamicTheme();
 
-    const chatsView = document.getElementById("chatsView");
-    const exploreView = document.getElementById("exploreView");
-    if (exploreView && tabId !== "search") {
-      exploreView.classList.remove("active");
-      exploreView.style.display = "none";
+    // Reset any other profile view and strictly sync logged-in user's profile
+    if (typeof window.closeUserProfile === "function") {
+      window.closeUserProfile();
     }
-
-    if (chatsView && tabId !== "messages") {
+    if (typeof window.syncCurrentLoggedInUserProfile === "function") {
+      window.syncCurrentLoggedInUserProfile();
+    } else if (typeof renderProfileGrid === "function") {
+      renderProfileGrid();
+    }
+  } else if (tabId === "messages") {
+    if (rView) rView.classList.remove("active");
+    if (pView) pView.classList.remove("active");
+    if (chatsView) {
+      chatsView.classList.add("active");
+      chatsView.style.display = "flex";
+      chatsView.style.flexDirection = "column";
+      const listC = document.getElementById("chatsListContainer");
+      const chatC = document.getElementById("shabnamChatContainer");
+      if (listC) listC.style.display = "flex";
+      if (chatC) chatC.style.display = "none";
+      if (typeof renderChatsList === "function") renderChatsList();
+    }
+    applyCurrentDynamicTheme();
+  } else if (tabId === "search") {
+    if (rView) rView.classList.remove("active");
+    if (pView) pView.classList.remove("active");
+    if (chatsView) {
       chatsView.classList.remove("active");
       chatsView.style.display = "none";
     }
-
-    if (tabId === "home") {
-      if (rView) rView.classList.remove("active");
-      if (pView) pView.classList.remove("active");
-      if (hView) hView.classList.add("active");
-      applyCurrentDynamicTheme();
-      if (typeof setupHomeFeedObserver === "function") {
-        setupHomeFeedObserver();
-      } else if (typeof window !== "undefined" && typeof window.setupHomeFeedObserver === "function") {
-        window.setupHomeFeedObserver();
-      }
-    } else if (tabId === "profile") {
-      hideTopNavbar();
-      if (typeof pauseAllHomeVideos === "function") pauseAllHomeVideos();
-      if (hView) hView.classList.remove("active");
-      if (rView) rView.classList.remove("active");
-      if (pView) pView.classList.add("active");
-      applyCurrentDynamicTheme();
-
-      // Reset any other profile view and strictly sync logged-in user's profile
-      if (typeof window.closeUserProfile === "function") {
-        window.closeUserProfile();
-      }
-      if (typeof window.syncCurrentLoggedInUserProfile === "function") {
-        window.syncCurrentLoggedInUserProfile();
-      } else if (typeof renderProfileGrid === "function") {
-        renderProfileGrid();
-      }
-    } else if (tabId === "messages") {
-      hideTopNavbar();
-      if (typeof pauseAllHomeVideos === "function") pauseAllHomeVideos();
-      if (hView) hView.classList.remove("active");
-      if (rView) rView.classList.remove("active");
-      if (pView) pView.classList.remove("active");
-      if (chatsView) {
-        chatsView.classList.add("active");
-        chatsView.style.display = "flex";
-        chatsView.style.flexDirection = "column";
-        const listC = document.getElementById("chatsListContainer");
-        const chatC = document.getElementById("shabnamChatContainer");
-        if (listC) listC.style.display = "flex";
-        if (chatC) chatC.style.display = "none";
-        if (typeof renderChatsList === "function") renderChatsList();
-      }
-      applyCurrentDynamicTheme();
-    } else if (tabId === "search") {
-      hideTopNavbar();
-      if (typeof pauseAllHomeVideos === "function") pauseAllHomeVideos();
-      if (hView) hView.classList.remove("active");
-      if (rView) rView.classList.remove("active");
-      if (pView) pView.classList.remove("active");
-      if (chatsView) {
-        chatsView.classList.remove("active");
-        chatsView.style.display = "none";
-      }
-      if (exploreView) {
-        exploreView.classList.add("active");
-        exploreView.style.display = "flex";
-        exploreView.style.flexDirection = "column";
-      }
-      if (typeof initExploreView === "function") {
-        initExploreView();
-      } else if (typeof window !== "undefined" && typeof window.initExploreView === "function") {
-        window.initExploreView();
-      }
-      applyCurrentDynamicTheme();
-    } else {
-      if (rView) rView.classList.remove("active");
-      if (pView) pView.classList.remove("active");
-      if (hView) hView.classList.add("active");
-      applyCurrentDynamicTheme();
+    if (exploreView) {
+      exploreView.classList.add("active");
+      exploreView.style.display = "flex";
+      exploreView.style.flexDirection = "column";
     }
+    if (typeof initExploreView === "function") {
+      initExploreView();
+    } else if (typeof window !== "undefined" && typeof window.initExploreView === "function") {
+      window.initExploreView();
+    }
+    applyCurrentDynamicTheme();
+  } else {
+    // Default fallback to home (Reels)
+    if (pView) pView.classList.remove("active");
+    if (rView) {
+      rView.classList.add("active");
+      rView.style.display = "";
+    }
+    setReelsActiveState(true);
+    if (typeof playCurrentReel === "function") playCurrentReel();
   }
 }
 
@@ -851,12 +841,12 @@ if (typeof window !== "undefined") {
       const hView = document.getElementById("homeView");
 
       if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 60) {
-        if (diffX > 0 && rView && rView.classList.contains("active")) {
+        if (diffX < 0 && activeNavId === "home") {
+          const searchBtn = document.querySelector('.nav-btn[data-id="search"]');
+          switchTab("search", searchBtn);
+        } else if (diffX > 0 && activeNavId === "search") {
           const homeBtn = document.querySelector('.nav-btn[data-id="home"]');
           switchTab("home", homeBtn);
-        } else if (diffX < 0 && hView && hView.classList.contains("active")) {
-          const reelsBtn = document.querySelector('.nav-btn[data-id="reels"]');
-          switchTab("reels", reelsBtn);
         }
       }
     }, { passive: true });

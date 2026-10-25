@@ -132,20 +132,20 @@
     </defs>
   </svg>
 
-  <div class="app-container" id="appContainer">
+  <div class="app-container dark-mode-active reels-active" id="appContainer">
     <input type="file" id="videoFileInput" accept="video/*" style="display:none;" />
 
     <!-- Safe-Area Status Bar Background Curtain -->
     <div 
       id="statusBarCurtain"
-      class="fixed top-0 left-0 right-0 z-[100] transition-colors duration-200 pointer-events-none bg-white dark:bg-black"
+      class="fixed top-0 left-0 right-0 z-[100] transition-colors duration-200 pointer-events-none bg-black"
       style="height: var(--safe-area-top, env(safe-area-inset-top, 0px));"
     ></div>
 
-    <div class="view-section active bg-white dark:bg-black text-neutral-900 dark:text-white transition-colors duration-200" id="homeView">
+    <div class="view-section bg-white dark:bg-black text-neutral-900 dark:text-white transition-colors duration-200" id="homeView" style="display: none;">
       <!-- Fixed Top Header Container -->
       <header 
-        class="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-black transition-colors fixed-top-header top-bar app-header select-none border-none shadow-none"
+        class="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-black transition-colors fixed-top-header top-bar app-header select-none border-none shadow-none header-hidden -translate-y-full"
         id="topNavbarHeader"
         style="padding-top: var(--safe-area-top, env(safe-area-inset-top, 0px)); padding-bottom: 8px; border: none !important; border-bottom: none !important; box-shadow: none !important; background-color: var(--header-bg, #ffffff);"
       >
@@ -200,7 +200,7 @@
       </div>
     </div>
 
-    <div class="view-section" id="reelsView">
+    <div class="view-section active" id="reelsView" style="display: block; height: 100%;">
       <div class="reels-top-header">
         <div class="title">Reels</div>
         <button type="button" class="reels-cam-btn bg-transparent border-0 text-white p-1 cursor-pointer flex items-center justify-center active:scale-95 transition-transform" id="reelsCameraBtn" title="Open Camera & Microphone" onclick="openCameraMicrophoneSession()">

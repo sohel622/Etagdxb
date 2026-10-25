@@ -18,7 +18,10 @@ export function isReelsRoute(routeOrTab) {
       clean === '/reel' ||
       clean.startsWith('/reels/') ||
       clean.startsWith('/reel/') ||
-      clean.includes('reels')
+      clean.includes('reels') ||
+      clean === 'home' ||
+      clean === '/' ||
+      clean === '/home'
     ) {
       return true;
     }
@@ -26,7 +29,7 @@ export function isReelsRoute(routeOrTab) {
 
   // Fallback checks against global and DOM state
   if (typeof window !== 'undefined') {
-    if (window.activeNavId === 'reels' || window.__isReelsActive === true) {
+    if (window.activeNavId === 'reels' || window.activeNavId === 'home' || window.__isReelsActive === true) {
       return true;
     }
     const reelsView = document.getElementById('reelsView');
@@ -34,7 +37,7 @@ export function isReelsRoute(routeOrTab) {
       return true;
     }
     const pathname = window.location.pathname.toLowerCase();
-    if (pathname === '/reels' || pathname.startsWith('/reels/') || pathname.startsWith('/reel/')) {
+    if (pathname === '/' || pathname === '/home' || pathname === '/reels' || pathname.startsWith('/reels/') || pathname.startsWith('/reel/')) {
       return true;
     }
   }

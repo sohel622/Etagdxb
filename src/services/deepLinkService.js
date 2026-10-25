@@ -18,7 +18,7 @@ export function handleDeepLink(urlStr) {
       if (reelId) {
         console.log('[DeepLink] Direct reel target detected:', reelId);
         if (typeof window.switchTab === 'function') {
-          window.switchTab('reels');
+          window.switchTab('home');
         }
         if (typeof window.navigateToReel === 'function') {
           window.navigateToReel(reelId);
@@ -57,7 +57,7 @@ export function handleDeepLink(urlStr) {
       case 'reel':
       case 'reels':
         if (typeof window.switchTab === 'function') {
-          window.switchTab('reels');
+          window.switchTab('home');
         } else if (typeof window.navigate === 'function') {
           window.navigate('/reels');
         }

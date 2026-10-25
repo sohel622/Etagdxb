@@ -2,7 +2,7 @@
 
 export const ROUTES = {
   HOME: "home",
-  REELS: "reels",
+  REELS: "home",
   MUSIC: "music",
   PROFILE: "profile",
   DIRECT: "direct"
@@ -19,18 +19,19 @@ export class AppRouter {
   }
 
   navigate(route) {
-    if (!Object.values(ROUTES).includes(route)) return;
-    this.currentRoute = route;
+    const resolvedRoute = (route === "reels" || route === "/reels") ? ROUTES.HOME : route;
+    if (!Object.values(ROUTES).includes(resolvedRoute)) return;
+    this.currentRoute = resolvedRoute;
     this.listeners.forEach(cb => {
       try {
-        cb(route);
+        cb(resolvedRoute);
       } catch (e) {
         console.warn("Router listener error:", e);
       }
     });
 
     if (typeof window !== "undefined" && typeof window.switchTab === "function") {
-      window.switchTab(route);
+      window.switchTab(resolvedRoute);
     }
   }
 

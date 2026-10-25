@@ -801,9 +801,9 @@ window.addEventListener("popstate", (e) => {
             } else if (typeof window !== "undefined" && typeof window.navigateToReel === "function") {
               window.navigateToReel(item.id, item.videoSrc);
             } else {
-              const reelsBtn = document.querySelector('.nav-btn[data-id="reels"]');
+              const homeBtn = document.querySelector('.nav-btn[data-id="home"]');
               if (typeof switchTab === "function") {
-                switchTab("reels", reelsBtn);
+                switchTab("home", homeBtn);
               }
             }
           };
@@ -844,9 +844,9 @@ window.addEventListener("popstate", (e) => {
             } else if (typeof window !== "undefined" && typeof window.navigateToReel === "function") {
               window.navigateToReel(item.id, item.videoSrc);
             } else {
-              const reelsBtn = document.querySelector('.nav-btn[data-id="reels"]');
+              const homeBtn = document.querySelector('.nav-btn[data-id="home"]');
               if (typeof switchTab === "function") {
-                switchTab("reels", reelsBtn);
+                switchTab("home", homeBtn);
               }
             }
           };

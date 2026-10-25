@@ -83,6 +83,14 @@ export const App = {
     initInstagramMediaPicker();
     initFullscreenVideoPlayer();
 
+    // Default TikTok-style landing view: Home icon directly opens the vertical Reels feed
+    const initialRoute = (typeof window !== "undefined" && window.location.pathname) || "/";
+    if (initialRoute === "/" || initialRoute === "/home" || initialRoute === "/reels") {
+      if (typeof window.switchTab === "function") {
+        window.switchTab("home");
+      }
+    }
+
     // 5. Browser notifications
     requestInitialBrowserNotificationPermission();
 

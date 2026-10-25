@@ -29,17 +29,10 @@ function showGlobalSoundBadge() {
    ১.২ টপ হেডার ইন্টারেকশন ও ইভেন্ট হ্যান্ডলার
 ======================================================= */
 function handleLogoClick() {
-  const homeView = document.getElementById("homeView");
-  const feedScrollContainer = document.getElementById("feedScrollContainer");
-  if (feedScrollContainer) {
-    feedScrollContainer.scrollTo({ top: 0, behavior: "smooth" });
+  const reelsView = document.getElementById("reelsView");
+  if (reelsView) {
+    reelsView.scrollTo({ top: 0, behavior: "smooth" });
   }
-  if (homeView) {
-    homeView.scrollTo({ top: 0, behavior: "smooth" });
-  } else {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-  showTopNavbar();
 }
 
 function hideTopNavbar() {
