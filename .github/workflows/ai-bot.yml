@@ -17,7 +17,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm cache clean --force && npm install @google/genai
+        run: npm install @google/genai --legacy-peer-deps
 
       - name: Run AI Agent to Fix Code
         env:
