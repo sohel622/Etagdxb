@@ -730,10 +730,6 @@ window.addEventListener("popstate", (e) => {
             targetUids.add(String(authUserUid).toLowerCase());
             const valid = toValidUUID(authUserUid);
             if (valid) targetUids.add(valid);
-          }
-          targetUids.add(AUTHENTIC_USER_UUID);
-          targetUids.add("5611f2e8-0005-482f-9929-69d2efab41df");
-          targetUids.add("1");
           targetUids.add("sohelmommy_077");
         } else {
           targetUids.add(viewingProfileUserId);
