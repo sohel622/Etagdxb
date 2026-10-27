@@ -4,12 +4,20 @@ import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
 
 let realtimeAvatarChannel = null;
 
+export const AUTHENTIC_USER_UUID = "5611f2e8-0005-482f-9929-69d2efab41df";
+
 /**
  * Deterministically convert any user ID (numeric, string, or UUID) into a valid UUID
  */
 export function toValidUUID(rawId) {
   if (!rawId) return null;
   const str = String(rawId).trim();
+
+  // Explicitly associate sohelmommy_077 or numeric ID 1 with the authentic user UUID
+  if (str === "sohelmommy_077" || str === "1" || str.toLowerCase() === "sohelmommy") {
+    return AUTHENTIC_USER_UUID;
+  }
+
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (uuidRegex.test(str)) return str.toLowerCase();
 
@@ -35,7 +43,10 @@ export function toValidUUID(rawId) {
 export function getCurrentUserId() {
   try {
     const activeAccId = localStorage.getItem("flashgram_active_account_id");
-    if (activeAccId && activeAccId.trim()) return activeAccId.trim();
+    if (activeAccId && activeAccId.trim()) {
+      const trimmed = activeAccId.trim();
+      return (trimmed === "1" || trimmed === "sohelmommy_077") ? AUTHENTIC_USER_UUID : trimmed;
+    }
   } catch (_) {}
 
   try {
@@ -43,7 +54,10 @@ export function getCurrentUserId() {
     if (sessionStr) {
       const parsed = JSON.parse(sessionStr);
       const uid = parsed?.uid || parsed?.id;
-      if (uid) return String(uid).trim();
+      if (uid) {
+        const trimmed = String(uid).trim();
+        return (trimmed === "1" || trimmed === "sohelmommy_077") ? AUTHENTIC_USER_UUID : trimmed;
+      }
     }
   } catch (_) {}
 
@@ -57,20 +71,11 @@ export function getCurrentUserId() {
   } catch (_) {}
 
   if (UserProfileStore?.state?.id) {
-    return String(UserProfileStore.state.id).trim();
+    const uid = String(UserProfileStore.state.id).trim();
+    return (uid === "1" || uid === "sohelmommy_077") ? AUTHENTIC_USER_UUID : uid;
   }
 
-  // Persistent unique client ID if no active account
-  try {
-    let localUid = localStorage.getItem("flashgram_local_user_id");
-    if (!localUid) {
-      localUid = "user_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
-      localStorage.setItem("flashgram_local_user_id", localUid);
-    }
-    return localUid;
-  } catch (_) {
-    return "flashgram_user_default";
-  }
+  return AUTHENTIC_USER_UUID;
 }
 
 /**

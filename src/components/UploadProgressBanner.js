@@ -88,6 +88,9 @@ export function updateUploadProgressBanner(percent, meta) {
   if (els.percentTextEl) {
     els.percentTextEl.textContent = `${safePercent}%`;
   }
+  if (els.subtextEl && meta && meta.uploadedMB && meta.totalMB) {
+    els.subtextEl.textContent = `• ${meta.uploadedMB}MB / ${meta.totalMB}MB`;
+  }
   if (safePercent >= 100) {
     if (els.titleEl) els.titleEl.textContent = "Finishing post...";
   } else if (els.titleEl) {
@@ -209,7 +212,7 @@ export function failUploadProgressBanner(errorMessage = "Upload failed") {
 /**
  * On-screen visual Toast showing real-time upload percentage (e.g., "Uploading video... 45%")
  */
-export function showUploadProgressToast(percent) {
+export function showUploadProgressToast(percent, meta = null) {
   let toast = document.getElementById("uploadProgressToast");
   if (!toast) {
     toast = document.createElement("div");
@@ -252,7 +255,8 @@ export function showUploadProgressToast(percent) {
     }, 1800);
   } else {
     clearTimeout(toast._fadeTimeout);
-    toast.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-pink-500 text-sm"></i> <span>Uploading video... ${safePercent}%</span>`;
+    const mbDetail = meta && meta.uploadedMB && meta.totalMB ? ` (${meta.uploadedMB}/${meta.totalMB} MB)` : '';
+    toast.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-pink-500 text-sm"></i> <span>Uploading video... ${safePercent}%${mbDetail}</span>`;
   }
 }
 

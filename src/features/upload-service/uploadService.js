@@ -42,6 +42,9 @@ export const uploadPostMedia = async (file, onProgress) => {
     }
   } catch (cloudErr) {
     console.warn("[Upload] Primary Cloudinary upload attempt notice:", cloudErr?.message || cloudErr);
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      throw new Error("Upload failed: Internet connection was lost. Please reconnect and try again.");
+    }
   }
 
   // 2. Attempt upload to Supabase Storage bucket 'media_uploads'
@@ -68,7 +71,9 @@ export const uploadPostMedia = async (file, onProgress) => {
       };
     }
   } catch (supabaseErr) {
-    // Continue to next fallback
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      throw new Error("Upload failed: Internet connection was lost. Please reconnect and try again.");
+    }
   }
 
   // 3. Attempt fallback to Supabase Storage bucket 'posts'
@@ -94,7 +99,11 @@ export const uploadPostMedia = async (file, onProgress) => {
         filePath
       };
     }
-  } catch (_) {}
+  } catch (_) {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      throw new Error("Upload failed: Internet connection was lost. Please reconnect and try again.");
+    }
+  }
 
   // 4. Local object URL preview for immediate responsive UI (marked strictly as storage: 'local')
   console.warn("[Upload] Remote cloud upload unavailable, using local preview buffer.");

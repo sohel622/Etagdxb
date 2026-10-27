@@ -108,24 +108,10 @@ export function renderExploreGridItems(items = []) {
       </div>
     `;
 
-    // Item click handler
+    // Direct Reels Navigation from Search Grid (Requirement 2)
     card.addEventListener("click", () => {
-      if (item.isReel || item.video_url || item.type === "video") {
-        navigateToReel(item.id, item.video_url || item.url);
-      } else {
-        openProfilePostModal({
-          id: item.id,
-          user: item.user,
-          author_name: item.user,
-          avatar: item.avatar,
-          url: item.url,
-          thumbnail_url: item.thumbnail,
-          caption: item.caption,
-          isCarousel: item.isCarousel,
-          carouselItems: item.carouselItems,
-          likesCount: item.likes || 1200
-        });
-      }
+      const targetMediaUrl = item.video_url || item.url;
+      navigateToReel(item.id, targetMediaUrl, item);
     });
 
     grid.appendChild(card);

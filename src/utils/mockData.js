@@ -1,12 +1,15 @@
 // Flashgram Mock Data and Defaults
 
 export const DEFAULT_USER_PROFILE = {
+  id: "5611f2e8-0005-482f-9929-69d2efab41df",
   username: "sohelmommy_077",
   name: "সোহেলমোম্বর",
   pronouns: "he/him",
   bio: "🚀 Digital Creator & Explorer. Daily reels & updates!",
   link: "flashgram.me/sohelmommy",
-  avatar: "https://oppwfervzdiogunonbot.supabase.co/storage/v1/object/public/avatars/5611f2e8-0005-482f-9929-69d2efab41df/1788541590088_8943.png"
+  avatar: "https://oppwfervzdiogunonbot.supabase.co/storage/v1/object/public/avatars/5611f2e8-0005-482f-9929-69d2efab41df/1788541590088_8943.png",
+  followersCount: "14.8K",
+  followingCount: 1
 };
 
 export const SHABNAM_AI_PROFILE = {

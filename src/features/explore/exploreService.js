@@ -223,6 +223,84 @@ export const TRENDING_TAGS = [
   { tag: "music", postsCount: "15.1M", isTrending: false }
 ];
 
+/**
+ * Normalizes media URL to its canonical filename / core asset ID
+ */
+export function extractCanonicalMediaKey(url) {
+  if (!url || typeof url !== "string") return "";
+  const clean = url.split("?")[0].replace(/\/upload\/(?:[a-zA-Z0-9_,:]+\/)?/, "/upload/").trim();
+  const filename = clean.split("/").pop();
+  return (filename && filename.length > 4) ? filename.toLowerCase() : clean.toLowerCase();
+}
+
+/**
+ * Filter out invalid placeholder assets (e.g. sample.mp4, test.mp4, empty)
+ */
+export function isValidMediaItem(item) {
+  if (!item) return false;
+  const rawVid = item.video_url || item.url || "";
+  const thumb = item.thumbnail || item.thumbnail_url || "";
+  if (!rawVid && !thumb) return false;
+  if (rawVid.endsWith("/sample.mp4") || rawVid.endsWith("/test.mp4") || rawVid === "sample.mp4" || rawVid === "test.mp4") {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Deduplicate feed items and ensure diversity without consecutive duplicates
+ */
+export function deduplicateAndDiversifyFeed(items = []) {
+  if (!Array.isArray(items)) return [];
+
+  const seenMedia = new Set();
+  const seenThumbs = new Set();
+  const seenIds = new Set();
+  const uniqueItems = [];
+
+  for (const item of items) {
+    if (!isValidMediaItem(item)) continue;
+
+    const id = String(item.id || "");
+    const mediaKey = extractCanonicalMediaKey(item.video_url || item.url);
+    const thumbKey = extractCanonicalMediaKey(item.thumbnail || item.thumbnail_url);
+
+    if (id && seenIds.has(id)) continue;
+    if (mediaKey && seenMedia.has(mediaKey)) continue;
+    if (thumbKey && seenThumbs.has(thumbKey)) continue;
+
+    if (id) seenIds.add(id);
+    if (mediaKey) seenMedia.add(mediaKey);
+    if (thumbKey) seenThumbs.add(thumbKey);
+
+    uniqueItems.push(item);
+  }
+
+  // Prevent consecutive items with identical user or media type if other items exist
+  const diversified = [];
+  const remaining = [...uniqueItems];
+
+  while (remaining.length > 0) {
+    const lastItem = diversified[diversified.length - 1];
+    let nextIdx = 0;
+
+    if (lastItem && remaining.length > 1) {
+      // Find candidate that has different creator and different thumbnail
+      const candidateIdx = remaining.findIndex(candidate =>
+        candidate.user !== lastItem.user &&
+        extractCanonicalMediaKey(candidate.thumbnail) !== extractCanonicalMediaKey(lastItem.thumbnail)
+      );
+      if (candidateIdx !== -1) {
+        nextIdx = candidateIdx;
+      }
+    }
+
+    diversified.push(remaining.splice(nextIdx, 1)[0]);
+  }
+
+  return diversified;
+}
+
 export class ExploreService {
   constructor() {
     this.cachedFeed = null;
@@ -269,52 +347,66 @@ export class ExploreService {
   // Fast synchronous retrieve from local cache to prevent layout flicker
   getCachedFeed() {
     if (this.cachedFeed && this.cachedFeed.length > 0) {
-      return this.cachedFeed;
+      return deduplicateAndDiversifyFeed(this.cachedFeed);
     }
     try {
       const cachedStr = localStorage.getItem(EXPLORE_CACHE_KEY);
       if (cachedStr) {
         const parsed = JSON.parse(cachedStr);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          this.cachedFeed = parsed;
-          return parsed;
+          const deduplicated = deduplicateAndDiversifyFeed(parsed);
+          this.cachedFeed = deduplicated;
+          return deduplicated;
         }
       }
     } catch (_) {}
-    return CURATED_EXPLORE_ITEMS;
+    const defaultDeduplicated = deduplicateAndDiversifyFeed(CURATED_EXPLORE_ITEMS);
+    this.cachedFeed = defaultDeduplicated;
+    return defaultDeduplicated;
   }
 
-  // Asynchronous refresh merging Supabase posts
+  // Asynchronous refresh merging Supabase posts with strict deduplication
   async fetchExploreFeed() {
     try {
       const supabasePosts = await fetchSupabasePosts();
-      let combined = [...CURATED_EXPLORE_ITEMS];
+      let formattedSupabase = [];
 
       if (Array.isArray(supabasePosts) && supabasePosts.length > 0) {
-        const formatted = supabasePosts.map((p, idx) => ({
-          id: p.id || `sp_${idx}`,
-          type: p.video_url || p.url?.endsWith(".mp4") ? "video" : "image",
-          video_url: getOptimizedVideoUrl(p.video_url || p.url),
-          url: p.url,
-          thumbnail: p.thumbnail_url || p.thumbnail || p.url,
-          caption: p.caption || "Flashgram moments ✨",
-          user: p.author_name || p.username || "creator",
-          avatar: p.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100",
-          views: `${(Math.floor(Math.random() * 850) + 50)}K`,
-          likes: `${(p.likes_count || 1248).toLocaleString()}`,
-          isReel: Boolean(p.video_url || p.url?.endsWith(".mp4")),
-          isSpan2: idx % 6 === 0
-        }));
+        formattedSupabase = supabasePosts
+          .filter(p => isValidMediaItem(p))
+          .map((p, idx) => {
+            const rawVid = p.video_url || p.url || "";
+            const isVid = Boolean(p.video_url || (rawVid && rawVid.match(/\.(mp4|webm|mov|m4v)($|\?)/i)));
+            const vidUrl = isVid ? getOptimizedVideoUrl(rawVid) : null;
+            const thumbUrl = p.thumbnail_url || p.thumbnail || (vidUrl ? (p.thumbnail_url || vidUrl.replace(/\.[^/.]+$/, ".jpg")) : p.url);
 
-        combined = [...formatted, ...CURATED_EXPLORE_ITEMS];
+            return {
+              id: String(p.id || `sp_${idx}`),
+              type: isVid ? "video" : "image",
+              video_url: vidUrl || rawVid,
+              url: vidUrl || p.url,
+              thumbnail: thumbUrl,
+              caption: p.caption || "Flashgram moments ✨",
+              user: p.author_name || p.username || "creator",
+              avatar: p.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100",
+              views: `${(Math.floor(Math.random() * 850) + 50)}K`,
+              likes: `${(p.likes_count || 1248).toLocaleString()}`,
+              isReel: isVid,
+              isSpan2: idx % 6 === 0
+            };
+          });
       }
 
-      this.cachedFeed = combined;
+      // Merge Supabase authentic items first, complemented by curated items, strictly deduplicated
+      const rawCombined = [...formattedSupabase, ...CURATED_EXPLORE_ITEMS];
+      const uniqueFeed = deduplicateAndDiversifyFeed(rawCombined);
+
+      this.cachedFeed = uniqueFeed;
       try {
-        localStorage.setItem(EXPLORE_CACHE_KEY, JSON.stringify(combined.slice(0, 40)));
+        localStorage.setItem(EXPLORE_CACHE_KEY, JSON.stringify(uniqueFeed.slice(0, 40)));
       } catch (_) {}
 
-      return combined;
+      return uniqueFeed;
     } catch (err) {
       console.warn("Explore feed load warning, falling back to cache:", err);
       return this.getCachedFeed();

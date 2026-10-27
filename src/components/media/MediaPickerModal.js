@@ -1207,11 +1207,15 @@ async function handleSharePost() {
 
       await updateUploadProgress(0, previewThumb);
 
-      // Safety timeout: 90s to prevent infinite hanging
+      // Safety timeout: 3600s (1 hour) to accommodate large videos & high-resolution media
       const timeoutPromise = new Promise((_, reject) => {
         timeoutTimer = setTimeout(() => {
-          reject(new Error("Upload request timed out (90s). Please check your internet connection."));
-        }, 90000);
+          if (typeof navigator !== "undefined" && navigator.onLine === false) {
+            reject(new Error("Upload failed: Internet connection was lost. Please reconnect and try again."));
+          } else {
+            reject(new Error("Upload request timed out (1 hour limit reached). Please check your internet connection."));
+          }
+        }, 3600000);
       });
 
       const uploadTask = async () => {
@@ -1223,7 +1227,7 @@ async function handleSharePost() {
           const onProgressHandler = (percent, meta) => {
             const safePercent = Math.min(99, Math.max(1, Math.round(percent)));
             updateUploadProgressBanner(safePercent, meta);
-            showUploadProgressToast(safePercent);
+            showUploadProgressToast(safePercent, meta);
             updateUploadProgress(safePercent, previewThumb);
           };
 
@@ -1295,7 +1299,10 @@ async function handleSharePost() {
     } catch (uploadErr) {
       clearTimeout(timeoutTimer);
       console.error("[MediaPickerModal] Background upload error:", uploadErr);
-      const errMsg = uploadErr?.message || "Upload failed. Please try again.";
+      let errMsg = uploadErr?.message || "Upload failed. Please try again.";
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        errMsg = "Internet connection was lost. Please reconnect to finish uploading.";
+      }
       failUploadProgressBanner(errMsg);
       hideUploadProgressToast();
       await notifyUploadError(null, errMsg);

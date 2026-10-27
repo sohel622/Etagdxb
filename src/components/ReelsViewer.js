@@ -40,6 +40,7 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
        ৮. রিলস ভিডিও লোডিং
     ======================================================= */
     const reelsFeedWrapper = document.getElementById("reelsFeedWrapper");
+    let buildSingleReelElement = null;
 
     function openMyProfileTab() {
       if (typeof window.closeUserProfile === "function") {
@@ -116,7 +117,7 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
     }
     window.playShabnamReelVideo = playShabnamReelVideo;
 
-    async function navigateToReel(videoId, videoUrl) {
+    async function navigateToReel(videoId, videoUrl, itemData = null) {
       setActiveClearModeReelId(null);
       if (typeof pauseAllHomeVideos === "function") {
         pauseAllHomeVideos();
@@ -144,7 +145,6 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
 
       const focusTargetReel = () => {
         const currentItems = Array.from(document.querySelectorAll("#reelsFeedWrapper .reel-item"));
-        if (currentItems.length === 0) return;
 
         let target = null;
         if (videoId) {
@@ -157,7 +157,31 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
                    (v && v.src && (v.src === videoUrl || v.src.endsWith(videoUrl) || videoUrl.endsWith(v.src)));
           });
         }
-        if (!target) {
+
+        // If target reel is not in the DOM, dynamically construct and prepend it
+        if (!target && (videoUrl || itemData)) {
+          const rawVid = videoUrl || itemData?.video_url || itemData?.url;
+          if (rawVid && container && typeof buildSingleReelElement === "function") {
+            const reelData = itemData || {
+              id: videoId || `search_reel_${Date.now()}`,
+              video_url: rawVid,
+              url: rawVid,
+              thumbnail_url: itemData?.thumbnail || (rawVid ? deriveCloudinaryThumbnailUrl(rawVid) : ''),
+              caption: itemData?.caption || 'Flashgram Reel ✨ #reels',
+              author_name: itemData?.user || itemData?.author_name || 'creator',
+              user: itemData?.user || 'creator',
+              avatar: itemData?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'
+            };
+            const newReelEl = buildSingleReelElement(reelData, 0);
+            if (newReelEl) {
+              container.insertBefore(newReelEl, container.firstChild);
+              target = newReelEl;
+              if (typeof setupReelObserver === "function") setupReelObserver();
+            }
+          }
+        }
+
+        if (!target && currentItems.length > 0) {
           target = currentItems[0];
         }
 
@@ -238,7 +262,9 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
 
       const defaultAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
 
-      livePosts.forEach((reel, index) => {
+      buildSingleReelElement = function(reel, index = 0) {
+        if (!reel) return null;
+      if (typeof window !== "undefined") window.buildSingleReelElement = buildSingleReelElement;
         const rawVidUrl = reel.video_url || reel.url || '';
         const vidUrl = getOptimizedVideoUrl(rawVidUrl);
         const thumbUrl = reel.thumbnail_url || (rawVidUrl ? deriveCloudinaryThumbnailUrl(rawVidUrl) : '');
@@ -640,7 +666,12 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
           title: soundTitle
         });
 
-        reelsFeedWrapper.appendChild(item);
+        return item;
+      }
+
+      livePosts.forEach((reel, index) => {
+        const item = buildSingleReelElement(reel, index);
+        if (item) reelsFeedWrapper.appendChild(item);
       });
 
       setupReelObserver();

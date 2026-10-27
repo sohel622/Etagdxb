@@ -110,6 +110,11 @@ export function deriveCloudinaryThumbnailUrl(secureUrl) {
   return getOptimizedImageUrl(jpgUrl, 720);
 }
 
+/**
+ * Media upload timeout: 3600 seconds (1 hour) to accommodate large videos & high-resolution media
+ */
+export const UPLOAD_TIMEOUT_MS = 3600000;
+
 function singleCloudinaryUpload(file, resourceType, preset, onProgress) {
   const formData = new FormData();
   if (typeof file === "string") {
@@ -130,7 +135,7 @@ function singleCloudinaryUpload(file, resourceType, preset, onProgress) {
 
   if (typeof XMLHttpRequest === "undefined") {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 75000);
+    const timeoutId = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
     return fetch(endpoint, {
       method: "POST",
       body: formData,
@@ -151,8 +156,11 @@ function singleCloudinaryUpload(file, resourceType, preset, onProgress) {
       throw new Error(data?.error?.message || `Cloudinary upload failed (status: ${res.status})`);
     }).catch(err => {
       clearTimeout(timeoutId);
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        throw new Error("Upload failed: Internet connection was lost. Please reconnect and try again.");
+      }
       if (err.name === 'AbortError') {
-        throw new Error("Cloudinary upload timed out (75s). Please check your internet connection.");
+        throw new Error("Cloudinary upload timed out after 3600s (1 hour). Please check your internet connection.");
       }
       throw err;
     });
@@ -161,7 +169,7 @@ function singleCloudinaryUpload(file, resourceType, preset, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", endpoint, true);
-    xhr.timeout = 75000; // 75 seconds network timeout
+    xhr.timeout = UPLOAD_TIMEOUT_MS; // 3600 seconds (1 hour) network timeout for large video uploads
 
     if (xhr.upload && typeof onProgress === "function") {
       xhr.upload.onprogress = (e) => {
@@ -181,7 +189,11 @@ function singleCloudinaryUpload(file, resourceType, preset, onProgress) {
     }
 
     xhr.ontimeout = () => {
-      reject(new Error("Cloudinary upload request timed out (75s). Please check your network connection and try again."));
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        reject(new Error("Upload failed: Internet connection was lost. Please reconnect and try again."));
+      } else {
+        reject(new Error("Cloudinary upload request timed out (1 hour limit reached). Please check your network connection and try again."));
+      }
     };
 
     xhr.onload = () => {
@@ -214,7 +226,11 @@ function singleCloudinaryUpload(file, resourceType, preset, onProgress) {
     };
 
     xhr.onerror = () => {
-      reject(new Error("Network connection error during Cloudinary upload"));
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        reject(new Error("Upload failed: Internet connection was lost. Please reconnect and try again."));
+      } else {
+        reject(new Error("Network connection error during Cloudinary upload. Please check your connection and try again."));
+      }
     };
 
     xhr.onabort = () => {
@@ -851,5 +867,6 @@ if (typeof window !== "undefined") {
   window.saveReelToSupabase = saveReelToSupabase;
   window.fetchSupabasePosts = fetchSupabasePosts;
   window.getAuthenticatedUserId = getAuthenticatedUserId;
+  window.UPLOAD_TIMEOUT_MS = UPLOAD_TIMEOUT_MS;
 }
 

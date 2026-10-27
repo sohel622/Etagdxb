@@ -494,11 +494,7 @@ async function executeSearch(query, overlay) {
       if (!item) return;
 
       closeSearchActiveOverlay();
-      if (item.isReel || item.video_url) {
-        navigateToReel(item.id, item.video_url);
-      } else {
-        openProfilePostModal(item);
-      }
+      navigateToReel(item.id, item.video_url || item.url, item);
     });
   });
 }
