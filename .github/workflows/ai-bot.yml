@@ -1,0 +1,50 @@
+name: AI Auto-Fixer Bot
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  ai-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install @google/genai
+
+      - name: Run AI Agent to Fix Code
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          node -e '
+            import { GoogleGenAI } from "@google/genai";
+            import fs from "fs";
+            
+            const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+            
+            async function run() {
+                const prompt = `You are an expert full-stack developer. Fix bugs or add features based on this request:
+                Title: ${process.env.ISSUE_TITLE}
+                Description: ${process.env.ISSUE_BODY}
+                
+                Analyze the project and provide updated code or instructions.`;
+                
+                const response = await ai.models.generateContent({
+                    model: "gemini-2.5-flash",
+                    contents: prompt,
+                });
+                
+                console.log("AI Response:", response.text);
+            }
+            run();
+          '
+          
