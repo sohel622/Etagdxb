@@ -9,7 +9,7 @@ import {
   saveReelToSupabase
 } from "../../services/cloudinaryService.js";
 import { showInstagramToast, UserProfileStore } from "../../utils/storage.js";
-import { getCurrentUserId, resolveCurrentUserId, toValidUUID } from "../../services/avatarService.js";
+import { getCurrentUserId, resolveCurrentUserId, toValidUUID, AUTHENTIC_USER_UUID } from "../../services/avatarService.js";
 import { encodePostCaptionWithSong, normalizeSongRecord, DEFAULT_MUSIC_COVER } from "../../services/songsService.js";
 
 /**
@@ -173,6 +173,9 @@ export const appendPostToLocalFeed = (postRecord) => {
     if (typeof window.renderProfileGrid === "function") {
       window.renderProfileGrid();
     }
+    try {
+      window.dispatchEvent(new CustomEvent('flashgram_post_uploaded', { detail: normalized }));
+    } catch (_) {}
   }
 
   return normalized;
@@ -235,9 +238,25 @@ export const uploadAndSaveVideoPost = async (videoFile, caption, userId, music =
     // Generate crisp image thumbnail URL directly from Cloudinary video public ID
     const permanentThumbnailUrl = deriveCloudinaryThumbnailUrl(finalVideoUrl) || finalVideoUrl.replace(/\.[^/.]+$/, ".jpg");
 
-    // Resolve authentic user UUID
-    const rawUid = userId || (typeof resolveCurrentUserId === "function" ? await resolveCurrentUserId() : null) || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null);
-    const targetUid = toValidUUID(rawUid) || rawUid;
+    // Strictly resolve authentic user UUID dynamically from Supabase Auth
+    let dynamicAuthUid = null;
+    if (supabase?.auth) {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (data?.user?.id) dynamicAuthUid = data.user.id;
+      } catch (_) {}
+      if (!dynamicAuthUid) {
+        try {
+          const { data: sessData } = await supabase.auth.getSession();
+          if (sessData?.session?.user?.id) dynamicAuthUid = sessData.session.user.id;
+        } catch (_) {}
+      }
+    }
+    if (!dynamicAuthUid && typeof resolveCurrentUserId === "function") {
+      dynamicAuthUid = await resolveCurrentUserId();
+    }
+    const rawUid = dynamicAuthUid || (userId && userId !== "flashgram_user" && userId !== "creator" ? userId : null) || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null);
+    const targetUid = toValidUUID(rawUid) || rawUid || AUTHENTIC_USER_UUID;
 
     // 3. Database Link: Save the final transformed/merged Cloudinary video URL directly into the
     // Supabase `reels` table along with the associated song title and cover art details.
@@ -291,9 +310,25 @@ export const uploadAndSaveVideoPost = async (videoFile, caption, userId, music =
  * @param {string} [mediaType='video'] - 'video' | 'photo'
  */
 export const handlePublishPost = async (cloudinaryVideoUrl, caption, mediaType = 'video', userId = null, music = null) => {
-  const rawUid = userId || (typeof resolveCurrentUserId === "function" ? await resolveCurrentUserId() : null) || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null);
-  const finalUserId = toValidUUID(rawUid) || rawUid;
-  const username = UserProfileStore?.state?.username || 'creator';
+  let dynamicAuthUid = null;
+  if (supabase?.auth) {
+    try {
+      const { data } = await supabase.auth.getUser();
+      if (data?.user?.id) dynamicAuthUid = data.user.id;
+    } catch (_) {}
+    if (!dynamicAuthUid) {
+      try {
+        const { data: sessData } = await supabase.auth.getSession();
+        if (sessData?.session?.user?.id) dynamicAuthUid = sessData.session.user.id;
+      } catch (_) {}
+    }
+  }
+  if (!dynamicAuthUid && typeof resolveCurrentUserId === "function") {
+    dynamicAuthUid = await resolveCurrentUserId();
+  }
+  const rawUid = dynamicAuthUid || (userId && userId !== "flashgram_user" && userId !== "creator" ? userId : null) || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null);
+  const finalUserId = toValidUUID(rawUid) || rawUid || AUTHENTIC_USER_UUID;
+  const username = UserProfileStore?.state?.username || 'sohelmommy_077';
   const userAvatar = UserProfileStore?.state?.avatar || '/assets/default-avatar.png';
 
   const normalizedMusic = music ? normalizeSongRecord(music) : null;

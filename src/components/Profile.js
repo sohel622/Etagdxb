@@ -8,7 +8,7 @@ import { playShabnamReelVideo, navigateToReel } from "./ReelsViewer.js";
 import { openEditProfileScreen, openMediaCreationPrompt } from "./Modals.js";
 import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl, getOptimizedVideoUrl, getOptimizedImageUrl } from "../services/cloudinaryService.js";
 import { supabase } from "../supabaseClient.js";
-import { getCurrentUserId, toValidUUID, AUTHENTIC_USER_UUID } from "../services/avatarService.js";
+import { getCurrentUserId, resolveCurrentUserId, toValidUUID, AUTHENTIC_USER_UUID } from "../services/avatarService.js";
 import { isFollowingUser, toggleFollowUser } from "../services/followService.js";
 import { openDirectChatWithUser } from "./DirectChat.js";
 import { inMemoryLocalPosts } from "./Feed.js";
@@ -357,23 +357,42 @@ export async function syncCurrentLoggedInUserProfile() {
   // Requirement 2: Load Authoritative Profile from Supabase on Mount (Fix Refresh Wipeout)
   let profileData = null;
   try {
+    // 1. Try querying profiles table directly by current user's UUID or ID
+    const { data: directProfile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', currentUserId)
+      .maybeSingle();
+    if (directProfile) profileData = directProfile;
+
+    if (!profileData && currentAuthUser?.email) {
+      const { data: emailProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('email', currentAuthUser.email)
+        .maybeSingle();
+      if (emailProfile) profileData = emailProfile;
+    }
+
     const isIntegerId = /^\d+$/.test(String(currentUserId).trim());
-    if (isIntegerId) {
-      const { data, error } = await supabase
+    if (!profileData && isIntegerId) {
+      const { data: intProfile } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', parseInt(currentUserId, 10))
         .maybeSingle();
-      if (!error && data) profileData = data;
+      if (intProfile) profileData = intProfile;
     }
 
     if (!profileData) {
       const { data: profs } = await supabase.from('profiles').select('*');
       if (Array.isArray(profs)) {
         profileData = profs.find(p => 
-          (p.avatar_url && (p.avatar_url.includes(String(currentUserId)) || p.avatar_url.includes(AUTHENTIC_USER_UUID))) ||
+          String(p.id) === String(currentUserId) ||
           (currentAuthUser?.email && p.email && p.email.toLowerCase() === currentAuthUser.email.toLowerCase()) ||
           (p.email && p.email.toLowerCase().includes("sohelmommy")) ||
+          (p.username && p.username.toLowerCase() === "sohelmommy_077") ||
+          (p.avatar_url && (p.avatar_url.includes(String(currentUserId)) || p.avatar_url.includes(AUTHENTIC_USER_UUID))) ||
           (p.id === 1)
         );
       }
@@ -523,24 +542,58 @@ window.addEventListener("popstate", (e) => {
         return;
       }
 
-      const rawActiveUid = viewingProfileUserId || getCurrentUserId() || AUTHENTIC_USER_UUID;
-      const isCurrentUser = !viewingProfileUserId || rawActiveUid === AUTHENTIC_USER_UUID || rawActiveUid === "sohelmommy_077" || rawActiveUid === "1";
-      const activeUid = isCurrentUser ? AUTHENTIC_USER_UUID : (toValidUUID(rawActiveUid) || rawActiveUid);
+      // Dynamically resolve authenticated user UUID
+      let authUserUid = null;
+      if (supabase?.auth) {
+        try {
+          const { data } = await supabase.auth.getUser();
+          if (data?.user?.id) authUserUid = data.user.id;
+        } catch (_) {}
+      }
+      if (!authUserUid && typeof resolveCurrentUserId === "function") {
+        try {
+          authUserUid = await resolveCurrentUserId();
+        } catch (_) {}
+      }
+      if (!authUserUid && typeof getCurrentUserId === "function") {
+        authUserUid = getCurrentUserId();
+      }
 
-      // 1. Live Post Count strictly associated with the authenticated user ID (Requirement 3)
+      const isCurrentUser = !viewingProfileUserId || 
+        viewingProfileUserId === authUserUid || 
+        viewingProfileUserId === AUTHENTIC_USER_UUID || 
+        viewingProfileUserId === "sohelmommy_077" || 
+        viewingProfileUserId === "1";
+
+      const targetUids = new Set();
+      if (isCurrentUser) {
+        if (authUserUid) {
+          targetUids.add(authUserUid);
+          targetUids.add(String(authUserUid).toLowerCase());
+          const valid = toValidUUID(authUserUid);
+          if (valid) targetUids.add(valid);
+        }
+        targetUids.add(AUTHENTIC_USER_UUID);
+        targetUids.add("5611f2e8-0005-482f-9929-69d2efab41df");
+        targetUids.add("1");
+        targetUids.add("sohelmommy_077");
+      } else {
+        targetUids.add(viewingProfileUserId);
+        const valid = toValidUUID(viewingProfileUserId);
+        if (valid) targetUids.add(valid);
+      }
+      const uidsArray = Array.from(targetUids).filter(Boolean);
+
+      // 1. Live Post Count strictly associated with the authenticated user ID
       let postCount = 0;
       if (typeof explicitPostCount === "number") {
         postCount = explicitPostCount;
       } else if (supabase) {
         try {
-          const targetUids = isCurrentUser
-            ? [AUTHENTIC_USER_UUID, "5611f2e8-0005-482f-9929-69d2efab41df", "1", "sohelmommy_077"]
-            : [activeUid, toValidUUID(activeUid)].filter(Boolean);
-
           const { count, error } = await supabase
             .from('posts')
             .select('*', { count: 'exact', head: true })
-            .in('user_id', targetUids);
+            .in('user_id', uidsArray);
 
           if (!error && count !== null) {
             postCount = count;
@@ -555,7 +608,7 @@ window.addEventListener("popstate", (e) => {
         const localCount = (inMemoryLocalPosts || []).filter(p => {
           if (p.user_id) {
             const pUid = String(p.user_id).toLowerCase();
-            return pUid === AUTHENTIC_USER_UUID.toLowerCase() || pUid === "sohelmommy_077";
+            return uidsArray.some(u => String(u).toLowerCase() === pUid);
           }
           return true;
         }).length;
@@ -646,37 +699,89 @@ window.addEventListener("popstate", (e) => {
 
       try {
         let userPosts = [];
-        const rawActiveUid = viewingProfileUserId || getCurrentUserId() || AUTHENTIC_USER_UUID;
-        const isCurrentUser = !viewingProfileUserId || rawActiveUid === AUTHENTIC_USER_UUID || rawActiveUid === "sohelmommy_077" || rawActiveUid === "1";
-        const activeUid = isCurrentUser ? AUTHENTIC_USER_UUID : (toValidUUID(rawActiveUid) || rawActiveUid);
+
+        // Dynamically resolve authenticated user UUID
+        let authUserUid = null;
+        if (supabase?.auth) {
+          try {
+            const { data } = await supabase.auth.getUser();
+            if (data?.user?.id) authUserUid = data.user.id;
+          } catch (_) {}
+        }
+        if (!authUserUid && typeof resolveCurrentUserId === "function") {
+          try {
+            authUserUid = await resolveCurrentUserId();
+          } catch (_) {}
+        }
+        if (!authUserUid && typeof getCurrentUserId === "function") {
+          authUserUid = getCurrentUserId();
+        }
+
+        const isCurrentUser = !viewingProfileUserId || 
+          viewingProfileUserId === authUserUid || 
+          viewingProfileUserId === AUTHENTIC_USER_UUID || 
+          viewingProfileUserId === "sohelmommy_077" || 
+          viewingProfileUserId === "1";
+
+        const targetUids = new Set();
+        if (isCurrentUser) {
+          if (authUserUid) {
+            targetUids.add(authUserUid);
+            targetUids.add(String(authUserUid).toLowerCase());
+            const valid = toValidUUID(authUserUid);
+            if (valid) targetUids.add(valid);
+          }
+          targetUids.add(AUTHENTIC_USER_UUID);
+          targetUids.add("5611f2e8-0005-482f-9929-69d2efab41df");
+          targetUids.add("1");
+          targetUids.add("sohelmommy_077");
+        } else {
+          targetUids.add(viewingProfileUserId);
+          const valid = toValidUUID(viewingProfileUserId);
+          if (valid) targetUids.add(valid);
+        }
+        const uidsArray = Array.from(targetUids).filter(Boolean);
 
         // Include any locally created posts strictly matching this active user
         if (isCurrentUser) {
           const localUserPosts = (inMemoryLocalPosts || []).filter(p => {
             if (p.user_id) {
               const pUid = String(p.user_id).toLowerCase();
-              return pUid === AUTHENTIC_USER_UUID.toLowerCase() || pUid === "sohelmommy_077";
+              return uidsArray.some(u => String(u).toLowerCase() === pUid);
             }
             return true;
           });
           userPosts = [...localUserPosts];
         }
 
-        // Strictly isolate and load uploaded posts belonging strictly to this user_id
-        if (supabase && activeUid && activeUid !== "shabnam_ai") {
-          const targetUids = isCurrentUser
-            ? [AUTHENTIC_USER_UUID, "5611f2e8-0005-482f-9929-69d2efab41df", "1", "sohelmommy_077"]
-            : [activeUid, toValidUUID(activeUid)].filter(Boolean);
+        // Strictly isolate and load uploaded posts belonging strictly to this user's IDs
+        if (supabase && uidsArray.length > 0 && viewingProfileUserId !== "shabnam_ai") {
+          try {
+            let { data: postsData, error: postsErr } = await supabase
+              .from('posts')
+              .select('*')
+              .in('user_id', uidsArray)
+              .order('created_at', { ascending: false });
 
-          let { data, error } = await supabase
-            .from('posts')
-            .select('*')
-            .in('user_id', targetUids)
-            .order('created_at', { ascending: false });
-
-          if (Array.isArray(data)) {
-            userPosts = [...userPosts, ...data];
+            if (Array.isArray(postsData)) {
+              userPosts = [...userPosts, ...postsData];
+            }
+          } catch (pErr) {
+            console.warn("Notice fetching posts for profile grid:", pErr);
           }
+
+          // Also check 'reels' table for user's reels to ensure complete sync
+          try {
+            let { data: reelsData } = await supabase
+              .from('reels')
+              .select('*')
+              .in('user_id', uidsArray)
+              .order('created_at', { ascending: false });
+
+            if (Array.isArray(reelsData)) {
+              userPosts = [...userPosts, ...reelsData];
+            }
+          } catch (_) {}
         }
 
         // Deduplicate posts & strictly ensure every post belongs strictly to this user
@@ -1381,6 +1486,35 @@ export function openProfilePostModal(post) {
 
 if (typeof window !== "undefined") {
   window.openProfilePostModal = openProfilePostModal;
+}
+
+// Real-Time Subscriptions for posts and reels to keep profile counts & grid in sync
+let profileRealtimeChannel = null;
+function setupProfileRealtimeSync() {
+  if (profileRealtimeChannel || !supabase || typeof supabase.channel !== "function") return;
+  try {
+    profileRealtimeChannel = supabase.channel('realtime_profile_posts_sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
+        updateProfilePostsCount();
+        renderProfileGrid();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reels' }, () => {
+        updateProfilePostsCount();
+        renderProfileGrid();
+      })
+      .subscribe();
+  } catch (err) {
+    console.warn("Realtime profile sync setup notice:", err);
+  }
+}
+setupProfileRealtimeSync();
+
+// Listen for local post upload events to immediately refresh profile
+if (typeof window !== "undefined") {
+  window.addEventListener('flashgram_post_uploaded', () => {
+    updateProfilePostsCount();
+    renderProfileGrid();
+  });
 }
 
 export { viewingProfileUserId, setBottomNavVisible, openProfile, handleProfileBack, closeUserProfile, handleProfilePrimaryPillAction, updateProfilePostsCount, switchProfileTab, renderProfileGrid, renderProfileGridItems, initProfileInteractions };

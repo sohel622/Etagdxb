@@ -41,14 +41,40 @@ export function toValidUUID(rawId) {
  * Get current user identifier from active account, Supabase session, or localStorage
  */
 export function getCurrentUserId() {
+  // 1. Check cached active user UUID from Supabase Auth
+  try {
+    const cachedUuid = localStorage.getItem("flashgram_active_user_uuid");
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (cachedUuid && uuidRegex.test(cachedUuid)) return cachedUuid;
+  } catch (_) {}
+
+  // 2. Synchronously check Supabase token stored in localStorage (sb-*-auth-token)
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("sb-") && key.endsWith("-auth-token")) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const uid = parsed?.user?.id || parsed?.currentSession?.user?.id;
+          if (uid) return String(uid).trim();
+        }
+      }
+    }
+  } catch (_) {}
+
+  // 3. Check active account ID
   try {
     const activeAccId = localStorage.getItem("flashgram_active_account_id");
     if (activeAccId && activeAccId.trim()) {
       const trimmed = activeAccId.trim();
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(trimmed)) return trimmed;
       return (trimmed === "1" || trimmed === "sohelmommy_077") ? AUTHENTIC_USER_UUID : trimmed;
     }
   } catch (_) {}
 
+  // 4. Check user session
   try {
     const sessionStr = localStorage.getItem("flashgram_user_session");
     if (sessionStr) {
@@ -56,6 +82,8 @@ export function getCurrentUserId() {
       const uid = parsed?.uid || parsed?.id;
       if (uid) {
         const trimmed = String(uid).trim();
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (uuidRegex.test(trimmed)) return trimmed;
         return (trimmed === "1" || trimmed === "sohelmommy_077") ? AUTHENTIC_USER_UUID : trimmed;
       }
     }
@@ -72,6 +100,8 @@ export function getCurrentUserId() {
 
   if (UserProfileStore?.state?.id) {
     const uid = String(UserProfileStore.state.id).trim();
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(uid)) return uid;
     return (uid === "1" || uid === "sohelmommy_077") ? AUTHENTIC_USER_UUID : uid;
   }
 
@@ -82,21 +112,61 @@ export function getCurrentUserId() {
  * Resolve authentic user UUID from Supabase Auth or persistent session
  */
 export async function resolveCurrentUserId() {
-  try {
-    const activeAccId = localStorage.getItem("flashgram_active_account_id");
-    if (activeAccId && activeAccId.trim()) return activeAccId.trim();
-  } catch (_) {}
-
+  // 1. Strictly prioritize live Supabase Auth getUser() call to get active logged-in user's authentic UUID
   if (supabase && supabase.auth) {
     try {
       const { data } = await supabase.auth.getUser();
-      if (data?.user?.id) return data.user.id;
+      if (data?.user?.id) {
+        try {
+          localStorage.setItem("flashgram_active_user_uuid", data.user.id);
+        } catch (_) {}
+        return data.user.id;
+      }
     } catch (_) {}
     try {
       const { data } = await supabase.auth.getSession();
-      if (data?.session?.user?.id) return data.session.user.id;
+      if (data?.session?.user?.id) {
+        try {
+          localStorage.setItem("flashgram_active_user_uuid", data.session.user.id);
+        } catch (_) {}
+        return data.session.user.id;
+      }
     } catch (_) {}
   }
+
+  // 2. Check cached UUID from Supabase Auth
+  try {
+    const cachedUuid = localStorage.getItem("flashgram_active_user_uuid");
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (cachedUuid && uuidRegex.test(cachedUuid)) {
+      return cachedUuid;
+    }
+  } catch (_) {}
+
+  // 3. Check Supabase token stored in localStorage (sb-*-auth-token)
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("sb-") && key.endsWith("-auth-token")) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const uid = parsed?.user?.id || parsed?.currentSession?.user?.id;
+          if (uid) return String(uid).trim();
+        }
+      }
+    }
+  } catch (_) {}
+
+  // 4. Check active account ID only if it's a valid UUID
+  try {
+    const activeAccId = localStorage.getItem("flashgram_active_account_id");
+    if (activeAccId && activeAccId.trim()) {
+      const trimmed = activeAccId.trim();
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(trimmed)) return trimmed;
+    }
+  } catch (_) {}
 
   return getCurrentUserId();
 }

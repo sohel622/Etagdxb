@@ -1,7 +1,7 @@
 // Cloudinary Direct Upload Service for Flashgram
 import { supabase } from "../supabaseClient.js";
 import { showInstagramToast, UserProfileStore } from "../utils/storage.js";
-import { getCurrentUserId, resolveCurrentUserId, toValidUUID } from "./avatarService.js";
+import { getCurrentUserId, resolveCurrentUserId, toValidUUID, AUTHENTIC_USER_UUID } from "./avatarService.js";
 import { encodePostCaptionWithSong, normalizeSongRecord, DEFAULT_MUSIC_COVER } from "./songsService.js";
 
 export const CLOUD_NAME = 
@@ -607,25 +607,26 @@ export async function saveReelToSupabase({ videoUrl, thumbnailUrl, caption, user
     throw new Error("Supabase client is not initialized");
   }
 
-  // Obtain current authenticated user
-  let user = null;
-  if (supabase.auth) {
+  // Obtain current authenticated user dynamically from Supabase Auth
+  let activeAuthUser = null;
+  if (supabase?.auth) {
     try {
       const { data } = await supabase.auth.getUser();
-      user = data?.user;
+      activeAuthUser = data?.user;
     } catch (_) {}
-    if (!user) {
+    if (!activeAuthUser) {
       try {
         const { data: sessData } = await supabase.auth.getSession();
-        user = sessData?.session?.user;
+        activeAuthUser = sessData?.session?.user;
       } catch (_) {}
     }
   }
 
-  const rawUid = userId || user?.id || (typeof resolveCurrentUserId === "function" ? await resolveCurrentUserId() : null) || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null);
-  const effectiveUserId = toValidUUID(rawUid) || rawUid;
-  const username = (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.username) || user?.user_metadata?.username || user?.email?.split('@')[0] || 'creator';
-  const userAvatar = (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.avatar) || user?.user_metadata?.avatar_url || '/assets/default-avatar.png';
+  // Strictly bind user_id to dynamic authenticated user UUID
+  const dynamicAuthUid = activeAuthUser?.id || (typeof resolveCurrentUserId === "function" ? await resolveCurrentUserId() : null);
+  const effectiveUserId = dynamicAuthUid || (userId && userId !== "flashgram_user" && userId !== "creator" ? toValidUUID(userId) || userId : null) || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null) || AUTHENTIC_USER_UUID;
+  const username = (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.username) || activeAuthUser?.user_metadata?.username || activeAuthUser?.email?.split('@')[0] || 'sohelmommy_077';
+  const userAvatar = (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.avatar) || activeAuthUser?.user_metadata?.avatar_url || '/assets/default-avatar.png';
 
   const normalizedMusic = music ? normalizeSongRecord(music) : null;
   const captionToSave = encodePostCaptionWithSong(caption, normalizedMusic);
@@ -750,25 +751,26 @@ export async function savePostToSupabase({ videoUrl, thumbnailUrl, caption, user
     throw new Error("Supabase client is not initialized");
   }
 
-  // Obtain current authenticated user
-  let user = null;
-  if (supabase.auth) {
+  // Obtain current authenticated user dynamically from Supabase Auth
+  let activeAuthUser = null;
+  if (supabase?.auth) {
     try {
       const { data } = await supabase.auth.getUser();
-      user = data?.user;
+      activeAuthUser = data?.user;
     } catch (_) {}
-    if (!user) {
+    if (!activeAuthUser) {
       try {
         const { data: sessData } = await supabase.auth.getSession();
-        user = sessData?.session?.user;
+        activeAuthUser = sessData?.session?.user;
       } catch (_) {}
     }
   }
 
-  const rawUid = userId || user?.id || (typeof resolveCurrentUserId === "function" ? await resolveCurrentUserId() : null) || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null);
-  const effectiveUserId = toValidUUID(rawUid) || rawUid;
-  const username = (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.username) || user?.user_metadata?.username || user?.email?.split('@')[0] || 'creator';
-  const userAvatar = (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.avatar) || user?.user_metadata?.avatar_url || '/assets/default-avatar.png';
+  // Strictly bind user_id to dynamic authenticated user UUID
+  const dynamicAuthUid = activeAuthUser?.id || (typeof resolveCurrentUserId === "function" ? await resolveCurrentUserId() : null);
+  const effectiveUserId = dynamicAuthUid || (userId && userId !== "flashgram_user" && userId !== "creator" ? toValidUUID(userId) || userId : null) || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null) || AUTHENTIC_USER_UUID;
+  const username = (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.username) || activeAuthUser?.user_metadata?.username || activeAuthUser?.email?.split('@')[0] || 'sohelmommy_077';
+  const userAvatar = (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.avatar) || activeAuthUser?.user_metadata?.avatar_url || '/assets/default-avatar.png';
 
   // Guard: NEVER save temporary local blob links to Supabase
   if (videoUrl && String(videoUrl).startsWith('blob:')) {

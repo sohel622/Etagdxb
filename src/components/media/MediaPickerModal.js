@@ -21,7 +21,8 @@ import {
   notifyUploadError,
   requestNotificationPermission
 } from "../../services/notificationService.js";
-import { getCurrentUserId } from "../../services/avatarService.js";
+import { supabase } from "../../supabaseClient.js";
+import { getCurrentUserId, resolveCurrentUserId, AUTHENTIC_USER_UUID } from "../../services/avatarService.js";
 
 /**
  * Native Android & Web Media Fetcher
@@ -1090,7 +1091,7 @@ async function handleSharePost() {
 
   // 1. Duration Restriction (Max 60 seconds)
   if (isVideo && typeof primaryItem.durationSec === "number" && primaryItem.durationSec > 60) {
-    alert("১ মিনিটের বেশি ভিডিও আপলোড করা যাবে না");
+    showInstagramToast("১ মিনিটের বেশি ভিডিও আপলোড করা যাবে না");
     return;
   }
 
@@ -1110,9 +1111,27 @@ async function handleSharePost() {
   const captionInput = document.getElementById("mpCaptionInput");
   const caption = (captionInput?.value || "").trim() || (isVideo ? "Flashgram Reel! ✨ #reels" : "Moments ✨ #lifestyle");
 
-  const currentUsername = UserProfileStore?.state?.username || "creator";
+  const currentUsername = UserProfileStore?.state?.username || "sohelmommy_077";
   const currentAvatar = UserProfileStore?.state?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400";
-  const currentUserId = (typeof getCurrentUserId === "function" ? getCurrentUserId() : null) || UserProfileStore?.state?.id || "flashgram_user";
+  
+  // Dynamically resolve authentic Supabase auth user UUID
+  let dynamicAuthUid = null;
+  if (supabase?.auth) {
+    try {
+      const { data } = await supabase.auth.getUser();
+      if (data?.user?.id) dynamicAuthUid = data.user.id;
+    } catch (_) {}
+    if (!dynamicAuthUid) {
+      try {
+        const { data: sessData } = await supabase.auth.getSession();
+        if (sessData?.session?.user?.id) dynamicAuthUid = sessData.session.user.id;
+      } catch (_) {}
+    }
+  }
+  if (!dynamicAuthUid && typeof resolveCurrentUserId === "function") {
+    dynamicAuthUid = await resolveCurrentUserId();
+  }
+  const currentUserId = dynamicAuthUid || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null) || AUTHENTIC_USER_UUID;
 
   // Derive immediate preview thumbnail & media URL for instant UI feedback
   const previewThumb = primaryItem.thumbnail || primaryItem.url || (primaryItem.file ? URL.createObjectURL(primaryItem.file) : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100');
@@ -1293,8 +1312,15 @@ async function handleSharePost() {
       } catch (_) {}
 
       await notifyUploadSuccess(null, previewThumb);
-      updateProfilePostsCount();
-      renderProfileGrid();
+      if (typeof updateProfilePostsCount === "function") {
+        updateProfilePostsCount();
+      }
+      if (typeof renderProfileGrid === "function") {
+        renderProfileGrid();
+      }
+      try {
+        window.dispatchEvent(new CustomEvent('flashgram_post_uploaded', { detail: publishedPost }));
+      } catch (_) {}
       showInstagramToast("Flashgram: Video uploaded successfully! ✨");
     } catch (uploadErr) {
       clearTimeout(timeoutTimer);
