@@ -862,6 +862,7 @@ window.addEventListener("popstate", (e) => {
         userGridItems.forEach((item, idx) => {
           const el = document.createElement("div");
           el.className = "profile-grid-item";
+         if (!item.videoSrc && !item.posterUrl) { return; }
           el.innerHTML = `
             ${item.isVideo 
               ? `<video src="${item.videoSrc}" poster="${getOptimizedImageUrl(item.poster || '', 400)}" style="width:100%; height:100%; object-fit:cover;" muted preload="metadata" playsinline></video>`
