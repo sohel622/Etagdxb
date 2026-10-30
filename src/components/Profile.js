@@ -1,14 +1,14 @@
 // Profile Component (YouTube Style Channel Header, Stats, Tabs & Grid)
 import { db } from "../services/database.js";
 import { UserProfileStore, showInstagramToast, isFollowingShabnam, toggleFollowShabnam, isPostLikedByUser, togglePostLike } from "../utils/storage.js";
-import { SHABNAM_AI_PROFILE } from "../utils/mockData.js";
+import { SHABNAM_AI_PROFILE, DEFAULT_USER_PROFILE } from "../utils/mockData.js";
 import { switchTab, activeNavId } from "./BottomNavigation.js";
 import { openShabnamChat } from "./ShabnamAI.js";
 import { playShabnamReelVideo, navigateToReel } from "./ReelsViewer.js";
 import { openEditProfileScreen, openMediaCreationPrompt } from "./Modals.js";
 import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl, getOptimizedVideoUrl, getOptimizedImageUrl } from "../services/cloudinaryService.js";
 import { supabase } from "../supabaseClient.js";
-import { getCurrentUserId, resolveCurrentUserId, toValidUUID, AUTHENTIC_USER_UUID } from "../services/avatarService.js";
+import { getCurrentUserId, resolveCurrentUserId, toValidUUID, AUTHENTIC_USER_UUID, getUniqueUserAvatar } from "../services/avatarService.js";
 import { isFollowingUser, toggleFollowUser } from "../services/followService.js";
 import { openDirectChatWithUser } from "./DirectChat.js";
 import { inMemoryLocalPosts } from "./Feed.js";
@@ -95,61 +95,61 @@ function renderOtherUserPillActions(userId, username) {
 
 async function loadAndRenderOtherUserProfile(userId, fallbackUsername, fallbackAvatar) {
   let targetProfile = null;
-  const defaultAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400";
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const isActualSohelUser = String(userId) === AUTHENTIC_USER_UUID || String(fallbackUsername || '').toLowerCase() === "sohelmommy_077";
 
-  if (supabase) {
+  if (supabase && userId) {
     try {
-      const isIntegerId = /^\d+$/.test(String(userId || '').trim());
-      if (isIntegerId) {
-        const { data: profRow } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', parseInt(userId, 10))
+      // 1. Direct query by exact UUID/ID
+      const { data: profRow } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+      if (profRow) targetProfile = profRow;
+
+      // 2. Fallback to posts table author details if no profile record
+      if (!targetProfile) {
+        const { data: postRow } = await supabase
+          .from('posts')
+          .select('username, user_avatar, author_name')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
           .maybeSingle();
-        if (profRow) targetProfile = profRow;
+        if (postRow) {
+          targetProfile = {
+            id: userId,
+            username: postRow.username || postRow.author_name || fallbackUsername,
+            display_name: postRow.author_name || postRow.username || fallbackUsername,
+            avatar_url: postRow.user_avatar || fallbackAvatar
+          };
+        }
       }
 
-      if (!targetProfile) {
-        const { data: profs } = await supabase.from('profiles').select('*');
-        if (Array.isArray(profs)) {
-          const searchKey = String(userId || '').toLowerCase().trim();
-          const fallbackUser = String(fallbackUsername || '').toLowerCase().trim();
-
-          targetProfile = profs.find(p => {
-            const pId = String(p.id);
-            const pUser = String(p.username || '').toLowerCase();
-            const pDisp = String(p.display_name || '').toLowerCase();
-            const pEmail = String(p.email || '').toLowerCase();
-            const pAvatar = String(p.avatar_url || '');
-
-            if (isIntegerId && pId === searchKey) return true;
-            if (pAvatar && searchKey && pAvatar.toLowerCase().includes(searchKey)) return true;
-            if (fallbackUser && (pUser === fallbackUser || pDisp === fallbackUser)) return true;
-            if (searchKey && (pUser === searchKey || pDisp === searchKey || pEmail === searchKey)) return true;
-            return false;
-          });
-        }
+      // 3. Fallback query by username if available
+      if (!targetProfile && fallbackUsername) {
+        const { data: profByUname } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('username', fallbackUsername)
+          .maybeSingle();
+        if (profByUname) targetProfile = profByUname;
       }
     } catch (_) {}
   }
 
   // Resolve authentic ID for target creator
-  let authenticUserId = String(userId || '');
-  if (targetProfile?.id && !authenticUserId) {
-    authenticUserId = String(targetProfile.id);
-  }
-
-  // Ensure viewingProfileUserId points strictly to the creator's ID
+  const authenticUserId = String(userId || '');
   viewingProfileUserId = authenticUserId;
   if (typeof window !== "undefined") {
     window.viewingProfileUserId = viewingProfileUserId;
   }
 
-  // Strictly render authentic username - eliminate any generic 'user' fallback
-  const username = targetProfile?.username || targetProfile?.display_name || fallbackUsername || 'creator';
+  // Strictly render authentic username & unique profile logo/avatar per user
+  const username = targetProfile?.username || targetProfile?.display_name || fallbackUsername || "creator";
   const displayName = targetProfile?.display_name || targetProfile?.full_name || username;
-  const avatarUrl = targetProfile?.avatar_url || fallbackAvatar || defaultAvatar;
+  const uniqueAvatar = getUniqueUserAvatar(authenticUserId, username);
+  const avatarUrl = targetProfile?.avatar_url || fallbackAvatar || (isActualSohelUser ? DEFAULT_USER_PROFILE.avatar : uniqueAvatar);
   const bio = targetProfile?.bio || "Digital Creator ✨ Daily reels & updates!";
   const link = targetProfile?.website || targetProfile?.link || `flashgram.me/${username}`;
 
@@ -163,12 +163,18 @@ async function loadAndRenderOtherUserProfile(userId, fallbackUsername, fallbackA
   const headerUsername = document.getElementById("profileHeaderUsername");
   if (headerUsername) headerUsername.textContent = username;
   const mainAvatar = document.getElementById("mainProfileAvatarImg");
-  if (mainAvatar) mainAvatar.src = avatarUrl;
+  if (mainAvatar) {
+    mainAvatar.onerror = function() {
+      this.onerror = null;
+      this.src = uniqueAvatar;
+    };
+    mainAvatar.src = avatarUrl;
+  }
   const profileDisplay = document.getElementById("profileDisplayName");
   if (profileDisplay) profileDisplay.textContent = displayName;
   const verifiedBadge = document.getElementById("profileVerifiedBadge");
   if (verifiedBadge) {
-    const isVerified = Boolean(targetProfile?.is_verified || username === "sohelmommy_077");
+    const isVerified = Boolean(targetProfile?.is_verified || (isActualSohelUser && username === "sohelmommy_077"));
     verifiedBadge.style.display = isVerified ? "inline-flex" : "none";
   }
   const profileHandle = document.getElementById("profileHandleText");
@@ -188,7 +194,7 @@ async function loadAndRenderOtherUserProfile(userId, fallbackUsername, fallbackA
       supabase
         .from('follows')
         .select('*', { count: 'exact', head: true })
-        .eq('following_id', userId)
+        .eq('following_id', authenticUserId)
         .then(({ count, error }) => {
           if (!error && count !== null) {
             followersInline.textContent = `${count} followers`;
@@ -202,8 +208,9 @@ async function loadAndRenderOtherUserProfile(userId, fallbackUsername, fallbackA
     }
   }
 
-  renderOtherUserPillActions(userId, username);
-  renderProfileGrid();
+  renderOtherUserPillActions(authenticUserId, username);
+  await updateProfilePostsCount();
+  await renderProfileGrid();
 }
 
 function setBottomNavVisible(visible) {
@@ -354,10 +361,11 @@ export async function syncCurrentLoggedInUserProfile() {
   const currentUserId = currentAuthUser?.id || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null);
   if (!currentUserId || !supabase) return;
 
-  // Requirement 2: Load Authoritative Profile from Supabase on Mount (Fix Refresh Wipeout)
+  const isActualSohelUser = (currentAuthUser?.email && currentAuthUser.email.toLowerCase().includes("sohelmommy")) || String(currentUserId) === AUTHENTIC_USER_UUID;
+
+  // 1. Load Authoritative Profile from Supabase directly for this user
   let profileData = null;
   try {
-    // 1. Try querying profiles table directly by current user's UUID or ID
     const { data: directProfile } = await supabase
       .from('profiles')
       .select('*')
@@ -384,37 +392,66 @@ export async function syncCurrentLoggedInUserProfile() {
       if (intProfile) profileData = intProfile;
     }
 
-    if (!profileData) {
-      const { data: profs } = await supabase.from('profiles').select('*');
-      if (Array.isArray(profs)) {
-        profileData = profs.find(p => 
-          String(p.id) === String(currentUserId) ||
-          (currentAuthUser?.email && p.email && p.email.toLowerCase() === currentAuthUser.email.toLowerCase()) ||
-          (p.email && p.email.toLowerCase().includes("sohelmommy")) ||
-          (p.username && p.username.toLowerCase() === "sohelmommy_077") ||
-          (p.avatar_url && (p.avatar_url.includes(String(currentUserId)) || p.avatar_url.includes(AUTHENTIC_USER_UUID))) ||
-          (p.id === 1)
-        );
-      }
+    // Only allow fallback to id 1 if this authenticated user IS actually Sohel
+    if (!profileData && isActualSohelUser) {
+      const { data: sohelProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', 1)
+        .maybeSingle();
+      if (sohelProfile) profileData = sohelProfile;
     }
   } catch (e) {
     console.warn("Notice querying profileData from Supabase on mount:", e);
   }
 
-  const cleanAvatarFallback = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400";
+  // Derive dynamic username, full name, and unique profile avatar strictly per authenticated user
+  const authMetadata = currentAuthUser?.user_metadata || {};
+  const emailPrefix = currentAuthUser?.email ? currentAuthUser.email.split('@')[0] : '';
+  const finalUsername = profileData?.username || profileData?.display_name || authMetadata.username || authMetadata.user_name || emailPrefix || (isActualSohelUser ? "sohelmommy_077" : "creator");
+  const finalFullName = profileData?.full_name || profileData?.display_name || authMetadata.full_name || authMetadata.name || (emailPrefix ? emailPrefix.replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : finalUsername);
+  
+  // Unique avatar per user: never uniform or shared
+  const uniqueAvatar = getUniqueUserAvatar(currentUserId, finalUsername);
+  const finalAvatarUrl = (profileData?.avatar_url && profileData.avatar_url.trim()) 
+    ? profileData.avatar_url 
+    : (authMetadata.avatar_url || authMetadata.picture || (isActualSohelUser ? DEFAULT_USER_PROFILE.avatar : uniqueAvatar));
 
-  // Bind state directly to profileData.username, profileData.full_name, and profileData.avatar_url
-  const finalUsername = profileData?.username || profileData?.display_name || UserProfileStore.state.username || (currentAuthUser?.email ? currentAuthUser.email.split('@')[0] : 'creator');
-  const finalFullName = profileData?.full_name || profileData?.display_name || finalUsername;
-  const finalAvatarUrl = (profileData?.avatar_url && profileData.avatar_url.trim()) ? profileData.avatar_url : cleanAvatarFallback;
-  const finalBio = profileData?.bio !== undefined ? profileData.bio : (UserProfileStore.state.bio || "");
+  const finalBio = profileData?.bio !== undefined ? profileData.bio : (authMetadata.bio || "Digital Creator ✨ Daily reels & updates!");
   const finalLink = profileData?.website || profileData?.link || `flashgram.me/${finalUsername}`;
 
+  // Save profile for new users so future lookups succeed instantly
+  if (!profileData && supabase && currentUserId) {
+    try {
+      const email = currentAuthUser?.email || null;
+      const isNum = /^\d+$/.test(String(currentUserId));
+      const newProf = {
+        username: finalUsername,
+        full_name: finalFullName,
+        display_name: finalFullName,
+        avatar_url: finalAvatarUrl,
+        email: email,
+        updated_at: new Date().toISOString()
+      };
+      if (isNum) newProf.id = Number(currentUserId);
+
+      let saved = false;
+      if (email) {
+        const { error: errEmail } = await supabase.from('profiles').update(newProf).eq('email', email);
+        if (!errEmail) saved = true;
+      }
+      if (!saved) {
+        await supabase.from('profiles').upsert(newProf);
+      }
+    } catch (_) {}
+  }
+
   UserProfileStore.setState({
+    id: currentUserId,
     username: finalUsername,
     name: finalFullName,
     avatar: finalAvatarUrl,
-    email: currentAuthUser?.email || profileData?.email || UserProfileStore.state.email || "",
+    email: currentAuthUser?.email || profileData?.email || "",
     bio: finalBio,
     link: finalLink,
     website: finalLink
@@ -432,12 +469,12 @@ export async function syncCurrentLoggedInUserProfile() {
   const profileHandle = document.getElementById("profileHandleText");
   if (profileHandle) profileHandle.textContent = `@${finalUsername}`;
 
-  // Set the avatar <img> source to profileData.avatar_url with an onError fallback to a clean avatar icon if the image URL is empty
+  // Set the avatar <img> source to profileData.avatar_url with an onError fallback to unique user avatar
   const profileAvatar = document.getElementById("mainProfileAvatarImg");
   if (profileAvatar) {
     profileAvatar.onerror = function() {
       this.onerror = null;
-      this.src = cleanAvatarFallback;
+      this.src = uniqueAvatar;
     };
     profileAvatar.src = finalAvatarUrl;
   }
@@ -451,7 +488,7 @@ export async function syncCurrentLoggedInUserProfile() {
   // Verified checkmark badge: active exclusively on verified profile entries
   const verifiedBadge = document.getElementById("profileVerifiedBadge");
   if (verifiedBadge) {
-    const isVerified = Boolean(profileData?.is_verified || finalUsername === "sohelmommy_077" || (profileData?.email && profileData.email.includes("sohelmommy")));
+    const isVerified = Boolean(profileData?.is_verified || (isActualSohelUser && (finalUsername === "sohelmommy_077" || profileData?.email?.includes("sohelmommy"))));
     verifiedBadge.style.display = isVerified ? "inline-flex" : "none";
   }
 
@@ -559,32 +596,34 @@ window.addEventListener("popstate", (e) => {
         authUserUid = getCurrentUserId();
       }
 
-      const isCurrentUser = !viewingProfileUserId || 
-        viewingProfileUserId === authUserUid || 
-        viewingProfileUserId === AUTHENTIC_USER_UUID || 
-        viewingProfileUserId === "sohelmommy_077" || 
-        viewingProfileUserId === "1";
+      // Strictly isolate by the user ID of the profile currently being viewed
+      const targetUserId = viewingProfileUserId || authUserUid;
+      if (!targetUserId) {
+        if (postsCountEl) postsCountEl.textContent = "0";
+        if (postsInlineEl) postsInlineEl.innerHTML = `<span id="profilePostsCount">0</span> posts`;
+        if (followersInlineEl) followersInlineEl.textContent = "0 followers";
+        if (followersCountEl) followersCountEl.textContent = "0";
+        if (followingCountEl) followingCountEl.textContent = "0";
+        return;
+      }
+
+      const isActualSohelTarget = String(targetUserId) === AUTHENTIC_USER_UUID || String(targetUserId) === "sohelmommy_077" || String(targetUserId) === "1";
 
       const targetUids = new Set();
-      if (isCurrentUser) {
-        if (authUserUid) {
-          targetUids.add(authUserUid);
-          targetUids.add(String(authUserUid).toLowerCase());
-          const valid = toValidUUID(authUserUid);
-          if (valid) targetUids.add(valid);
-        }
+      targetUids.add(targetUserId);
+      const valid = toValidUUID(targetUserId);
+      if (valid) targetUids.add(valid);
+
+      // ONLY include legacy alias IDs if the profile target actually IS Sohel
+      if (isActualSohelTarget) {
         targetUids.add(AUTHENTIC_USER_UUID);
         targetUids.add("5611f2e8-0005-482f-9929-69d2efab41df");
         targetUids.add("1");
         targetUids.add("sohelmommy_077");
-      } else {
-        targetUids.add(viewingProfileUserId);
-        const valid = toValidUUID(viewingProfileUserId);
-        if (valid) targetUids.add(valid);
       }
       const uidsArray = Array.from(targetUids).filter(Boolean);
 
-      // 1. Live Post Count strictly associated with the authenticated user ID
+      // 1. Live Post Count strictly associated with the target user ID
       let postCount = 0;
       if (typeof explicitPostCount === "number") {
         postCount = explicitPostCount;
@@ -603,14 +642,12 @@ window.addEventListener("popstate", (e) => {
         }
       }
 
-      // Check in-memory local uploads if user just posted
-      if (isCurrentUser) {
+      // Check in-memory local uploads strictly matching this user ID
+      if (!viewingProfileUserId) {
         const localCount = (inMemoryLocalPosts || []).filter(p => {
-          if (p.user_id) {
-            const pUid = String(p.user_id).toLowerCase();
-            return uidsArray.some(u => String(u).toLowerCase() === pUid);
-          }
-          return true;
+          if (!p || !p.user_id) return false;
+          const pUid = String(p.user_id).toLowerCase();
+          return uidsArray.some(u => String(u).toLowerCase() === pUid);
         }).length;
         if (localCount > postCount) {
           postCount = localCount;
@@ -620,14 +657,13 @@ window.addEventListener("popstate", (e) => {
       if (postsCountEl) postsCountEl.textContent = String(postCount);
       if (postsInlineEl) postsInlineEl.innerHTML = `<span id="profilePostsCount">${postCount}</span> posts`;
 
-      // 2. Live Follower & Following Count (Requirement 3: strictly associated with authentic user ID)
+      // 2. Live Follower & Following Count strictly associated with target user
       let followerDisplay = "0";
       let followingDisplay = "0";
 
-      if (isCurrentUser) {
-        followerDisplay = UserProfileStore?.state?.followersCount || "14.8K";
-        const isFollShabnam = typeof isFollowingShabnam === "function" ? isFollowingShabnam() : true;
-        followingDisplay = String(isFollShabnam ? 1 : 0);
+      if (!viewingProfileUserId) {
+        followerDisplay = isActualSohelTarget ? (UserProfileStore?.state?.followersCount || "14.8K") : "0";
+        followingDisplay = String(isActualSohelTarget ? 1 : 0);
       } else if (viewingOtherUserObj) {
         followerDisplay = viewingOtherUserObj.followers || "0";
         followingDisplay = viewingOtherUserObj.following || "0";
@@ -717,35 +753,35 @@ window.addEventListener("popstate", (e) => {
           authUserUid = getCurrentUserId();
         }
 
-        const isCurrentUser = !viewingProfileUserId || 
-          viewingProfileUserId === authUserUid || 
-          viewingProfileUserId === AUTHENTIC_USER_UUID || 
-          viewingProfileUserId === "sohelmommy_077" || 
-          viewingProfileUserId === "1";
+        const targetUserId = viewingProfileUserId || authUserUid;
+        if (!targetUserId) {
+          updateProfilePostsCount(0);
+          renderProfileGridItems([]);
+          return;
+        }
+
+        const isActualSohelTarget = String(targetUserId) === AUTHENTIC_USER_UUID || String(targetUserId) === "sohelmommy_077" || String(targetUserId) === "1";
 
         const targetUids = new Set();
-        if (isCurrentUser) {
-          if (authUserUid) {
-            targetUids.add(authUserUid);
-            targetUids.add(String(authUserUid).toLowerCase());
-            const valid = toValidUUID(authUserUid);
-            if (valid) targetUids.add(valid);
+        targetUids.add(targetUserId);
+        const valid = toValidUUID(targetUserId);
+        if (valid) targetUids.add(valid);
+
+        // ONLY include legacy alias IDs if the target user actually IS Sohel
+        if (isActualSohelTarget) {
+          targetUids.add(AUTHENTIC_USER_UUID);
+          targetUids.add("5611f2e8-0005-482f-9929-69d2efab41df");
+          targetUids.add("1");
           targetUids.add("sohelmommy_077");
-        } else {
-          targetUids.add(viewingProfileUserId);
-          const valid = toValidUUID(viewingProfileUserId);
-          if (valid) targetUids.add(valid);
         }
         const uidsArray = Array.from(targetUids).filter(Boolean);
 
         // Include any locally created posts strictly matching this active user
-        if (isCurrentUser) {
+        if (!viewingProfileUserId) {
           const localUserPosts = (inMemoryLocalPosts || []).filter(p => {
-            if (p.user_id) {
-              const pUid = String(p.user_id).toLowerCase();
-              return uidsArray.some(u => String(u).toLowerCase() === pUid);
-            }
-            return true;
+            if (!p || !p.user_id) return false;
+            const pUid = String(p.user_id).toLowerCase();
+            return uidsArray.some(u => String(u).toLowerCase() === pUid);
           });
           userPosts = [...localUserPosts];
         }
@@ -790,8 +826,15 @@ window.addEventListener("popstate", (e) => {
           return true;
         });
 
-        updateProfilePostsCount(uniquePosts.length);
-        renderProfileGridItems(uniquePosts);
+        // Filter out any posts that have neither video source nor poster image
+        const validPosts = uniquePosts.filter(p => {
+          const src = p.media_url || p.video_url || p.url || (p.blob ? URL.createObjectURL(p.blob) : '');
+          const thumb = p.thumbnail_url || p.thumbnail || p.poster || '';
+          return Boolean((src && src.trim()) || (thumb && thumb.trim()));
+        });
+
+        updateProfilePostsCount(validPosts.length);
+        renderProfileGridItems(validPosts);
       } catch (e) {
         console.warn("renderProfileGrid error:", e);
         updateProfilePostsCount(0);
@@ -808,10 +851,10 @@ window.addEventListener("popstate", (e) => {
       const userGridItems = userPosts.map((p, idx) => {
         const isCarousel = Boolean(p.isCarousel || (p.carouselItems && p.carouselItems.length > 1));
         const hasMusic = Boolean(p.music);
-        const rawVidSrc = p.media_url || p.video_url || p.url || (p.blob ? URL.createObjectURL(p.blob) : '');
-        const vidSrc = getOptimizedVideoUrl(rawVidSrc);
+        const rawVidSrc = p.media_url || p.video_url || p.url || (p.blob ? URL.createObjectURL(p.blob) : '') || '';
+        const vidSrc = rawVidSrc ? getOptimizedVideoUrl(rawVidSrc) : '';
         const isVideo = p.media_type === 'video' || Boolean(p.video_url || p.media_url || (!isCarousel && (rawVidSrc.includes('.mp4') || rawVidSrc.includes('.webm') || rawVidSrc.includes('video'))));
-        const posterUrl = p.thumbnail_url || p.thumbnail || (isCarousel && p.carouselItems ? p.carouselItems[0].thumbnail || p.carouselItems[0].url : '') || (rawVidSrc ? deriveCloudinaryThumbnailUrl(rawVidSrc) : '') || rawVidSrc;
+        const posterUrl = p.thumbnail_url || p.thumbnail || p.poster || (isCarousel && p.carouselItems ? p.carouselItems[0].thumbnail || p.carouselItems[0].url : '') || (rawVidSrc ? deriveCloudinaryThumbnailUrl(rawVidSrc) : '') || '';
 
         let badge = '<i class="fa-solid fa-play"></i>';
         if (isCarousel) {
@@ -830,14 +873,18 @@ window.addEventListener("popstate", (e) => {
           isVideo,
           videoSrc: vidSrc,
           poster: posterUrl,
+          posterUrl: posterUrl,
           badge,
           likes: p.likes_count !== undefined && p.likes_count !== null ? String(p.likes_count) : (p.likesCount !== undefined && p.likesCount !== null ? String(p.likesCount) : '0'),
           views: '1'
         };
       });
 
+      // Filter out items that lack both valid video source and poster image
+      const validGridItems = userGridItems.filter(item => Boolean((item.videoSrc && item.videoSrc.trim()) || (item.posterUrl && item.posterUrl.trim())));
+
       if (currentProfileTab === "grid") {
-        if (userGridItems.length === 0) {
+        if (validGridItems.length === 0) {
           container.style.display = "block";
           container.innerHTML = `
             <div style="padding: 48px 24px; text-align: center; color: #8e8e8e;">
@@ -859,19 +906,50 @@ window.addEventListener("popstate", (e) => {
         }
 
         container.style.display = "grid";
-        userGridItems.forEach((item, idx) => {
+        validGridItems.forEach((item, idx) => {
+          // Strictly prevent blank/black placeholder boxes from appearing
+          if (!item.videoSrc && !item.posterUrl) {
+            return;
+          }
+
           const el = document.createElement("div");
           el.className = "profile-grid-item";
-         if (!item.videoSrc && !item.posterUrl) { return; }
+          const displayPoster = item.posterUrl ? getOptimizedImageUrl(item.posterUrl, 400) : '';
+
           el.innerHTML = `
-            ${item.isVideo 
-              ? `<video src="${item.videoSrc}" poster="${getOptimizedImageUrl(item.poster || '', 400)}" style="width:100%; height:100%; object-fit:cover;" muted preload="metadata" playsinline></video>`
-              : `<img src="${getOptimizedImageUrl(item.poster || item.videoSrc, 400)}" style="width:100%; height:100%; object-fit:cover;" alt="Grid post" loading="lazy" decoding="async" />`}
+            ${item.isVideo && item.videoSrc 
+              ? `<video src="${item.videoSrc}" poster="${displayPoster}" style="width:100%; height:100%; object-fit:cover;" muted preload="metadata" playsinline></video>`
+              : `<img src="${displayPoster || item.videoSrc}" style="width:100%; height:100%; object-fit:cover;" alt="Grid post" loading="lazy" decoding="async" />`}
             ${item.badge ? `<div class="profile-grid-badge">${item.badge}</div>` : ''}
             <div class="profile-grid-overlay">
               <span><i class="fa-solid fa-heart"></i> ${item.likes}</span>
             </div>
           `;
+
+          // Handle broken video decoder / missing image gracefully so box never shows black
+          const vidEl = el.querySelector("video");
+          if (vidEl) {
+            vidEl.onerror = () => {
+              if (item.posterUrl) {
+                vidEl.style.display = "none";
+                const imgFallback = document.createElement("img");
+                imgFallback.src = displayPoster;
+                imgFallback.style.cssText = "width:100%; height:100%; object-fit:cover;";
+                imgFallback.loading = "lazy";
+                el.insertBefore(imgFallback, el.firstChild);
+              } else {
+                el.remove();
+              }
+            };
+          }
+
+          const imgEl = el.querySelector("img");
+          if (imgEl) {
+            imgEl.onerror = () => {
+              el.remove();
+            };
+          }
+
           el.onclick = () => {
             if (item.isCarousel || item.hasMusic || !item.isVideo) {
               openProfilePostModal(item.rawPost);
@@ -889,7 +967,7 @@ window.addEventListener("popstate", (e) => {
           container.appendChild(el);
         });
       } else if (currentProfileTab === "reels") {
-        if (userGridItems.length === 0) {
+        if (validGridItems.length === 0) {
           container.style.display = "block";
           container.innerHTML = `
             <div style="padding: 48px 24px; text-align: center; color: #8e8e8e;">
@@ -907,16 +985,41 @@ window.addEventListener("popstate", (e) => {
         }
 
         container.style.display = "grid";
-        userGridItems.forEach((item) => {
+        validGridItems.forEach((item) => {
+          if (!item.videoSrc && !item.posterUrl) {
+            return;
+          }
+
           const el = document.createElement("div");
           el.className = "profile-grid-item";
+          const displayPoster = item.posterUrl ? getOptimizedImageUrl(item.posterUrl, 400) : '';
+
           el.innerHTML = `
-            <video src="${item.videoSrc}" poster="${item.poster || ''}" style="width:100%; height:100%; object-fit:cover;" muted preload="metadata" playsinline></video>
+            ${item.videoSrc
+              ? `<video src="${item.videoSrc}" poster="${displayPoster}" style="width:100%; height:100%; object-fit:cover;" muted preload="metadata" playsinline></video>`
+              : `<img src="${displayPoster}" style="width:100%; height:100%; object-fit:cover;" alt="Reel thumbnail" loading="lazy" />`}
             <div class="profile-grid-badge"><i class="fa-solid fa-play"></i></div>
             <div class="profile-grid-overlay">
               <span><i class="fa-solid fa-play" style="font-size: 11px;"></i> ${item.views}</span>
             </div>
           `;
+
+          const vidEl = el.querySelector("video");
+          if (vidEl) {
+            vidEl.onerror = () => {
+              if (item.posterUrl) {
+                vidEl.style.display = "none";
+                const imgFallback = document.createElement("img");
+                imgFallback.src = displayPoster;
+                imgFallback.style.cssText = "width:100%; height:100%; object-fit:cover;";
+                imgFallback.loading = "lazy";
+                el.insertBefore(imgFallback, el.firstChild);
+              } else {
+                el.remove();
+              }
+            };
+          }
+
           el.onclick = () => {
             if (typeof navigateToReel === "function") {
               navigateToReel(item.id, item.videoSrc);

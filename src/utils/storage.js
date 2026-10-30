@@ -28,6 +28,19 @@ import { db } from "../services/database.js";
         let avatar = DEFAULT_USER_PROFILE.avatar;
         let info = { ...DEFAULT_USER_PROFILE };
         try {
+          const savedSession = localStorage.getItem("flashgram_user_session");
+          if (savedSession) {
+            const parsedSession = JSON.parse(savedSession);
+            if (parsedSession && (parsedSession.displayName || parsedSession.name || parsedSession.username || parsedSession.email)) {
+              if (parsedSession.uid || parsedSession.id) info.id = parsedSession.uid || parsedSession.id;
+              if (parsedSession.displayName || parsedSession.name) info.name = parsedSession.displayName || parsedSession.name;
+              if (parsedSession.username) info.username = parsedSession.username;
+              if (parsedSession.email) info.email = parsedSession.email;
+              if (parsedSession.photoURL || parsedSession.avatar) {
+                avatar = parsedSession.photoURL || parsedSession.avatar;
+              }
+            }
+          }
           const savedAvatar = localStorage.getItem("user_custom_avatar_data");
           if (savedAvatar) avatar = savedAvatar;
           const savedInfo = localStorage.getItem("user_profile_info");

@@ -1,7 +1,7 @@
 // Cloudinary Direct Upload Service for Flashgram
 import { supabase } from "../supabaseClient.js";
 import { showInstagramToast, UserProfileStore } from "../utils/storage.js";
-import { getCurrentUserId, resolveCurrentUserId, toValidUUID, AUTHENTIC_USER_UUID } from "./avatarService.js";
+import { getCurrentUserId, resolveCurrentUserId, toValidUUID, AUTHENTIC_USER_UUID, getUniqueUserAvatar } from "./avatarService.js";
 import { encodePostCaptionWithSong, normalizeSongRecord, DEFAULT_MUSIC_COVER } from "./songsService.js";
 
 export const CLOUD_NAME = 
@@ -625,8 +625,8 @@ export async function saveReelToSupabase({ videoUrl, thumbnailUrl, caption, user
   // Strictly bind user_id to dynamic authenticated user UUID
   const dynamicAuthUid = activeAuthUser?.id || (typeof resolveCurrentUserId === "function" ? await resolveCurrentUserId() : null);
   const effectiveUserId = dynamicAuthUid || (userId && userId !== "flashgram_user" && userId !== "creator" ? toValidUUID(userId) || userId : null) || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null) || AUTHENTIC_USER_UUID;
-  const username = (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.username) || activeAuthUser?.user_metadata?.username || activeAuthUser?.email?.split('@')[0] || 'sohelmommy_077';
-  const userAvatar = (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.avatar) || activeAuthUser?.user_metadata?.avatar_url || '/assets/default-avatar.png';
+  const username = (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.username) || activeAuthUser?.user_metadata?.username || activeAuthUser?.email?.split('@')[0] || 'creator';
+  const userAvatar = (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.avatar) || activeAuthUser?.user_metadata?.avatar_url || getUniqueUserAvatar(effectiveUserId, username);
 
   const normalizedMusic = music ? normalizeSongRecord(music) : null;
   const captionToSave = encodePostCaptionWithSong(caption, normalizedMusic);
@@ -769,8 +769,8 @@ export async function savePostToSupabase({ videoUrl, thumbnailUrl, caption, user
   // Strictly bind user_id to dynamic authenticated user UUID
   const dynamicAuthUid = activeAuthUser?.id || (typeof resolveCurrentUserId === "function" ? await resolveCurrentUserId() : null);
   const effectiveUserId = dynamicAuthUid || (userId && userId !== "flashgram_user" && userId !== "creator" ? toValidUUID(userId) || userId : null) || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null) || AUTHENTIC_USER_UUID;
-  const username = (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.username) || activeAuthUser?.user_metadata?.username || activeAuthUser?.email?.split('@')[0] || 'sohelmommy_077';
-  const userAvatar = (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.avatar) || activeAuthUser?.user_metadata?.avatar_url || '/assets/default-avatar.png';
+  const username = (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.username) || activeAuthUser?.user_metadata?.username || activeAuthUser?.email?.split('@')[0] || 'creator';
+  const userAvatar = (typeof UserProfileStore !== "undefined" && UserProfileStore.state?.avatar) || activeAuthUser?.user_metadata?.avatar_url || getUniqueUserAvatar(effectiveUserId, username);
 
   // Guard: NEVER save temporary local blob links to Supabase
   if (videoUrl && String(videoUrl).startsWith('blob:')) {

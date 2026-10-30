@@ -5,7 +5,7 @@ import { openReelsShareSheet, openReelsCommentsSheet, disableReelsClearMode, set
 import { fetchSupabasePosts, deriveCloudinaryThumbnailUrl, getOptimizedVideoUrl } from "../services/cloudinaryService.js";
 import { openProfile } from "./Profile.js";
 import { isFollowingUser, toggleFollowUser } from "../services/followService.js";
-import { getCurrentUserId } from "../services/avatarService.js";
+import { getCurrentUserId, getUniqueUserAvatar, batchFetchUserProfiles } from "../services/avatarService.js";
 import { supabase } from "../supabaseClient.js";
 import { setActiveReelVideo, initReelsPipHandler, triggerReelPiP } from "../services/pipService.js";
 import { initReelsVolumeHUD } from "./reels/ReelsVolumeHUD.js";
@@ -225,7 +225,7 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
         try {
           const { data, error } = await supabase
             .from('posts')
-            .select('*, profiles(id, username, avatar_url)')
+            .select('*, profiles(id, username, avatar_url, display_name, full_name)')
             .order('created_at', { ascending: false });
 
           if (!error && Array.isArray(data) && data.length > 0) {
@@ -260,28 +260,44 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
         return;
       }
 
-      const defaultAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
+      // Batch fetch creator profiles from Supabase to dynamically retrieve authentic names & avatars
+      const creatorUids = [...new Set((livePosts || []).map(p => p.user_id).filter(Boolean))];
+      let creatorsMap = {};
+      try {
+        creatorsMap = await batchFetchUserProfiles(creatorUids);
+      } catch (_) {}
 
       buildSingleReelElement = function(reel, index = 0) {
         if (!reel) return null;
-      if (typeof window !== "undefined") window.buildSingleReelElement = buildSingleReelElement;
+        if (typeof window !== "undefined") window.buildSingleReelElement = buildSingleReelElement;
         const rawVidUrl = reel.video_url || reel.url || '';
         const vidUrl = getOptimizedVideoUrl(rawVidUrl);
         const thumbUrl = reel.thumbnail_url || (rawVidUrl ? deriveCloudinaryThumbnailUrl(rawVidUrl) : '');
         const profile = (Array.isArray(reel.profiles) ? reel.profiles[0] : reel.profiles) || {};
+        const creatorProfile = (reel.user_id && creatorsMap[String(reel.user_id)]) || {};
         const currentUserId = typeof getCurrentUserId === "function" ? getCurrentUserId() : null;
         const isShabnamReel = reel.user === 'shabnam_ai' || (reel.id && reel.id === 'shabnam_reel_1') || (profile.username === 'shabnam_ai');
+        const targetUserId = reel.user_id || profile.id || creatorProfile.id;
+
+        const emailPart = (creatorProfile.email || profile.email) ? (creatorProfile.email || profile.email).split('@')[0] : '';
         const authorUsername = isShabnamReel
           ? "shabnam_ai"
-          : (reel.profiles?.username || profile.username || reel.author_name || "user");
+          : (creatorProfile.username || reel.profiles?.username || profile.username || emailPart || reel.author_name || (creatorProfile.display_name ? creatorProfile.display_name.toLowerCase().replace(/[^a-z0-9_]/g, '') : "creator"));
+
+        const authorDisplayName = isShabnamReel
+          ? "Shabnam AI"
+          : (creatorProfile.display_name || creatorProfile.full_name || reel.profiles?.display_name || profile.display_name || authorUsername);
+
+        const uniqueAuthorAvatar = getUniqueUserAvatar(targetUserId || authorUsername, authorUsername);
         const authorAvatar = isShabnamReel
           ? "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png"
-          : (reel.profiles?.avatar_url || profile.avatar_url || reel.avatar_url || reel.avatar || defaultAvatar);
+          : (creatorProfile.avatar_url || reel.profiles?.avatar_url || profile.avatar_url || reel.avatar_url || reel.avatar || uniqueAuthorAvatar);
+
         const isCurrentUserReel = !isShabnamReel && Boolean(
           reel.user_id && currentUserId && String(reel.user_id) === String(currentUserId)
         );
 
-        const displayUser = authorUsername;
+        const displayUser = authorDisplayName || authorUsername;
         const displayAvatar = authorAvatar;
         const avatarClass = "reels-user-avatar";
         const usernameClass = "reels-username";
@@ -295,7 +311,6 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
         item._reelData = reel;
         if (isCurrentUserReel) item.dataset.isCurrentUser = "true";
 
-        const targetUserId = reel.user_id || profile.id;
         let userClickAttr = "";
         if (isCurrentUserReel) {
           userClickAttr = 'onclick="if (typeof openMyProfileTab===\'function\') openMyProfileTab(); else if (window.openMyProfileTab) window.openMyProfileTab();" style="cursor:pointer;" title="View Profile"';
@@ -359,7 +374,7 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
 
             <div class="reels-bottom-info">
               <div class="reels-user-row">
-                <img src="${displayAvatar}" class="${avatarClass}" ${userClickAttr} alt="${displayUser}" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100';" />
+                <img src="${displayAvatar}" class="${avatarClass}" ${userClickAttr} alt="${displayUser}" onerror="this.onerror=null; this.src='${uniqueAuthorAvatar}';" />
                 <span class="${usernameClass}" ${userClickAttr}>${displayUser}</span>
                 ${isShabnamReel ? '<span class="text-sky-400 text-[12px] ml-1" title="Verified"><i class="fa-solid fa-circle-check"></i></span>' : ''}
                 ${followBtnHtml}

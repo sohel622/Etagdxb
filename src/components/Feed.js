@@ -9,7 +9,7 @@ import { openProfile } from "./Profile.js";
 import { renderSuggestedReels } from "./SuggestedReels.js";
 import { deriveCloudinaryThumbnailUrl, fetchSupabasePosts, getOptimizedVideoUrl, getOptimizedImageUrl } from "../services/cloudinaryService.js";
 import { isFollowingUser, toggleFollowUser } from "../services/followService.js";
-import { getCurrentUserId } from "../services/avatarService.js";
+import { getCurrentUserId, getUniqueUserAvatar, batchFetchUserProfiles } from "../services/avatarService.js";
 import { supabase } from "../supabaseClient.js";
 import {
   getCachedVideoBlobUrl,
@@ -298,27 +298,30 @@ function createPostCardElement(post, index = 0) {
   const currentUserId = typeof getCurrentUserId === "function" ? getCurrentUserId() : null;
   const profile = (Array.isArray(post.profiles) ? post.profiles[0] : post.profiles) || {};
   const isShabnam = post.user === 'shabnam_ai' || post.id === 'shabnam_reel_1' || profile.username === 'shabnam_ai';
+  const targetUserId = post.user_id || profile.id;
 
-  const defaultAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
-
-  // Strictly render author from post.profiles, never fall back to static 'user'
+  const emailPart = profile.email ? profile.email.split('@')[0] : '';
   const authorUsername = isShabnam 
     ? "shabnam_ai" 
-    : (profile.username || post.author_name || 'creator');
+    : (profile.username || emailPart || post.author_name || (profile.display_name ? profile.display_name.toLowerCase().replace(/[^a-z0-9_]/g, '') : 'creator'));
 
+  const authorDisplayName = isShabnam
+    ? "Shabnam AI"
+    : (profile.display_name || profile.full_name || post.author_name || authorUsername);
+
+  const uniqueAuthorAvatar = getUniqueUserAvatar(targetUserId || authorUsername, authorUsername);
   const authorAvatar = isShabnam 
     ? SHABNAM_AI_PROFILE.avatar 
-    : (profile.avatar_url || post.avatar || defaultAvatar);
+    : (profile.avatar_url || post.avatar || uniqueAuthorAvatar);
 
   const isCurrentUser = !isShabnam && Boolean(
     post.user_id && currentUserId && String(post.user_id) === String(currentUserId)
   );
 
-  const displayUser = authorUsername;
+  const displayUser = authorDisplayName || authorUsername;
   const displayAvatar = authorAvatar;
   const usernameClass = "font-semibold";
   const posterImg = getPostThumbnail(post);
-  const targetUserId = post.user_id || profile.id;
 
   let userClickAttr = "";
   if (isCurrentUser) {
@@ -460,7 +463,7 @@ function createPostCardElement(post, index = 0) {
     <div class="post-header">
       <div class="post-user" ${userClickAttr}>
         <div class="post-avatar">
-          ${displayAvatar ? `<img src="${getOptimizedImageUrl(displayAvatar, 120)}" alt="${displayUser}" loading="lazy" decoding="async" crossorigin="anonymous" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : ''}
+          ${displayAvatar ? `<img src="${getOptimizedImageUrl(displayAvatar, 120)}" alt="${displayUser}" loading="lazy" decoding="async" crossorigin="anonymous" onerror="this.onerror=null; this.src='${uniqueAuthorAvatar}';">` : ''}
           <i class="fa-solid fa-user" style="${displayAvatar ? 'display:none;' : ''}"></i>
         </div>
         <div class="post-user-meta">

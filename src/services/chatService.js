@@ -1,6 +1,6 @@
 // Direct Messaging & Supabase Realtime Chat Service
 import { supabase } from "../supabaseClient.js";
-import { getCurrentUserId } from "./avatarService.js";
+import { getCurrentUserId, getUniqueUserAvatar } from "./avatarService.js";
 import { UserProfileStore } from "../utils/storage.js";
 
 const STORAGE_KEY_CONVERSATIONS = "flashgram_dm_conversations";
@@ -298,13 +298,15 @@ export function setActiveDirectChatConversationId(convId) {
  * Format raw user profile row
  */
 function formatProfileUser(u) {
-  const handle = u.username || (u.email ? u.email.split('@')[0] : (u.display_name ? u.display_name.toLowerCase().replace(/\s+/g, '_') : `user_${u.id}`));
-  const displayName = u.display_name || u.full_name || handle || "Flashgram User";
+  const emailPart = u.email ? u.email.split('@')[0] : '';
+  const handle = u.username || emailPart || (u.display_name ? u.display_name.toLowerCase().replace(/\s+/g, '_') : "creator");
+  const displayName = u.display_name || u.full_name || (emailPart ? emailPart.replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : handle);
+  const avatar = u.avatar_url || getUniqueUserAvatar(u.id, handle);
   return {
     id: u.id,
     username: handle,
     name: displayName,
-    avatar: u.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100",
+    avatar: avatar,
     bio: u.bio,
     email: u.email
   };

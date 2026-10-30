@@ -1,7 +1,7 @@
 // Supabase Auth & Google Identity Services One-Tap Controller
 import { UserProfileStore, showInstagramToast } from "../utils/storage.js";
 import { supabase, supabaseUrl, supabaseAnonKey } from "../supabaseClient.js";
-import { initAvatarRealtimeSync } from "./avatarService.js";
+import { initAvatarRealtimeSync, getUniqueUserAvatar, toValidUUID, userProfileCache } from "./avatarService.js";
 import { addOrUpdateSavedAccount } from "../components/AccountSwitcher.js";
 
     /* =======================================================
@@ -57,23 +57,30 @@ import { addOrUpdateSavedAccount } from "../components/AccountSwitcher.js";
       }
 
       // Try schema payloads matching Supabase 'profiles' (id bigint/string, display_name / full_name)
+      if (email) {
+        try {
+          const { error: updateErr } = await activeSb
+            .from('profiles')
+            .update({ display_name: fullName, full_name: fullName, avatar_url: avatarUrl })
+            .eq('email', email);
+          if (!updateErr) return true;
+        } catch (_) {}
+      }
+
       const payloadsToTry = [
         { id: numericId, email: email, display_name: fullName, avatar_url: avatarUrl },
-        { id: rawUid, email: email, display_name: fullName, avatar_url: avatarUrl },
-        { id: rawUid, email: email, full_name: fullName, avatar_url: avatarUrl }
+        { email: email, display_name: fullName, avatar_url: avatarUrl }
       ];
 
       for (const payload of payloadsToTry) {
         try {
           const { error } = await activeSb
             .from('profiles')
-            .upsert(payload, { onConflict: 'id' });
+            .upsert(payload);
 
           if (!error) {
-            console.log("User successfully synced to Supabase 'profiles' table:", payload.id);
+            console.log("User successfully synced to Supabase 'profiles' table:", payload.id || email);
             return true;
-          } else {
-            console.info("Notice syncing to Supabase 'profiles':", error.message);
           }
         } catch (err) {
           console.info("Supabase sync notice:", err);
@@ -84,31 +91,60 @@ import { addOrUpdateSavedAccount } from "../components/AccountSwitcher.js";
       try {
         await activeSb
           .from('users')
-          .upsert({ id: rawUid, email: email, full_name: fullName, avatar_url: avatarUrl }, { onConflict: 'id' });
+          .upsert({ id: rawUid, email: email, full_name: fullName, avatar_url: avatarUrl });
       } catch (_) {}
 
       return false;
     }
     window.saveUserToSupabase = saveUserToSupabase;
 
-    // Requirement 3: Seamless Session Handling
+    // Requirement 3: Seamless Session Handling & Dynamic Profile Data Fetch
     async function handleSuccessfulGoogleLogin(user) {
       if (!user) return;
       const meta = user.user_metadata || {};
       const uid = user.uid || user.id || "";
       const email = user.email || "";
-      const fullName = user.displayName || meta.full_name || meta.name || (email ? email.split("@")[0] : "Sohel");
-      const avatarUrl = user.photoURL || meta.avatar_url || meta.picture || "";
 
-      const baseUsername = fullName.toLowerCase().replace(/[^a-z0-9]/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "").slice(0, 16);
-      const updatedUsername = (baseUsername ? baseUsername : "user") + (baseUsername.includes("sohel") ? "_077" : "_01");
+      // 1. Fetch user data directly from Supabase profiles table
+      let dbProfile = null;
+      const activeSb = window.supabaseClient || window.supabase || (typeof supabaseClient !== "undefined" ? supabaseClient : null);
+      if (activeSb && (uid || email)) {
+        try {
+          if (uid) {
+            const { data } = await activeSb.from('profiles').select('*').eq('id', uid).maybeSingle();
+            if (data) dbProfile = data;
+          }
+          if (!dbProfile && email) {
+            const { data } = await activeSb.from('profiles').select('*').eq('email', email).maybeSingle();
+            if (data) dbProfile = data;
+          }
+        } catch (_) {}
+      }
+
+      // Prioritize Supabase profiles data, then Auth credentials
+      const fullName = dbProfile?.display_name || dbProfile?.full_name || user.displayName || meta.full_name || meta.name || (email ? email.split("@")[0] : "");
+      const emailPrefix = email ? email.split("@")[0].toLowerCase().replace(/[^a-z0-9]/g, "_").slice(0, 16) : "";
+      const baseUsername = dbProfile?.username || (meta.preferred_username || meta.user_name || fullName || emailPrefix || "creator")
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "_")
+        .replace(/_+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .slice(0, 16);
+      const updatedUsername = baseUsername || emailPrefix || "creator";
+
+      // Profile avatar: mapped directly to Supabase profile or Google account avatar
+      const uniqueAvatar = getUniqueUserAvatar(uid, updatedUsername);
+      const avatarUrl = (dbProfile?.avatar_url && dbProfile.avatar_url.trim())
+        ? dbProfile.avatar_url
+        : (user.photoURL || meta.avatar_url || meta.picture || uniqueAvatar);
 
       if (typeof UserProfileStore !== "undefined" && UserProfileStore.setState) {
         UserProfileStore.setState({
+          id: uid,
           name: fullName,
           username: updatedUsername,
           ...(email ? { email } : {}),
-          ...(avatarUrl ? { avatar: avatarUrl } : {})
+          avatar: avatarUrl
         });
         if (UserProfileStore.syncDOM) {
           UserProfileStore.syncDOM();
@@ -143,6 +179,12 @@ import { addOrUpdateSavedAccount } from "../components/AccountSwitcher.js";
 
       // Close onboarding and redirect smoothly to main feed / home screen
       closeAuthOnboardingFlow();
+
+      // Trigger profile sync so posts, counts and avatar strictly reflect the newly logged-in user
+      if (typeof window !== "undefined" && typeof window.syncCurrentLoggedInUserProfile === "function") {
+        window.syncCurrentLoggedInUserProfile();
+      }
+
       if (typeof switchTab === "function") {
         switchTab("home");
       }
@@ -296,13 +338,14 @@ import { addOrUpdateSavedAccount } from "../components/AccountSwitcher.js";
         const sumEmail = document.getElementById("authSummaryTargetEmail");
 
         const targetEmail = (regState.email || "").trim() || "your email";
-        const targetFullName = (regState.fullName || "").trim() || "Flashgram User";
-        let targetUsername = (regState.username || "").trim() || "user_077";
+        const emailPrefix = targetEmail.includes("@") ? targetEmail.split("@")[0].toLowerCase().replace(/[^a-z0-9]/g, "_") : "";
+        const targetFullName = (regState.fullName || "").trim() || (emailPrefix ? emailPrefix.replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : "Flashgram User");
+        let targetUsername = (regState.username || "").trim() || emailPrefix || targetFullName.toLowerCase().replace(/[^a-z0-9]/g, "_") || "creator";
         if (!targetUsername.startsWith("@")) {
           targetUsername = `@${targetUsername}`;
         }
 
-        const fallbackAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80";
+        const fallbackAvatar = getUniqueUserAvatar(targetEmail, targetUsername);
 
         if (sumAvatar) {
           sumAvatar.src = regState.avatarPreviewUrl || fallbackAvatar;
@@ -518,25 +561,50 @@ import { addOrUpdateSavedAccount } from "../components/AccountSwitcher.js";
 
       if (data?.user) {
         const user = data.user;
-        const rawName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
-        const cleanUsername = (user.email?.split('@')[0] || `user_${user.id.slice(0, 5)}`).toLowerCase().replace(/[^a-z0-9_]/g, '');
+        const emailPart = user.email ? user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '') : '';
+        const rawName = user.user_metadata?.full_name || user.user_metadata?.name || (emailPart ? emailPart.replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Creator');
+        const cleanUsername = emailPart || rawName.toLowerCase().replace(/[^a-z0-9_]/g, '') || 'creator';
+
+        // Check if existing profile in Supabase
+        let existingProfile = null;
+        try {
+          const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+          if (prof) existingProfile = prof;
+        } catch (_) {}
+
+        const finalName = existingProfile?.display_name || existingProfile?.full_name || rawName;
+        const finalUser = existingProfile?.username || cleanUsername;
+        const finalAvatar = existingProfile?.avatar_url || user.user_metadata?.avatar_url || user.user_metadata?.picture || getUniqueUserAvatar(user.id, finalUser);
 
         // Create or update profile row in Supabase
         try {
-          await supabase.from('profiles').upsert({
-            id: user.id,
-            username: cleanUsername,
-            full_name: rawName,
-            avatar_url: user.user_metadata?.avatar_url || '',
+          const profileUpdates = {
+            username: finalUser,
+            full_name: finalName,
+            display_name: finalName,
+            avatar_url: finalAvatar,
+            email: user.email || '',
             updated_at: new Date().toISOString()
-          }, { onConflict: 'id' });
+          };
+          if (/^\d+$/.test(String(user.id))) {
+            profileUpdates.id = Number(user.id);
+          }
+
+          let saved = false;
+          if (user.email) {
+            const { error: errByEmail } = await supabase.from('profiles').update(profileUpdates).eq('email', user.email);
+            if (!errByEmail) saved = true;
+          }
+          if (!saved) {
+            await supabase.from('profiles').upsert(profileUpdates);
+          }
         } catch (e) {
           console.warn("Profiles upsert notice:", e);
         }
 
         // Refresh application auth state and navigate to feed
         if (typeof refreshAuthState === 'function') {
-          refreshAuthState(user, rawName, cleanUsername);
+          refreshAuthState(user, finalName, finalUser, finalAvatar);
         }
       }
 
@@ -559,7 +627,7 @@ import { addOrUpdateSavedAccount } from "../components/AccountSwitcher.js";
     }
 
     // Refresh application auth state and navigate to feed
-    function refreshAuthState(user, rawName, cleanUsername) {
+    function refreshAuthState(user, rawName, cleanUsername, explicitAvatar) {
       if (!user) {
         try {
           const sess = localStorage.getItem("flashgram_user_session");
@@ -571,16 +639,21 @@ import { addOrUpdateSavedAccount } from "../components/AccountSwitcher.js";
       }
       if (!user) return;
 
-      const name = rawName || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
-      const username = cleanUsername || (user.email?.split('@')[0] || `user_${user.id.slice(0, 5)}`).toLowerCase().replace(/[^a-z0-9_]/g, '');
-      const avatar = user.user_metadata?.avatar_url || '';
+      const emailPart = user.email ? user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '') : '';
+      const name = rawName || user.user_metadata?.full_name || user.user_metadata?.name || (emailPart ? emailPart.replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Creator');
+      const username = cleanUsername || emailPart || name.toLowerCase().replace(/[^a-z0-9_]/g, '') || 'creator';
+      const avatar = explicitAvatar || user.user_metadata?.avatar_url || user.user_metadata?.picture || getUniqueUserAvatar(user.id, username);
 
       UserProfileStore.setState({
+        id: user.id,
         name: name,
         username: username,
         email: user.email || '',
         avatar: avatar
       });
+      if (UserProfileStore.syncDOM) {
+        UserProfileStore.syncDOM();
+      }
 
       try {
         localStorage.setItem("flashgram_authenticated", "true");
@@ -619,7 +692,7 @@ import { addOrUpdateSavedAccount } from "../components/AccountSwitcher.js";
     }
     window.refreshAuthState = refreshAuthState;
 
-    function handleAuthContinue() {
+    async function handleAuthContinue() {
       const emailInput = document.getElementById("authInputEmailPhone");
       const emailVal = emailInput ? emailInput.value.trim() : "";
 
@@ -649,10 +722,29 @@ import { addOrUpdateSavedAccount } from "../components/AccountSwitcher.js";
       // Extract smart suggestions for full name and username from email
       const emailLocalPart = emailVal.split("@")[0] || "user";
       const cleanParts = emailLocalPart.replace(/[._-]/g, " ").replace(/\b\w/g, l => l.toUpperCase());
-      const fallbackUsername = emailLocalPart.toLowerCase().replace(/[^a-z0-9]/g, "_").slice(0, 16) + "_077";
+      const fallbackUsername = emailLocalPart.toLowerCase().replace(/[^a-z0-9]/g, "_").slice(0, 16);
+
+      // Check if this email already exists in Supabase profiles
+      try {
+        const activeSb = window.supabaseClient || window.supabase;
+        if (activeSb) {
+          const { data: existingProf } = await activeSb
+            .from('profiles')
+            .select('display_name, full_name, username, avatar_url')
+            .eq('email', emailVal)
+            .maybeSingle();
+          if (existingProf) {
+            regState.fullName = existingProf.display_name || existingProf.full_name || cleanParts;
+            regState.username = existingProf.username || fallbackUsername;
+            if (existingProf.avatar_url) {
+              regState.avatarPreviewUrl = existingProf.avatar_url;
+            }
+          }
+        }
+      } catch (_) {}
 
       if (!regState.fullName) {
-        regState.fullName = cleanParts || "Sohel";
+        regState.fullName = cleanParts || emailLocalPart;
       }
       if (!regState.username) {
         regState.username = fallbackUsername;
@@ -824,7 +916,7 @@ import { addOrUpdateSavedAccount } from "../components/AccountSwitcher.js";
 
     function handleAuthProceedToOtp(isSkip = false) {
       if (isSkip || !regState.avatarPreviewUrl) {
-        regState.avatarPreviewUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80";
+        regState.avatarPreviewUrl = getUniqueUserAvatar(regState.email || regState.username, regState.username || regState.fullName);
       }
       goToAuthStep(4, true);
     }
@@ -1098,9 +1190,9 @@ import { addOrUpdateSavedAccount } from "../components/AccountSwitcher.js";
         if (!isCodeValid) {
           if (code === "123456" || code === lastDemoOtpCode || code.length === 6) {
             isCodeValid = true;
-            let hashId = "usr_" + Array.from(email).reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) >>> 0, 0);
+            let dynamicUuid = toValidUUID(email) || "5611f2e8-0005-482f-9929-69d2efab41df";
             authUser = {
-              id: hashId,
+              id: dynamicUuid,
               email: email
             };
           }
@@ -1119,12 +1211,13 @@ import { addOrUpdateSavedAccount } from "../components/AccountSwitcher.js";
           return;
         }
 
-        const user = authUser || { id: "user_" + Date.now(), email };
+        const effectiveUid = authUser?.id || toValidUUID(email) || "5611f2e8-0005-482f-9929-69d2efab41df";
+        const user = authUser || { id: effectiveUid, email };
 
         if (verifyText) verifyText.textContent = "Setting up profile...";
 
         // 1. Upload avatar to Supabase Storage if file was provided
-        let finalAvatarUrl = regState.avatarPreviewUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80";
+        let finalAvatarUrl = regState.avatarPreviewUrl || getUniqueUserAvatar(user.id, regState.username || regState.fullName);
         if (regState.avatarFile) {
           const uploadedUrl = await uploadAvatarToSupabase(regState.avatarFile, user.id);
           if (uploadedUrl) {
@@ -1141,33 +1234,73 @@ import { addOrUpdateSavedAccount } from "../components/AccountSwitcher.js";
             .eq('id', user.id)
             .maybeSingle();
           existingProfile = profData;
+          if (!existingProfile && email) {
+            const { data: byEmail } = await activeSb
+              .from('profiles')
+              .select('*')
+              .eq('email', email)
+              .maybeSingle();
+            if (byEmail) existingProfile = byEmail;
+          }
         } catch (_) {}
 
-        const fullName = regState.fullName.trim() || (existingProfile && (existingProfile.full_name || existingProfile.display_name)) || "Flashgram User";
-        const username = regState.username.trim() || (existingProfile && existingProfile.username) || fullName.toLowerCase().replace(/[^a-z0-9]/g, "_");
+        const emailPrefix = email ? email.split("@")[0].toLowerCase().replace(/[^a-z0-9]/g, "_").slice(0, 16) : "";
+        const fullName = regState.fullName.trim() || (existingProfile && (existingProfile.display_name || existingProfile.full_name)) || (emailPrefix ? emailPrefix.replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : "Creator");
+        const cleanFullName = fullName.toLowerCase().replace(/[^a-z0-9]/g, "_").slice(0, 16);
+        const username = regState.username.trim() || (existingProfile && existingProfile.username) || cleanFullName || emailPrefix || "creator";
         if (existingProfile && existingProfile.avatar_url && !regState.avatarFile) {
           finalAvatarUrl = existingProfile.avatar_url;
+        } else if (!finalAvatarUrl || finalAvatarUrl.includes("unsplash.com")) {
+          finalAvatarUrl = getUniqueUserAvatar(user.id, username);
         }
 
-        // 3. Upsert profile into Supabase 'profiles' table
+        // 3. Save profile into Supabase 'profiles' table safely
         try {
-          await activeSb
-            .from('profiles')
-            .upsert({
-              id: user.id,
-              full_name: fullName,
-              username: username,
-              avatar_url: finalAvatarUrl,
-              email: email,
-              updated_at: new Date().toISOString()
-            }, { onConflict: 'id' });
+          const profileUpdates = {
+            full_name: fullName,
+            display_name: fullName,
+            username: username,
+            avatar_url: finalAvatarUrl,
+            email: email,
+            updated_at: new Date().toISOString()
+          };
+          if (/^\d+$/.test(String(user.id))) {
+            profileUpdates.id = Number(user.id);
+          }
+
+          let saved = false;
+          if (email) {
+            const { error: errEmail } = await activeSb
+              .from('profiles')
+              .update(profileUpdates)
+              .eq('email', email);
+            if (!errEmail) saved = true;
+          }
+          if (!saved) {
+            await activeSb
+              .from('profiles')
+              .upsert(profileUpdates);
+          }
         } catch (dbErr) {
           console.warn("Profile table upsert note:", dbErr);
         }
 
-        // 4. Update UserProfileStore
+        // 4. Update dynamic cache & UserProfileStore
+        if (userProfileCache) {
+          userProfileCache.set(String(user.id), {
+            id: user.id,
+            username: username,
+            display_name: fullName,
+            full_name: fullName,
+            avatar_url: finalAvatarUrl,
+            avatar: finalAvatarUrl,
+            email: email
+          });
+        }
+
         if (typeof UserProfileStore !== "undefined" && UserProfileStore.setState) {
           UserProfileStore.setState({
+            id: user.id,
             name: fullName,
             username: username,
             email: email,

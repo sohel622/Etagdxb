@@ -194,25 +194,66 @@ async function saveEditProfile() {
   const mainProfileAvatarImg = document.getElementById("mainProfileAvatarImg");
   const existingAvatarUrl = UserProfileStore.state.avatar || (mainProfileAvatarImg ? mainProfileAvatarImg.src : '') || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400';
 
+  const userEmail = user.email || UserProfileStore.state.email || "";
+  const isNumericId = /^\d+$/.test(String(user.id));
+
   const updates = {
-    id: user.id,
     username: enteredUsername.trim(),
     full_name: enteredFullName.trim(),
+    display_name: enteredFullName.trim(),
     avatar_url: uploadedAvatarUrl || existingAvatarUrl,
     bio: enteredBio || '',
+    website: currentLinkUrl || '',
     updated_at: new Date().toISOString()
   };
+  if (userEmail) {
+    updates.email = userEmail;
+  }
+  if (isNumericId) {
+    updates.id = Number(user.id);
+  }
 
-  const { error } = await supabase
-    .from('profiles')
-    .upsert(updates, { onConflict: 'id' });
-
-  if (error) {
-    console.error("Failed to update profile:", error.message);
-    if (typeof alert === "function") {
-      alert("Profile update failed: " + error.message);
+  let dbError = null;
+  // 1. Update by email if present (matches user account safely without 42P10 constraint error)
+  if (userEmail) {
+    try {
+      const { error: emailErr } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('email', userEmail);
+      if (!emailErr) {
+        dbError = null;
+      } else {
+        dbError = emailErr;
+      }
+    } catch (e) {
+      dbError = e;
     }
-    return;
+  }
+
+  // 2. If no email or previous attempt had error, try updating by numeric ID
+  if ((dbError !== null || !userEmail) && isNumericId) {
+    try {
+      const { error: idErr } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', Number(user.id));
+      if (!idErr) dbError = null;
+    } catch (_) {}
+  }
+
+  // 3. Fallback: standard upsert without onConflict option
+  if (dbError !== null && !userEmail && !isNumericId) {
+    try {
+      const { error: upsertErr } = await supabase
+        .from('profiles')
+        .upsert(updates);
+      if (!upsertErr) dbError = null;
+    } catch (_) {}
+  }
+
+  if (dbError) {
+    console.warn("Notice updating profile in Supabase table:", dbError.message);
   }
 
   // Global Realtime State Sync

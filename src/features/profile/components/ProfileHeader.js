@@ -1,13 +1,17 @@
 // YouTube-Style Channel Profile Header with Avatar Elastic Spring Physics
 import { UserProfileStore } from "../../../utils/storage.js";
+import { getUniqueUserAvatar } from "../../../services/avatarService.js";
 
 export function getProfileHeaderData() {
-  const profile = UserProfileStore.state;
+  const profile = UserProfileStore.state || {};
+  const username = profile.username || (profile.email ? profile.email.split('@')[0] : "creator");
+  const name = profile.name || (profile.email ? profile.email.split('@')[0] : username);
+  const avatar = profile.avatar || getUniqueUserAvatar(profile.id || username, username);
   return {
-    username: profile.username || "sohelmommy_077",
-    name: profile.name || "Sohel Mommy",
-    avatar: profile.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
+    username: username,
+    name: name,
+    avatar: avatar,
     bio: profile.bio || "Digital Creator ✨ Daily reels & updates!",
-    link: profile.link || "flashgram.me/sohelmommy_077"
+    link: profile.link || `flashgram.me/${username}`
   };
 }

@@ -9,7 +9,7 @@ import {
   saveReelToSupabase
 } from "../../services/cloudinaryService.js";
 import { showInstagramToast, UserProfileStore } from "../../utils/storage.js";
-import { getCurrentUserId, resolveCurrentUserId, toValidUUID, AUTHENTIC_USER_UUID } from "../../services/avatarService.js";
+import { getCurrentUserId, resolveCurrentUserId, toValidUUID, AUTHENTIC_USER_UUID, getUniqueUserAvatar } from "../../services/avatarService.js";
 import { encodePostCaptionWithSong, normalizeSongRecord, DEFAULT_MUSIC_COVER } from "../../services/songsService.js";
 
 /**
@@ -123,10 +123,9 @@ export const uploadPostMedia = async (file, onProgress) => {
 export const appendPostToLocalFeed = (postRecord) => {
   if (!postRecord) return null;
 
-  const currentUsername = UserProfileStore?.state?.username || "sohelmommy_077";
-  const currentAvatar = UserProfileStore?.state?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400";
-
+  const currentUsername = UserProfileStore?.state?.username || "creator";
   const authorName = postRecord.username || postRecord.author_name || currentUsername;
+  const currentAvatar = UserProfileStore?.state?.avatar || getUniqueUserAvatar(postRecord.user_id, authorName);
   const authorAvatar = postRecord.user_avatar || postRecord.avatar || currentAvatar;
   const mediaUrl = postRecord.media_url || postRecord.video_url || postRecord.url;
   const mediaType = postRecord.media_type || (mediaUrl?.match(/\.(mp4|webm|mov|m4v)($|\?)/i) ? 'video' : 'photo');
@@ -328,8 +327,8 @@ export const handlePublishPost = async (cloudinaryVideoUrl, caption, mediaType =
   }
   const rawUid = dynamicAuthUid || (userId && userId !== "flashgram_user" && userId !== "creator" ? userId : null) || (typeof getCurrentUserId === "function" ? getCurrentUserId() : null);
   const finalUserId = toValidUUID(rawUid) || rawUid || AUTHENTIC_USER_UUID;
-  const username = UserProfileStore?.state?.username || 'sohelmommy_077';
-  const userAvatar = UserProfileStore?.state?.avatar || '/assets/default-avatar.png';
+  const username = UserProfileStore?.state?.username || (UserProfileStore?.state?.email ? UserProfileStore.state.email.split('@')[0] : 'creator');
+  const userAvatar = UserProfileStore?.state?.avatar || getUniqueUserAvatar(finalUserId, username);
 
   const normalizedMusic = music ? normalizeSongRecord(music) : null;
   const captionToSave = encodePostCaptionWithSong(caption, normalizedMusic);

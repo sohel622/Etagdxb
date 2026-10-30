@@ -22,7 +22,7 @@ import {
   requestNotificationPermission
 } from "../../services/notificationService.js";
 import { supabase } from "../../supabaseClient.js";
-import { getCurrentUserId, resolveCurrentUserId, AUTHENTIC_USER_UUID } from "../../services/avatarService.js";
+import { getCurrentUserId, resolveCurrentUserId, AUTHENTIC_USER_UUID, getUniqueUserAvatar } from "../../services/avatarService.js";
 
 /**
  * Native Android & Web Media Fetcher
@@ -1111,8 +1111,8 @@ async function handleSharePost() {
   const captionInput = document.getElementById("mpCaptionInput");
   const caption = (captionInput?.value || "").trim() || (isVideo ? "Flashgram Reel! ✨ #reels" : "Moments ✨ #lifestyle");
 
-  const currentUsername = UserProfileStore?.state?.username || "sohelmommy_077";
-  const currentAvatar = UserProfileStore?.state?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400";
+  const currentUsername = UserProfileStore?.state?.username || (UserProfileStore?.state?.email ? UserProfileStore.state.email.split('@')[0] : "creator");
+  const currentAvatar = UserProfileStore?.state?.avatar || getUniqueUserAvatar(UserProfileStore?.state?.id || "flashgram_user", currentUsername);
   
   // Dynamically resolve authentic Supabase auth user UUID
   let dynamicAuthUid = null;

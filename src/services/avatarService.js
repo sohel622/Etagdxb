@@ -6,6 +6,119 @@ let realtimeAvatarChannel = null;
 
 export const AUTHENTIC_USER_UUID = "5611f2e8-0005-482f-9929-69d2efab41df";
 
+// Dynamic Profile Cache across feed, reels, and profiles
+export const userProfileCache = new Map();
+
+/**
+ * Deterministically generate a unique, colorful profile logo/avatar for any user ID or username
+ * Ensures each user profile displays their own unique profile logo/avatar dynamically
+ */
+export function getUniqueUserAvatar(userId, username) {
+  const seed = encodeURIComponent(String(username || userId || 'flashgram_user').trim().toLowerCase());
+  return `https://api.dicebear.com/7.x/identicon/svg?seed=${seed}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
+}
+
+/**
+ * Retrieve user display name and avatar dynamically from Supabase profiles table
+ */
+export async function fetchUserProfile(userId, fallbackData = {}) {
+  if (!userId) return null;
+  const key = String(userId);
+  if (userProfileCache.has(key)) {
+    return userProfileCache.get(key);
+  }
+
+  let profile = null;
+  if (supabase) {
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, full_name, avatar_url, email, is_verified, bio, link, website')
+        .eq('id', userId)
+        .maybeSingle();
+      if (data) profile = data;
+
+      if (!profile && fallbackData.email) {
+        const { data: byEmail } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, full_name, avatar_url, email, is_verified, bio, link, website')
+          .eq('email', fallbackData.email)
+          .maybeSingle();
+        if (byEmail) profile = byEmail;
+      }
+    } catch (_) {}
+  }
+
+  const emailName = fallbackData.email ? fallbackData.email.split('@')[0] : '';
+  const username = profile?.username || fallbackData.username || emailName || profile?.display_name || "creator";
+  const displayName = profile?.display_name || profile?.full_name || fallbackData.display_name || fallbackData.name || (emailName ? emailName.replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : username);
+  const uniqueAvatar = getUniqueUserAvatar(userId, username);
+  const avatarUrl = (profile?.avatar_url && profile.avatar_url.trim()) ? profile.avatar_url : (fallbackData.avatar_url || fallbackData.avatar || uniqueAvatar);
+
+  const result = {
+    id: userId,
+    username,
+    display_name: displayName,
+    full_name: displayName,
+    avatar_url: avatarUrl,
+    avatar: avatarUrl,
+    email: profile?.email || fallbackData.email || "",
+    is_verified: Boolean(profile?.is_verified)
+  };
+
+  userProfileCache.set(key, result);
+  return result;
+}
+
+/**
+ * Batch fetch profiles from Supabase for all user IDs appearing in reels or feed posts
+ */
+export async function batchFetchUserProfiles(userIds = []) {
+  const uniqueIds = [...new Set(userIds.filter(Boolean).map(id => String(id)))];
+  const missingIds = uniqueIds.filter(id => !userProfileCache.has(id));
+
+  if (supabase && missingIds.length > 0) {
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, full_name, avatar_url, email, is_verified')
+        .in('id', missingIds);
+
+      if (Array.isArray(data)) {
+        data.forEach(p => {
+          if (p && p.id) {
+            const uId = String(p.id);
+            const emailPart = p.email ? p.email.split('@')[0] : '';
+            const username = p.username || emailPart || p.display_name || "creator";
+            const displayName = p.display_name || p.full_name || (emailPart ? emailPart.replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : username);
+            const avatarUrl = (p.avatar_url && p.avatar_url.trim()) ? p.avatar_url : getUniqueUserAvatar(uId, username);
+            userProfileCache.set(uId, {
+              ...p,
+              username,
+              display_name: displayName,
+              avatar_url: avatarUrl,
+              avatar: avatarUrl
+            });
+          }
+        });
+      }
+    } catch (e) {
+      console.warn("Notice batch fetching profiles:", e);
+    }
+  }
+
+  const result = {};
+  uniqueIds.forEach(id => {
+    result[id] = userProfileCache.get(id) || {
+      id,
+      username: "creator",
+      display_name: "Creator",
+      avatar_url: getUniqueUserAvatar(id, "creator")
+    };
+  });
+  return result;
+}
+
 /**
  * Deterministically convert any user ID (numeric, string, or UUID) into a valid UUID
  */
@@ -105,7 +218,7 @@ export function getCurrentUserId() {
     return (uid === "1" || uid === "sohelmommy_077") ? AUTHENTIC_USER_UUID : uid;
   }
 
-  return AUTHENTIC_USER_UUID;
+  return null;
 }
 
 /**
@@ -181,52 +294,53 @@ export async function syncProfileToSupabase({ id, username, full_name, avatar_ur
   const userFullName = full_name || UserProfileStore.state.name || "Sohel";
   const userAvatar = avatar_url || UserProfileStore.state.avatar || "";
 
-  // 1. Primary requested upsert: { id, username, full_name, avatar_url }
-  try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .upsert({
-        id: uid,
-        username: userUsername,
-        full_name: userFullName,
-        avatar_url: userAvatar
-      }, { onConflict: 'id' })
-      .select();
+  // 1. Try updating by email first (safest and avoids 42P10 constraint error)
+  const currentEmail = UserProfileStore.state.email || "";
+  const isNumeric = /^\d+$/.test(String(uid));
 
-    if (!error && data) {
-      console.log("✅ Profile successfully upserted to Supabase 'profiles':", data);
-      return data[0];
-    }
-  } catch (_) {}
+  const payload = {
+    username: userUsername,
+    full_name: userFullName,
+    display_name: userFullName || userUsername,
+    avatar_url: userAvatar,
+    updated_at: new Date().toISOString()
+  };
+  if (currentEmail) payload.email = currentEmail;
+  if (isNumeric) payload.id = Number(uid);
 
-  // 2. Fallback upsert for schema using display_name
-  try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .upsert({
-        id: uid,
-        display_name: userUsername || userFullName,
-        avatar_url: userAvatar
-      }, { onConflict: 'id' })
-      .select();
+  if (currentEmail) {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .update(payload)
+        .eq('email', currentEmail)
+        .select();
+      if (!error && data && data[0]) {
+        return data[0];
+      }
+    } catch (_) {}
+  }
 
-    if (!error && data) {
-      console.log("✅ Profile upserted with display_name:", data);
-      return data[0];
-    }
-  } catch (_) {}
+  // 2. Try update by numeric ID
+  if (isNumeric) {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .update(payload)
+        .eq('id', Number(uid))
+        .select();
+      if (!error && data && data[0]) {
+        return data[0];
+      }
+    } catch (_) {}
+  }
 
-  // 3. Fallback direct update
+  // 3. Fallback upsert without onConflict: 'id'
   try {
     const { data } = await supabase
       .from('profiles')
-      .update({
-        display_name: userUsername,
-        avatar_url: userAvatar
-      })
-      .eq('id', uid)
+      .upsert(payload)
       .select();
-
     if (data && data[0]) return data[0];
   } catch (_) {}
 
@@ -429,25 +543,39 @@ export async function uploadUserAvatar(fileOrBlob, customUserId = null) {
   // 3. Immediately update the profiles table:
   // await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', currentUser.id);
   try {
-    const { error: updateError, data: updatedRows } = await supabase
-      .from('profiles')
-      .update({ 
-        avatar_url: publicUrl,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', userId)
-      .select();
+    const currentEmail = UserProfileStore.state.email || "";
+    const isNum = /^\d+$/.test(String(userId));
+    let updated = false;
 
-    if (updateError || !updatedRows || updatedRows.length === 0) {
-      await supabase
+    if (currentEmail) {
+      const { data: byEmail, error: errEmail } = await supabase
         .from('profiles')
-        .upsert({
-          id: userId,
-          avatar_url: publicUrl,
-          username: UserProfileStore.state.username || "creator",
-          display_name: UserProfileStore.state.name || "User",
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
+        .update({ avatar_url: publicUrl, updated_at: new Date().toISOString() })
+        .eq('email', currentEmail)
+        .select();
+      if (!errEmail && byEmail && byEmail.length > 0) updated = true;
+    }
+
+    if (!updated && isNum) {
+      const { data: byId, error: errId } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl, updated_at: new Date().toISOString() })
+        .eq('id', Number(userId))
+        .select();
+      if (!errId && byId && byId.length > 0) updated = true;
+    }
+
+    if (!updated) {
+      const upsertData = {
+        avatar_url: publicUrl,
+        username: UserProfileStore.state.username || "creator",
+        display_name: UserProfileStore.state.name || "User",
+        updated_at: new Date().toISOString()
+      };
+      if (currentEmail) upsertData.email = currentEmail;
+      if (isNum) upsertData.id = Number(userId);
+
+      await supabase.from('profiles').upsert(upsertData);
     }
   } catch (dbErr) {
     console.warn("Notice updating profiles table with avatar_url:", dbErr);
@@ -601,5 +729,9 @@ if (typeof window !== "undefined") {
   window.updateUserProfileState = updateUserProfileState;
   window.syncProfileToSupabase = syncProfileToSupabase;
   window.liveSyncUserProfile = liveSyncUserProfile;
+  window.fetchUserProfile = fetchUserProfile;
+  window.batchFetchUserProfiles = batchFetchUserProfiles;
+  window.userProfileCache = userProfileCache;
+  window.getUniqueUserAvatar = getUniqueUserAvatar;
 }
 
