@@ -1,5 +1,5 @@
 // BottomNavbar Component (Modular Bottom Navigation Bar, Active Pill, Tab Switcher & Gestures)
-import { DEFAULT_NAV } from "../../utils/mockData.js";
+import { DEFAULT_NAV, DEFAULT_USER_PROFILE } from "../../utils/mockData.js";
 import { UserProfileStore } from "../../utils/storage.js";
 import { setupProfileIconLongPress } from "../AccountSwitcher.js";
 import { updateChatNavUnreadBadge } from "../../services/chatService.js";
@@ -131,7 +131,7 @@ function renderNavBtnContent(item, isActive) {
     // Icon 5 (Profile): Rounded user avatar matching exact size (24px x 24px) of adjacent icons with a subtle border
     return `
       <div class="profile-nav-circle ${isActive ? 'active-profile' : ''}">
-        <img class="current-user-avatar" src="${UserProfileStore.state.avatar}" alt="Profile" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80';" />
+        <img class="current-user-avatar" src="${UserProfileStore.state.avatar || DEFAULT_USER_PROFILE.avatar}" alt="Profile" onerror="this.onerror=null; this.src='${DEFAULT_USER_PROFILE.avatar}';" />
       </div>
     `;
   }

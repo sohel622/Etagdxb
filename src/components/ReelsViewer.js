@@ -260,6 +260,15 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
         return;
       }
 
+      const isValidMediaUrl = (url) => {
+        if (!url || typeof url !== 'string') return false;
+        const trimmed = url.trim();
+        if (trimmed.length < 5) return false;
+        return trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('blob:') || trimmed.startsWith('data:');
+      };
+
+      livePosts = (livePosts || []).filter(p => isValidMediaUrl(p.video_url || p.url || p.media_url));
+
       // Batch fetch creator profiles from Supabase to dynamically retrieve authentic names & avatars
       const creatorUids = [...new Set((livePosts || []).map(p => p.user_id).filter(Boolean))];
       let creatorsMap = {};
@@ -270,7 +279,9 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
       buildSingleReelElement = function(reel, index = 0) {
         if (!reel) return null;
         if (typeof window !== "undefined") window.buildSingleReelElement = buildSingleReelElement;
-        const rawVidUrl = reel.video_url || reel.url || '';
+        const rawVidUrl = reel.video_url || reel.url || reel.media_url || '';
+        if (!isValidMediaUrl(rawVidUrl)) return null;
+
         const vidUrl = getOptimizedVideoUrl(rawVidUrl);
         const thumbUrl = reel.thumbnail_url || (rawVidUrl ? deriveCloudinaryThumbnailUrl(rawVidUrl) : '');
         const profile = (Array.isArray(reel.profiles) ? reel.profiles[0] : reel.profiles) || {};
@@ -279,23 +290,25 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
         const isShabnamReel = reel.user === 'shabnam_ai' || (reel.id && reel.id === 'shabnam_reel_1') || (profile.username === 'shabnam_ai');
         const targetUserId = reel.user_id || profile.id || creatorProfile.id;
 
+        const isCurrentUserReel = !isShabnamReel && Boolean(
+          (reel.user_id && currentUserId && String(reel.user_id) === String(currentUserId)) ||
+          (reel.user_id && String(reel.user_id) === "5611f2e8-0005-482f-9929-69d2efab41df") ||
+          (profile.email && profile.email.toLowerCase().includes("sohelmommy"))
+        );
+
         const emailPart = (creatorProfile.email || profile.email) ? (creatorProfile.email || profile.email).split('@')[0] : '';
         const authorUsername = isShabnamReel
           ? "shabnam_ai"
-          : (creatorProfile.username || reel.profiles?.username || profile.username || emailPart || reel.author_name || (creatorProfile.display_name ? creatorProfile.display_name.toLowerCase().replace(/[^a-z0-9_]/g, '') : "creator"));
+          : (isCurrentUserReel ? UserProfileStore.state.username : (creatorProfile.username || reel.profiles?.username || profile.username || emailPart || reel.author_name || (creatorProfile.display_name ? creatorProfile.display_name.toLowerCase().replace(/[^a-z0-9_]/g, '') : "creator")));
 
         const authorDisplayName = isShabnamReel
           ? "Shabnam AI"
-          : (creatorProfile.display_name || creatorProfile.full_name || reel.profiles?.display_name || profile.display_name || authorUsername);
+          : (isCurrentUserReel ? UserProfileStore.state.name : (creatorProfile.display_name || creatorProfile.full_name || reel.profiles?.display_name || profile.display_name || authorUsername));
 
         const uniqueAuthorAvatar = getUniqueUserAvatar(targetUserId || authorUsername, authorUsername);
         const authorAvatar = isShabnamReel
           ? "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png"
-          : (creatorProfile.avatar_url || reel.profiles?.avatar_url || profile.avatar_url || reel.avatar_url || reel.avatar || uniqueAuthorAvatar);
-
-        const isCurrentUserReel = !isShabnamReel && Boolean(
-          reel.user_id && currentUserId && String(reel.user_id) === String(currentUserId)
-        );
+          : (isCurrentUserReel ? UserProfileStore.state.avatar : (creatorProfile.avatar_url || reel.profiles?.avatar_url || profile.avatar_url || reel.avatar_url || reel.avatar || uniqueAuthorAvatar));
 
         const displayUser = authorDisplayName || authorUsername;
         const displayAvatar = authorAvatar;
@@ -368,7 +381,7 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
 
         item.innerHTML = `
           <div class="reel-video-wrapper reels-video-container reels-fullscreen-viewport">
-            <video class="reel-video reels-player reels-video-player" src="${vidUrl}" poster="${thumbUrl}" playsinline webkit-playsinline preload="metadata"></video>
+            <video class="reel-video reels-player reels-video-player" src="${vidUrl}" poster="${thumbUrl}" playsinline webkit-playsinline preload="metadata" onerror="this.onerror=null; this.style.display='none'; if(this.parentElement){ const fb=document.createElement('img'); fb.src='${thumbUrl}'; fb.className='reel-video reels-player reels-video-player w-full h-full object-cover'; this.parentElement.insertBefore(fb, this); }"></video>
             
             <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
 

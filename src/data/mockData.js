@@ -40,7 +40,7 @@ export const DEFAULT_CONVERSATIONS = [
     id: "alex_rivera",
     name: "Alex Rivera",
     username: "alex_r",
-    avatar: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=120&auto=format&fit=crop&q=80",
+    avatar: "https://api.dicebear.com/7.x/identicon/svg?seed=alex_rivera&backgroundColor=b6e3f4,c0aede",
     lastMessage: "See you tomorrow! 🔥",
     time: "2h",
     isAi: false
@@ -49,7 +49,7 @@ export const DEFAULT_CONVERSATIONS = [
     id: "sophia_patel",
     name: "Sophia Patel",
     username: "sophiap",
-    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&auto=format&fit=crop&q=80",
+    avatar: "https://api.dicebear.com/7.x/identicon/svg?seed=sophia_patel&backgroundColor=ffd5dc,ffdfbf",
     lastMessage: "Liked a message",
     time: "1d",
     isAi: false

@@ -9,13 +9,14 @@ import { updateProfilePostsCount, renderProfileGrid } from "./Profile.js";
 import { switchTab } from "./navigation/BottomNavbar.js";
 import { uploadVideoToCloudinary, deriveCloudinaryThumbnailUrl, savePostToSupabase, saveReelToSupabase } from "../services/cloudinaryService.js";
 import { uploadUserAvatar, getCurrentUserId, liveSyncUserProfile, syncProfileToSupabase } from "../services/avatarService.js";
+import { upsertProfile } from "../services/profileService.js";
 import { showUploadProgressBanner, updateUploadProgressBanner, completeUploadProgressBanner, failUploadProgressBanner } from "./UploadProgressBanner.js";
 import { createUploadSession, updateUploadProgress, notifyUploadProgress, notifyUploadSuccess, notifyUploadError } from "../services/notificationService.js";
 
 // --- Shared State Variables ---
 let selectedAvatarFile = null;
 let currentEditingBio = null;
-let currentLinkUrl = "linktr.ee/arya_official";
+let currentLinkUrl = "flashgram.me/sohelmommy_077";
 let cropScale = 1.0;
 let cropTranslateX = 0;
 let cropTranslateY = 0;
@@ -192,7 +193,7 @@ async function saveEditProfile() {
   const enteredBio = (inputEditBio ? inputEditBio.value : (currentEditingBio !== null ? currentEditingBio : (profileBioText ? profileBioText.textContent : ""))) || '';
 
   const mainProfileAvatarImg = document.getElementById("mainProfileAvatarImg");
-  const existingAvatarUrl = UserProfileStore.state.avatar || (mainProfileAvatarImg ? mainProfileAvatarImg.src : '') || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400';
+  const existingAvatarUrl = UserProfileStore.state.avatar || (mainProfileAvatarImg ? mainProfileAvatarImg.src : '') || 'https://oppwfervzdiogunonbot.supabase.co/storage/v1/object/public/avatars/5611f2e8-0005-482f-9929-69d2efab41df/1788541590088_8943.png';
 
   const userEmail = user.email || UserProfileStore.state.email || "";
   const isNumericId = /^\d+$/.test(String(user.id));
@@ -214,43 +215,27 @@ async function saveEditProfile() {
   }
 
   let dbError = null;
-  // 1. Update by email if present (matches user account safely without 42P10 constraint error)
-  if (userEmail) {
-    try {
-      const { error: emailErr } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('email', userEmail);
-      if (!emailErr) {
-        dbError = null;
-      } else {
-        dbError = emailErr;
-      }
-    } catch (e) {
-      dbError = e;
+
+  // Explicitly define the conflict target { onConflict: 'id' } matching the Primary Key in the profiles table
+  try {
+    const { error: upsertErr } = await supabase
+      .from('profiles')
+      .upsert(updates, { onConflict: 'id' });
+    if (!upsertErr) {
+      dbError = null;
+    } else {
+      console.warn("Notice from profiles upsert({ onConflict: 'id' }):", upsertErr.message);
+      dbError = upsertErr;
     }
+  } catch (e) {
+    dbError = e;
   }
 
-  // 2. If no email or previous attempt had error, try updating by numeric ID
-  if ((dbError !== null || !userEmail) && isNumericId) {
-    try {
-      const { error: idErr } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', Number(user.id));
-      if (!idErr) dbError = null;
-    } catch (_) {}
-  }
-
-  // 3. Fallback: standard upsert without onConflict option
-  if (dbError !== null && !userEmail && !isNumericId) {
-    try {
-      const { error: upsertErr } = await supabase
-        .from('profiles')
-        .upsert(updates);
-      if (!upsertErr) dbError = null;
-    } catch (_) {}
-  }
+  // Also invoke the robust profileService upsert logic
+  try {
+    await upsertProfile(updates, { onConflict: 'id' });
+    dbError = null;
+  } catch (_) {}
 
   if (dbError) {
     console.warn("Notice updating profile in Supabase table:", dbError.message);

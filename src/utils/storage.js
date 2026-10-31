@@ -101,12 +101,12 @@ import { db } from "../services/database.js";
 
         // 1. All Current User Avatar Elements Across App (Feed Post headers, Story bubbles, Bottom nav)
         document.querySelectorAll(".current-user-avatar, .current-user-post-avatar, .current-user-reel-avatar").forEach(el => {
-          if (el.tagName === "IMG" && el.id !== "mainProfileAvatarImg" && el.src !== avatar) {
+          if (el.tagName === "IMG" && el.src !== avatar) {
             el.src = avatar;
           }
         });
-        document.querySelectorAll(".profile-nav-circle img").forEach(img => {
-          if (img.src !== avatar) img.src = avatar;
+        document.querySelectorAll(".profile-nav-circle img, .nav-btn[data-id='profile'] img").forEach(img => {
+          if (img && img.src !== avatar) img.src = avatar;
         });
 
         // 2. All Current User Profile Username Elements

@@ -75,12 +75,10 @@ function getPostThumbnail(post) {
     thumb = post.thumbnail;
   } else if (post.poster && !post.poster.includes(".mp4") && !post.poster.includes(".webm") && !String(post.poster).startsWith("blob:")) {
     thumb = post.poster;
-  } else if (post.id === 'sample_1') {
-    thumb = "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80";
   } else if (post.id === 'shabnam_reel_1') {
     thumb = "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png";
   } else {
-    thumb = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80";
+    thumb = post.video_url ? `${post.video_url}#t=0.001` : "https://gxoajbncfpwhisehvbcf.supabase.co/storage/v1/object/public/posts/IMG_20260921_164350.png";
   }
   return getOptimizedImageUrl(thumb, 720);
 }
@@ -414,11 +412,12 @@ function createPostCardElement(post, index = 0) {
           <div class="home-video-skeleton"></div>
           <video
             class="home-post-video-player w-full h-full object-cover"
-            ${index === 0 ? `src="${post.video_url || post.media_url || videoSrc}"` : ''}
+            src="${post.video_url || post.media_url || videoSrc}"
             poster="${getOptimizedImageUrl(post.thumbnail_url || posterImg, 720)}"
             playsinline
             muted
             preload="metadata"
+            onerror="this.onerror=null; this.style.display='none'; if(this.parentElement){ const sk=this.parentElement.querySelector('.home-video-skeleton'); if(sk) sk.style.display='none'; const fb=document.createElement('img'); fb.src='${getOptimizedImageUrl(post.thumbnail_url || posterImg, 720)}'; fb.className='home-post-video-player w-full h-full object-cover'; this.parentElement.insertBefore(fb, this); }"
           ></video>
           ${Boolean(post.isOfflineCached) 
             ? `<div class="offline-item-badge absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white text-[10.5px] font-semibold border border-white/10 shadow-sm"><i class="fa-solid fa-circle-check text-sky-400 text-[10px]"></i><span>Cached</span></div>`
@@ -826,21 +825,38 @@ async function renderHomeFeed(forceRefresh = false) {
         }];
       }
 
-      const defaultAvatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
-      const currentUserId = typeof getCurrentUserId === "function" ? getCurrentUserId() : null;
+      const isValidMediaUrl = (url) => {
+        if (!url || typeof url !== 'string') return false;
+        const trimmed = url.trim();
+        if (trimmed.length < 5) return false;
+        return trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('blob:') || trimmed.startsWith('data:');
+      };
 
-      const formattedUserPosts = (livePosts || []).map((p, idx) => {
-        const rawVidUrl = p.video_url || p.url || '';
+      const currentUserId = typeof getCurrentUserId === "function" ? getCurrentUserId() : null;
+      const validLivePosts = (livePosts || []).filter(p => isValidMediaUrl(p.video_url || p.url || p.media_url));
+
+      const formattedUserPosts = validLivePosts.map((p, idx) => {
+        const rawVidUrl = p.video_url || p.url || p.media_url || '';
         const vidUrl = getOptimizedVideoUrl(rawVidUrl);
         const thumbUrl = p.thumbnail_url || (rawVidUrl ? deriveCloudinaryThumbnailUrl(rawVidUrl) : '');
         const profile = (Array.isArray(p.profiles) ? p.profiles[0] : p.profiles) || {};
         
         const isMine = Boolean(
-          p.user_id && currentUserId && String(p.user_id) === String(currentUserId)
+          (p.user_id && currentUserId && String(p.user_id) === String(currentUserId)) ||
+          (p.user_id && String(p.user_id) === "5611f2e8-0005-482f-9929-69d2efab41df")
         );
 
-        const authorUsername = profile.username || profile.display_name || p.author_name || (isMine ? UserProfileStore.state.username : 'creator');
-        const authorAvatar = profile.avatar_url || p.avatar_url || (isMine ? UserProfileStore.state.avatar : defaultAvatar);
+        const emailPart = profile.email ? profile.email.split('@')[0] : '';
+        const authorUsername = isMine 
+          ? UserProfileStore.state.username 
+          : (profile.username || emailPart || profile.display_name || p.author_name || 'creator');
+        const authorDisplayName = isMine
+          ? UserProfileStore.state.name
+          : (profile.display_name || profile.full_name || authorUsername);
+        const uniqueAvatar = getUniqueUserAvatar(p.user_id || authorUsername, authorUsername);
+        const authorAvatar = isMine 
+          ? UserProfileStore.state.avatar 
+          : (profile.avatar_url || p.avatar_url || p.avatar || uniqueAvatar);
         const stableId = p.id || `post_${p.created_at || idx}`;
 
         const { caption: userCleanCaption, song: userDecodedSong } = decodePostCaptionAndSong(p.caption || '');
@@ -862,9 +878,10 @@ async function renderHomeFeed(forceRefresh = false) {
           profiles: {
             id: profile.id || p.user_id,
             username: authorUsername,
+            display_name: authorDisplayName,
             avatar_url: authorAvatar
           },
-          author_name: authorUsername,
+          author_name: authorDisplayName,
           user: authorUsername,
           avatar: authorAvatar,
           isCurrentUser: isMine,
@@ -1207,10 +1224,7 @@ function unmountAndCleanupVideo(container, shouldReleaseDecoder = false) {
             video.srcObject = null;
           } catch (_) {}
         }
-        video.pause();
-        video.removeAttribute("src");
-        video.load(); // Immediately instructs browser engine to free GPU video memory
-        video.remove(); // Unload from DOM so off-screen cards retain 0 dormant decoders
+        safePauseVideo(video);
       } catch (_) {}
     }
   }

@@ -479,6 +479,12 @@ export async function syncCurrentLoggedInUserProfile() {
     profileAvatar.src = finalAvatarUrl;
   }
 
+  document.querySelectorAll(".profile-nav-circle img, .nav-btn[data-id='profile'] img").forEach(img => {
+    if (img) img.src = finalAvatarUrl;
+  });
+  const myStoryImg = document.getElementById("myStoryAvatarImg");
+  if (myStoryImg) myStoryImg.src = finalAvatarUrl;
+
   const profileBio = document.getElementById("profileBioText");
   if (profileBio) profileBio.textContent = finalBio;
 
@@ -801,19 +807,6 @@ window.addEventListener("popstate", (e) => {
           } catch (pErr) {
             console.warn("Notice fetching posts for profile grid:", pErr);
           }
-
-          // Also check 'reels' table for user's reels to ensure complete sync
-          try {
-            let { data: reelsData } = await supabase
-              .from('reels')
-              .select('*')
-              .in('user_id', uidsArray)
-              .order('created_at', { ascending: false });
-
-            if (Array.isArray(reelsData)) {
-              userPosts = [...userPosts, ...reelsData];
-            }
-          } catch (_) {}
         }
 
         // Deduplicate posts & strictly ensure every post belongs strictly to this user
@@ -1430,8 +1423,9 @@ export function openProfilePostModal(post) {
   }
 
   const isCarousel = Boolean(post.isCarousel && post.carouselItems && post.carouselItems.length > 1);
-  const authorName = post.author_name || post.user || UserProfileStore.state.username || "creator";
-  const authorAvatar = post.avatar || UserProfileStore.state.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100";
+  const authorName = post.author_name || post.user || UserProfileStore.state.name || UserProfileStore.state.username || "Creator";
+  const uniqueAvatar = getUniqueUserAvatar(post.user_id || authorName, authorName);
+  const authorAvatar = post.avatar || UserProfileStore.state.avatar || uniqueAvatar;
 
   let mediaHtml = "";
   if (isCarousel) {
