@@ -116,7 +116,7 @@ function adaptVideoContainerLayout(container, mediaEl) {
  * Prevents unhandled rejection crashes when rapid scrolling interrupts video playback.
  */
 function safePlayVideo(video) {
-  if (!video) return Promise.resolve();
+  if (!video || typeof video.play !== "function") return Promise.resolve();
   try {
     const playPromise = video.play();
     if (playPromise !== undefined && typeof playPromise.then === "function") {
@@ -130,11 +130,11 @@ function safePlayVideo(video) {
           if (err && err.name === "NotAllowedError") {
             // Autoplay policy: fallback to muted playback
             video.muted = true;
-            return video.play().catch((mutedErr) => {
+            return typeof video.play === "function" ? video.play().catch((mutedErr) => {
               if (mutedErr && (mutedErr.name === "AbortError" || String(mutedErr.message || "").toLowerCase().includes("interrupted"))) {
                 return;
               }
-            });
+            }) : undefined;
           }
         })
         .finally(() => {
@@ -156,18 +156,18 @@ function safePlayVideo(video) {
  * Avoids browser AbortError exceptions and guarantees playback is safely halted.
  */
 function safePauseVideo(video) {
-  if (!video) return;
+  if (!video || typeof video.pause !== "function") return;
   try {
     if (video._playPromise && typeof video._playPromise.then === "function") {
       video._playPromise
         .then(() => {
           try {
-            video.pause();
+            if (typeof video.pause === "function") video.pause();
           } catch (_) {}
         })
         .catch(() => {
           try {
-            video.pause();
+            if (typeof video.pause === "function") video.pause();
           } catch (_) {}
         });
     } else {
@@ -417,7 +417,7 @@ function createPostCardElement(post, index = 0) {
             playsinline
             muted
             preload="metadata"
-            onerror="this.onerror=null; this.style.display='none'; if(this.parentElement){ const sk=this.parentElement.querySelector('.home-video-skeleton'); if(sk) sk.style.display='none'; const fb=document.createElement('img'); fb.src='${getOptimizedImageUrl(post.thumbnail_url || posterImg, 720)}'; fb.className='home-post-video-player w-full h-full object-cover'; this.parentElement.insertBefore(fb, this); }"
+            onerror="this.onerror=null; this.style.display='none'; if(this.parentElement){ const sk=this.parentElement.querySelector('.home-video-skeleton'); if(sk) sk.style.display='none'; const fb=document.createElement('img'); fb.src='${getOptimizedImageUrl(post.thumbnail_url || posterImg, 720)}'; fb.className='home-post-fallback-poster w-full h-full object-cover'; this.parentElement.insertBefore(fb, this); }"
           ></video>
           ${Boolean(post.isOfflineCached) 
             ? `<div class="offline-item-badge absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white text-[10.5px] font-semibold border border-white/10 shadow-sm"><i class="fa-solid fa-circle-check text-sky-400 text-[10px]"></i><span>Cached</span></div>`

@@ -304,7 +304,9 @@ export function openChatReelsViewer({ videos = [], initialIndex = 0 } = {}) {
           vid.play().catch(() => {});
         });
       } else {
-        vid.pause();
+        if (vid && typeof vid.pause === "function") {
+          try { vid.pause(); } catch (_) {}
+        }
       }
     });
   }, {
@@ -337,8 +339,12 @@ export function closeChatReelsViewer(shouldGoBackHistory = true) {
   // Pause all videos
   const vids = chatReelsOverlay.querySelectorAll("video");
   vids.forEach(v => {
-    v.pause();
-    v.currentTime = 0;
+    if (v && typeof v.pause === "function") {
+      try {
+        v.pause();
+        v.currentTime = 0;
+      } catch (_) {}
+    }
   });
 
   if (activeObserver) {

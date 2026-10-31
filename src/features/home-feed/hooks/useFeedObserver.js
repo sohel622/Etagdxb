@@ -14,7 +14,7 @@ export function createFeedObserver({ container, videoSelector = ".home-video-con
       // Mute/pause video when scrolling away
       if (!entry.isIntersecting || entry.intersectionRatio < 0.7) {
         const video = entry.target.querySelector("video");
-        if (video) {
+        if (video && typeof video.pause === "function") {
           try {
             video.pause();
             video.muted = true;

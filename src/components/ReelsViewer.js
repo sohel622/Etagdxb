@@ -381,7 +381,7 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
 
         item.innerHTML = `
           <div class="reel-video-wrapper reels-video-container reels-fullscreen-viewport">
-            <video class="reel-video reels-player reels-video-player" src="${vidUrl}" poster="${thumbUrl}" playsinline webkit-playsinline preload="metadata" onerror="this.onerror=null; this.style.display='none'; if(this.parentElement){ const fb=document.createElement('img'); fb.src='${thumbUrl}'; fb.className='reel-video reels-player reels-video-player w-full h-full object-cover'; this.parentElement.insertBefore(fb, this); }"></video>
+            <video class="reel-video reels-player reels-video-player" src="${vidUrl}" poster="${thumbUrl}" playsinline webkit-playsinline preload="metadata" onerror="this.onerror=null; this.style.display='none'; if(this.parentElement){ const fb=document.createElement('img'); fb.src='${thumbUrl}'; fb.className='reel-fallback-poster w-full h-full object-cover'; this.parentElement.insertBefore(fb, this); }"></video>
             
             <div class="sound-status-badge"><i class="fa-solid fa-volume-high"></i></div>
 
@@ -927,10 +927,14 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
                 video.src = cachedBlobUrl;
               } else if (isOffline() && !cachedBlobUrl && !video.src.startsWith("blob:")) {
                 // If device is offline and no cached blob exists, do not attempt network fetch
-                video.pause();
+                if (video && typeof video.pause === "function") {
+                  try { video.pause(); } catch (_) {}
+                }
                 return;
               }
-              video.play().catch(() => {});
+              if (video && typeof video.play === "function") {
+                video.play().catch(() => {});
+              }
             });
 
             currentActiveReelVideo = video;
@@ -938,7 +942,9 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
             attachVideoProgressTracker(video);
             trackVideoProgressForCaching(video, reelData);
           } else {
-            video.pause();
+            if (video && typeof video.pause === "function") {
+              try { video.pause(); } catch (_) {}
+            }
           }
         });
       }, {
@@ -1125,12 +1131,14 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
     }
 
     function pauseAllReels(excludeVideo = null) {
-      document.querySelectorAll(".reel-video").forEach(v => {
-        if (v !== excludeVideo) {
-          v.pause();
+      document.querySelectorAll("video.reel-video, video.reels-player, video.reels-video-player").forEach(v => {
+        if (v && v !== excludeVideo && typeof v.pause === "function") {
+          try {
+            v.pause();
+          } catch (_) {}
         }
       });
-      if (!excludeVideo) {
+      if (!excludeVideo && reelAudioMixer && typeof reelAudioMixer.stop === "function") {
         reelAudioMixer.stop();
       }
     }
@@ -1141,7 +1149,7 @@ import { attachConditionalFullscreenButton } from "./media/FullscreenVideoPlayer
         if (document.visibilityState === "hidden") {
           const activeVid = currentActiveReelVideo && !currentActiveReelVideo.paused 
             ? currentActiveReelVideo 
-            : Array.from(document.querySelectorAll(".reel-video")).find(v => !v.paused);
+            : Array.from(document.querySelectorAll("video.reel-video")).find(v => v && !v.paused);
           if (activeVid) {
             enableVideoPiP(activeVid);
           }

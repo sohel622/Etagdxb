@@ -296,7 +296,7 @@ export function openFullscreenVideo({ sourceVideo, title, author, caption, video
   const isMuted = sourceVideo ? sourceVideo.muted : false;
 
   // Pause original video to avoid duplicate audio/decoders
-  if (sourceVideo) {
+  if (sourceVideo && typeof sourceVideo.pause === "function") {
     try {
       sourceVideo.pause();
     } catch (_) {}
